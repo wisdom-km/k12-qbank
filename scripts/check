@@ -1,0 +1,379 @@
+#!/usr/bin/env bash
+# scripts/check - one command for the machine-checkable mandatory items.
+# Item IDs (M-xx, R-x) and tiers come from project-essentials MANDATORY.md.
+# Settings live in scripts/check.conf (plain KEY=value, never executed).
+#
+# Usage: scripts/check [--ci] [--fast] [--if-changed]
+#   --ci          CI mode: also run INSTALL_CMD (install from the lockfile).
+#   --fast        Skip install, lint and tests (used by the pre-commit hook).
+#   --if-changed  Exit 0 at once if nothing changed since the last full PASS (agent hooks).
+# Exit code: 0 = no MUST failed. 1 = at least one MUST failed (report "not met").
+# Do not weaken this file to make it pass. Changing a gate needs the user's OK.
+
+set -u
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd) || exit 1
+cd "$ROOT" || exit 1
+CONF="scripts/check.conf"
+
+MODE_CI=no; MODE_FAST=no; MODE_IF_CHANGED=no
+for arg in "$@"; do
+  case "$arg" in
+    --ci) MODE_CI=yes ;;
+    --fast) MODE_FAST=yes ;;
+    --if-changed) MODE_IF_CHANGED=yes ;;
+    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
+    *) echo "scripts/check: unknown option $arg" >&2; exit 1 ;;
+  esac
+done
+if [ "${CI:-}" = "true" ]; then MODE_CI=yes; fi
+
+# ---------- settings ----------
+conf_get() { # conf_get KEY DEFAULT
+  local line val
+  line=$(grep -E "^[[:space:]]*$1[[:space:]]*=" "$CONF" 2>/dev/null | tail -n 1)
+  if [ -z "$line" ]; then printf '%s' "$2"; return; fi
+  val=${line#*=}
+  val=$(printf '%s' "$val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/")
+  printf '%s' "$val"
+}
+
+TIER=$(conf_get TIER "")
+TIER_NOTE=""
+case "$TIER" in
+  demo|tracer|long) ;;
+  *) TIER_NOTE="tier not confirmed (TIER='$TIER'), using tracer"; TIER=tracer ;;
+esac
+REAL_DATA=$(conf_get REAL_DATA no)
+PUBLIC=$(conf_get PUBLIC no)
+RUN_CMD=$(conf_get RUN_CMD "")
+TEST_CMD=$(conf_get TEST_CMD "")
+INSTALL_CMD=$(conf_get INSTALL_CMD "")
+APP_DIRS=$(conf_get APP_DIRS ".")
+LINT_CMD=$(conf_get LINT_CMD "")
+LOG_CHECK_CMD=$(conf_get LOG_CHECK_CMD "")
+CORE_DIRS=$(conf_get CORE_DIRS "")
+
+# ---------- fingerprint (for agent hooks) ----------
+IN_GIT=no
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then IN_GIT=yes; fi
+fingerprint() {
+  [ "$IN_GIT" = yes ] || return 1
+  {
+    git rev-parse HEAD 2>/dev/null
+    git diff HEAD --binary 2>/dev/null
+    git ls-files -o --exclude-standard 2>/dev/null | while IFS= read -r f; do
+      [ -f "$f" ] && printf '%s %s\n' "$f" "$(git hash-object -- "$f")"
+    done
+    cat "$CONF" 2>/dev/null
+  } | git hash-object --stdin
+}
+FP_FILE=""
+if [ "$IN_GIT" = yes ]; then FP_FILE="$(git rev-parse --git-dir)/check-last-pass"; fi
+if [ "$MODE_IF_CHANGED" = yes ] && [ -n "$FP_FILE" ] && [ -f "$FP_FILE" ]; then
+  if [ "$(fingerprint)" = "$(cat "$FP_FILE")" ]; then
+    echo "scripts/check: no change since the last full PASS; skipped."
+    exit 0
+  fi
+fi
+
+# ---------- reporting ----------
+WAIVED_IDS=""
+if [ -f docs/WAIVERS.md ]; then
+  WAIVED_IDS=$(grep -E '^\|[[:space:]]*W-[0-9]+' docs/WAIVERS.md \
+    | grep -E '有效|[Aa]ctive' | grep -vE '已到期|已补齐|[Ee]xpired' \
+    | grep -oE 'M-[0-9]{2}' | sort -u | tr '\n' ' ')
+fi
+NOT_WAIVABLE="M-03"   # red line R-1
+
+MUST_FAILED=""
+SHOULD_FAILED=""
+report() { # report ID LEVEL STATUS TEXT   (STATUS: PASS FAIL N/A MANUAL)
+  local id=$1 level=$2 status=$3 text=$4
+  if [ "$status" = FAIL ]; then
+    if [ "$level" = SHOULD ]; then
+      status=WARN; SHOULD_FAILED="$SHOULD_FAILED $id"
+    elif [ "$level" = MUST ] && case " $WAIVED_IDS " in *" $id "*) true ;; *) false ;; esac \
+         && [ "$id" != "$NOT_WAIVABLE" ]; then
+      status=WAIVED; text="$text (waived in docs/WAIVERS.md)"
+    elif [ "$level" = MUST ]; then
+      case " $MUST_FAILED " in *" $id "*) ;; *) MUST_FAILED="$MUST_FAILED $id" ;; esac
+    fi
+  fi
+  printf '%-5s %-6s %-6s %s\n' "$id" "$level" "$status" "$text"
+}
+by_tier() { # by_tier DEMO TRACER LONG -> level for this tier
+  case "$TIER" in demo) echo "$1" ;; tracer) echo "$2" ;; long) echo "$3" ;; esac
+}
+run_cmd() { # run a configured command, keep the last lines of output
+  local out rc
+  out=$(bash -c "$1" 2>&1); rc=$?
+  LAST_OUT=$(printf '%s\n' "$out" | tail -n 15)
+  return $rc
+}
+LAST_OUT=""
+
+echo "scripts/check  tier=$TIER  [D]=$REAL_DATA  [P]=$PUBLIC  ci=$MODE_CI  fast=$MODE_FAST"
+[ -n "$TIER_NOTE" ] && echo "NOTE: $TIER_NOTE"
+[ -f "$CONF" ] || echo "NOTE: $CONF not found; using defaults. Copy it from the template and fill it in."
+echo "ID    LEVEL  STATUS DETAIL"
+
+# file list: tracked + untracked-but-not-ignored
+list_files() {
+  if [ "$IN_GIT" = yes ]; then git ls-files -co --exclude-standard
+  else find . -type f -not -path './.git/*' -not -path '*/node_modules/*' | sed 's|^\./||'; fi
+}
+
+# ---------- M-01 version control ----------
+if [ "$IN_GIT" = no ]; then
+  report M-01 MUST FAIL "not a git repository. Fix: git init, then commit each small working step."
+elif ! git rev-parse --verify -q HEAD >/dev/null && ! git diff --cached --quiet 2>/dev/null; then
+  report M-01 MUST PASS "first commit in progress (files staged)"
+elif ! git rev-parse --verify -q HEAD >/dev/null; then
+  report M-01 MUST FAIL "no commit yet. Fix: commit the first working step (git add -A; git commit)."
+else
+  report M-01 MUST PASS "git repo, HEAD $(git rev-parse --short HEAD)"
+  if [ "$TIER" = long ]; then
+    report M-01 MUST MANUAL "main protected (PR only, required check): not checkable here. Evidence: branch protection screenshot or gh api output. See recipes/mandatory-gates.md."
+  fi
+fi
+
+# ---------- M-02 one command + README ----------
+if [ ! -f README.md ]; then
+  report M-02 MUST FAIL "README.md missing. Fix: add README.md with what this is and the run command ($CONF RUN_CMD)."
+elif [ -z "$RUN_CMD" ]; then
+  report M-02 MUST FAIL "RUN_CMD is empty in $CONF. Fix: set the one command that starts the app."
+elif ! grep -qF -- "$RUN_CMD" README.md; then
+  report M-02 MUST FAIL "README.md does not show the run command '$RUN_CMD'. Fix: add it."
+elif [ -n "$TEST_CMD" ] && ! grep -qF -- "$TEST_CMD" README.md; then
+  report M-02 MUST FAIL "README.md does not show the test command '$TEST_CMD'. Fix: add it."
+else
+  first=$(grep -m1 -v '^[[:space:]]*$' README.md)
+  case "$TIER" in
+    demo) words='原型|prototype|demo' ;;
+    tracer) words='曳光弹|tracer' ;;
+    *) words='' ;;
+  esac
+  if [ -n "$words" ] && ! printf '%s' "$first" | grep -qiE "$words"; then
+    report M-02 MUST FAIL "README first line must name the tier ($words), e.g. '原型，会扔掉. Run: $RUN_CMD'."
+  else
+    shown="'$RUN_CMD'"; [ -n "$TEST_CMD" ] && shown="$shown and '$TEST_CMD'"
+    report M-02 MUST PASS "README.md shows $shown"
+  fi
+fi
+
+# ---------- M-03 / R-1 secrets: .env hygiene ----------
+if [ "$IN_GIT" = yes ]; then
+  tracked_env=$(git ls-files | grep -E '(^|/)\.env(\.[^/]*)?$' | grep -vE '\.env\.(example|sample|template|dist)$')
+  if [ -n "$tracked_env" ]; then
+    report M-03 MUST FAIL "R-1: env file tracked: $(echo "$tracked_env" | tr '\n' ' '). Fix: git rm --cached <file>, add to .gitignore, rotate every key in it (see essentials/config-and-secrets.md)."
+  elif ! git check-ignore -q --no-index .env; then
+    report M-03 MUST FAIL "R-1: .gitignore does not ignore .env. Fix: add a line '.env' to .gitignore."
+  elif [ ! -f .env.example ]; then
+    report M-03 MUST FAIL ".env.example missing. Fix: add it with every config key and placeholder values only."
+  else
+    report M-03 MUST PASS ".env ignored and not tracked; .env.example present"
+  fi
+fi
+
+# ---------- M-03 / R-1 secrets: scan ----------
+pat_keys='-----BEGIN ([A-Z]+ )*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{50,}|sk-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35}'
+pat_assign="(password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token)[\"']?[[:space:]]*[:=][[:space:]]*[\"'][^\"'[:space:]<>\${}]{12,}[\"']"
+hits=$(list_files | grep -vE '(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|uv\.lock|Cargo\.lock|go\.sum)$' \
+  | while IFS= read -r f; do [ -f "$f" ] && printf '%s\0' "$f"; done \
+  | xargs -0 grep -I -n -i -E -- "$pat_keys|$pat_assign" 2>/dev/null \
+  | grep -viE 'example|placeholder|changeme|your[_-]|xxxx|dummy|<[a-z_]+>' | cut -d: -f1,2 | head -n 10)
+if [ -n "$hits" ]; then
+  report M-03 MUST FAIL "R-1: possible secret at $(echo "$hits" | tr '\n' ' '). Fix: move it to .env (ignored), read it from the environment, rotate the key."
+else
+  report M-03 MUST PASS "built-in secret patterns: no match"
+fi
+if command -v gitleaks >/dev/null 2>&1 && [ "$IN_GIT" = yes ]; then
+  gl_fail=""
+  if git rev-parse --verify -q HEAD >/dev/null; then
+    gitleaks git --redact --no-banner --log-level error . >/dev/null 2>&1 || gl_fail="history"
+  fi
+  gitleaks git --pre-commit --redact --no-banner --log-level error . >/dev/null 2>&1 || gl_fail="$gl_fail working-tree"
+  gitleaks git --pre-commit --staged --redact --no-banner --log-level error . >/dev/null 2>&1 || gl_fail="$gl_fail staged"
+  untracked=$(git ls-files -o --exclude-standard)
+  if [ -n "$untracked" ]; then
+    tmp=$(mktemp -d)
+    printf '%s\n' "$untracked" | while IFS= read -r f; do
+      [ -f "$f" ] && mkdir -p "$tmp/$(dirname "$f")" && cp "$f" "$tmp/$f"
+    done
+    gitleaks dir --redact --no-banner --log-level error "$tmp" >/dev/null 2>&1 || gl_fail="$gl_fail untracked"
+    rm -rf "$tmp"
+  fi
+  if [ -n "$gl_fail" ]; then
+    report M-03 MUST FAIL "R-1: gitleaks found secrets in:$gl_fail. See: gitleaks git -v --redact . Fix: remove, rotate the key; a secret already in history must be rotated."
+  else
+    report M-03 MUST PASS "gitleaks: history, staged, working tree, untracked clean"
+  fi
+else
+  report M-03 "$(by_tier SHOULD MUST MUST)" FAIL "gitleaks not installed. Fix: install it (https://github.com/gitleaks/gitleaks#installing) and rerun."
+fi
+if [ "$IN_GIT" = yes ]; then
+  allow=$(git grep -l 'gitleaks:allow' -- . ':!scripts/check' ':!scripts/check.ps1' 2>/dev/null | head -n 5)
+  [ -n "$allow" ] && echo "NOTE: gitleaks:allow comments in: $(echo "$allow" | tr '\n' ' ')- a human must review each one."
+fi
+
+# ---------- M-09 lockfiles ----------
+lock_level=MUST
+is_tracked() { [ "$IN_GIT" = yes ] && git ls-files --error-unmatch -- "$1" >/dev/null 2>&1; }
+check_lock() { # check_lock DIR MANIFEST LOCK1 LOCK2 ...
+  local dir=$1 manifest=$2 lf found=""; shift 2
+  [ -f "$dir/$manifest" ] || return 0
+  SAW_MANIFEST=yes
+  for lf in "$@"; do
+    if [ -f "$dir/$lf" ]; then
+      found="$dir/$lf"
+      if is_tracked "$dir/$lf"; then
+        report M-09 "$lock_level" PASS "$dir/$manifest -> $dir/$lf committed"
+      else
+        report M-09 "$lock_level" FAIL "$dir/$lf exists but is not committed. Fix: git add $dir/$lf"
+      fi
+      break
+    fi
+  done
+  if [ -z "$found" ]; then
+    report M-09 "$lock_level" FAIL "$dir/$manifest has no lockfile ($*). Fix: run the install once, commit the lockfile."
+  fi
+}
+SAW_MANIFEST=no
+for d in $APP_DIRS; do
+  d=${d%/}
+  check_lock "$d" package.json package-lock.json npm-shrinkwrap.json pnpm-lock.yaml yarn.lock bun.lock bun.lockb
+  check_lock "$d" pyproject.toml uv.lock poetry.lock pdm.lock Pipfile.lock pylock.toml requirements.txt
+  check_lock "$d" Pipfile Pipfile.lock
+  check_lock "$d" Cargo.toml Cargo.lock
+  check_lock "$d" Gemfile Gemfile.lock
+  check_lock "$d" composer.json composer.lock
+  check_lock "$d" pubspec.yaml pubspec.lock
+  check_lock "$d" Package.swift Package.resolved
+  check_lock "$d" Podfile Podfile.lock
+  if [ -f "$d/go.mod" ] && grep -q '^require' "$d/go.mod"; then check_lock "$d" go.mod go.sum; fi
+  if [ -f "$d/requirements.txt" ] && [ ! -f "$d/pyproject.toml" ]; then
+    SAW_MANIFEST=yes
+    loose=$(grep -vE '^[[:space:]]*(#|-|$)' "$d/requirements.txt" | grep -vE '==|[[:space:]]@[[:space:]]' | head -n 3)
+    if [ -n "$loose" ]; then
+      report M-09 "$lock_level" FAIL "$d/requirements.txt has unpinned lines: $(echo "$loose" | tr '\n' ' '). Fix: pin with == (or generate a lock with uv / pip-tools)."
+    elif is_tracked "$d/requirements.txt"; then
+      report M-09 "$lock_level" PASS "$d/requirements.txt fully pinned and committed"
+    else
+      report M-09 "$lock_level" FAIL "$d/requirements.txt not committed. Fix: git add it."
+    fi
+  fi
+  if [ -f "$d/build.gradle" ] || [ -f "$d/build.gradle.kts" ]; then
+    SAW_MANIFEST=yes
+    report M-09 SHOULD FAIL "$d: Gradle has no default lockfile. Pin exact versions; consider Gradle dependency locking."
+  fi
+done
+[ "$SAW_MANIFEST" = no ] && report M-09 MUST N/A "no dependency manifest found in APP_DIRS ($APP_DIRS)"
+if [ "$SAW_MANIFEST" = yes ] && [ "$TIER" != demo ]; then
+  if [ -z "$INSTALL_CMD" ]; then
+    report M-09 MUST FAIL "INSTALL_CMD empty. Fix: set a lockfile install command in $CONF (e.g. npm ci)."
+  elif printf '%s' "$INSTALL_CMD" | grep -qE '(^|[;&|][[:space:]]*)npm (install|i)([[:space:]]|$)'; then
+    report M-09 MUST FAIL "INSTALL_CMD uses 'npm install', which can change the lockfile. Fix: use 'npm ci'."
+  elif printf '%s' "$INSTALL_CMD" | grep -qE '(^|[[:space:]])(yarn|pnpm)( install)?([[:space:]]|$)' \
+       && ! printf '%s' "$INSTALL_CMD" | grep -qE -- '--frozen-lockfile|--immutable'; then
+    report M-09 MUST FAIL "INSTALL_CMD for yarn/pnpm must use --frozen-lockfile (pnpm, yarn 1) or --immutable (yarn 2+)."
+  elif printf '%s' "$INSTALL_CMD" | grep -qE 'uv sync' && ! printf '%s' "$INSTALL_CMD" | grep -qE -- '--locked|--frozen'; then
+    report M-09 MUST FAIL "INSTALL_CMD 'uv sync' must use --locked (or --frozen)."
+  fi
+fi
+if [ "$MODE_CI" = yes ] && [ "$MODE_FAST" = no ] && [ -n "$INSTALL_CMD" ]; then
+  if run_cmd "$INSTALL_CMD"; then
+    report M-09 "$(by_tier SHOULD MUST MUST)" PASS "CI install from lockfile: '$INSTALL_CMD' exit 0"
+  else
+    report M-09 "$(by_tier SHOULD MUST MUST)" FAIL "'$INSTALL_CMD' failed: $LAST_OUT"
+  fi
+fi
+
+# ---------- M-05 no swallowed errors ----------
+src_files() {
+  list_files | grep -E '\.(js|jsx|ts|tsx|mjs|cjs|vue|svelte|java|kt|kts|cs|dart|swift|php|py|go)$'
+}
+if command -v perl >/dev/null 2>&1; then
+  # shellcheck disable=SC2016  # perl code, not shell
+  empties=$(src_files | while IFS= read -r f; do [ -f "$f" ] && printf '%s\0' "$f"; done | xargs -0 perl -0777 -ne '
+    while (/(catch\s*(\([^()]*\))?\s*\{\s*\}|\.catch\(\s*\(\s*[^()]*\)\s*=>\s*\{\s*\}\s*\)|except\b[^:\n]*:[ \t]*(#[^\n]*)?\n?[ \t]*pass\b|if\s+err\s*!=\s*nil\s*\{\s*\})/g) {
+      my $n = (substr($_, 0, $-[0]) =~ tr/\n//) + 1; print "$ARGV:$n\n";
+    }' 2>/dev/null | head -n 10)
+  if [ -n "$empties" ]; then
+    report M-05 MUST FAIL "swallowed error (empty catch / except: pass / empty err branch) at: $(echo "$empties" | tr '\n' ' '). Fix: log it once with context and rethrow or show the user a message."
+  else
+    report M-05 MUST PASS "no empty catch / except-pass / empty err branch found"
+  fi
+else
+  report M-05 MUST MANUAL "perl not found; empty-catch scan skipped. Search for empty catch by hand and paste the result."
+fi
+
+# ---------- M-04 logging rules ----------
+if [ -n "$CORE_DIRS" ]; then
+  bare=""
+  for cd_ in $CORE_DIRS; do
+    [ -d "$cd_" ] || continue
+    b=$(grep -rnE '(^|[^.[:alnum:]_])(console\.(log|debug|info|warn|error)|print|println|System\.out\.print(ln)?|fmt\.Print(ln|f)?)\(' "$cd_" 2>/dev/null | cut -d: -f1,2 | head -n 5)
+    bare="$bare$b"
+  done
+  if [ -n "$bare" ]; then
+    report M-04 MUST FAIL "bare print in core: $(echo "$bare" | tr '\n' ' '). Fix: use the injected logger with event and request_id (ARCH logging section)."
+  else
+    report M-04 MUST PASS "no bare print / console.log in CORE_DIRS ($CORE_DIRS)"
+  fi
+fi
+if [ "$MODE_FAST" = no ]; then
+  if [ -n "$LOG_CHECK_CMD" ]; then
+    if run_cmd "$LOG_CHECK_CMD"; then report M-04 MUST PASS "'$LOG_CHECK_CMD' exit 0"
+    else report M-04 MUST FAIL "'$LOG_CHECK_CMD' failed: $LAST_OUT"; fi
+  elif [ "$TIER" = long ]; then
+    report M-04 MUST FAIL "LOG_CHECK_CMD empty. Long tier: logging rules that a machine can check must run here (recipes/logging.md)."
+  fi
+  if [ -n "$LINT_CMD" ]; then
+    if run_cmd "$LINT_CMD"; then report LINT MUST PASS "'$LINT_CMD' exit 0"
+    else report LINT MUST FAIL "'$LINT_CMD' failed: $LAST_OUT"; fi
+  fi
+fi
+
+# ---------- M-06 tests ----------
+if [ "$MODE_FAST" = no ]; then
+  t_level=$(by_tier SHOULD MUST MUST)
+  if [ -z "$TEST_CMD" ]; then
+    report M-06 "$t_level" FAIL "TEST_CMD empty. Fix: add one repeatable smoke check and set TEST_CMD."
+  elif run_cmd "$TEST_CMD"; then
+    report M-06 "$t_level" PASS "'$TEST_CMD' exit 0"
+  else
+    # Every tier: a test that exists and fails blocks. Only "no tests at all" is SHOULD on demo.
+    report M-06 MUST FAIL "'$TEST_CMD' failed: $LAST_OUT"
+  fi
+fi
+
+# ---------- M-08 CI ----------
+ci_level=$(by_tier SHOULD MUST MUST)
+ci_hit=""
+for f in .github/workflows/*.yml .github/workflows/*.yaml .gitlab-ci.yml; do
+  [ -f "$f" ] && grep -q 'scripts/check' "$f" && ci_hit="$ci_hit $f"
+done
+if [ -n "$ci_hit" ]; then
+  report M-08 "$ci_level" PASS "CI config runs scripts/check:$ci_hit"
+else
+  report M-08 "$ci_level" FAIL "no CI workflow runs scripts/check. Fix: copy .github/workflows/ci.yml from the template."
+fi
+if [ "$TIER" = long ]; then
+  report M-08 MUST MANUAL "CI must be a required status check on main: not checkable here (recipes/mandatory-gates.md)."
+fi
+
+# ---------- not machine-checkable ----------
+echo "MANUAL: M-07 review, M-10 security (if [P]), M-11 data safety (if [D]), M-12 docs, M-13/M-14 release items -> gate table (MANDATORY.md section 6)."
+[ "$REAL_DATA" = yes ] && echo "MANUAL: [D]=yes -> R-2: no irreversible operation on real data without a backup."
+
+# ---------- result ----------
+if [ -n "$MUST_FAILED" ]; then
+  echo "RESULT: NOT MET (MUST failed:$MUST_FAILED)${SHOULD_FAILED:+  SHOULD failed:$SHOULD_FAILED}"
+  echo "Do not say done, do not merge. Fix the FAIL lines, or ask the user; a waiver counts only if the user says it and it is in docs/WAIVERS.md (R-1/M-03 cannot be waived)."
+  exit 1
+fi
+echo "RESULT: PASS (all MUST items this script can check)${SHOULD_FAILED:+  SHOULD failed:$SHOULD_FAILED}"
+echo "MANUAL lines still need evidence in the gate table."
+if [ "$MODE_FAST" = no ] && [ -n "$FP_FILE" ]; then fingerprint > "$FP_FILE" 2>/dev/null; fi
+exit 0

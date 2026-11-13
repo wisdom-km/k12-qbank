@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+
+# Mandatory gates
+
+- Before any work, read the "强制项 (MUST)" section of AGENTS.md: tier, [D] / [P], the MUST items, red lines R-1 to R-3.
+- Before you say a task is done (gate G1) and before a merge (G2), run `scripts/check` and output the gate table (project-essentials MANDATORY.md section 6) with the command and its exit code as evidence.
+- If `scripts/check` exits non-zero, or any MUST row is FAIL: say "未满足：M-xx", give the fix, and do not say done, commit to main, or merge.
+- Never edit `scripts/check*`, CI workflows, `.pre-commit-config.yaml`, hook configs, or `docs/WAIVERS.md` to make a check pass. A waiver counts only in the user's own words, recorded in `docs/WAIVERS.md`. R-1 to R-3 cannot be waived.

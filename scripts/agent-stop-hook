@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Agent stop hook: run scripts/check before the agent may finish a turn.
+# Usage (from the hook config): scripts/agent-stop-hook claude|codex|cursor
+#   claude, codex: on failure exit 2 with the reason on stderr (the agent keeps working).
+#   cursor:        on failure print {"followup_message": ...} (Cursor submits it as the next message).
+# On success print {} and exit 0. See recipes/mandatory-gates.md for what each tool guarantees.
+
+set -u
+fmt=${1:-claude}
+input=$(cat 2>/dev/null || true)
+cd "$(dirname "$0")/.." || { echo '{}'; exit 0; }
+
+if [ "$fmt" = cursor ]; then
+  # Only act when the agent loop completed normally (not aborted or errored).
+  if ! printf '%s' "$input" | grep -qE '"status"[[:space:]]*:[[:space:]]*"completed"'; then
+    echo '{}'; exit 0
+  fi
+fi
+
+out=$(scripts/check --if-changed 2>&1); rc=$?
+if [ "$rc" -eq 0 ]; then echo '{}'; exit 0; fi
+
+fails=$(printf '%s\n' "$out" | grep -E '^(M-[0-9]{2}|LINT)[[:space:]]+MUST[[:space:]]+FAIL' | head -n 12)
+msg="scripts/check failed (exit $rc), so the task is not done.
+Fix the FAIL lines and run scripts/check again. Do not edit scripts/check, its config, CI, or docs/WAIVERS.md to make it pass.
+If a fix needs the user (install, permission, a waiver in their own words), stop and end your reply with: 未满足：<M-xx> and what the user must do.
+$fails"
+
+if [ "$fmt" = cursor ]; then
+  esc=$(printf '%s' "$msg" | awk 'BEGIN{ORS=""} {gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); gsub(/\t/," "); if (NR>1) print "\\n"; print}')
+  printf '{"followup_message": "%s"}\n' "$esc"
+  exit 0
+fi
+printf '%s\n' "$msg" >&2
+exit 2

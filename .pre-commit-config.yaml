@@ -1,0 +1,27 @@
+# pre-commit: checks before every commit. Setup once per clone:
+#   pipx install pre-commit   (or: pip install pre-commit)
+#   pre-commit install
+# Update pinned versions with: pre-commit autoupdate
+# Skipping hooks (git commit --no-verify, SKIP=...) does not skip CI: CI runs the same checks.
+minimum_pre_commit_version: "4.4.0"
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks # R-1: secrets in staged changes
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+  - repo: local
+    hooks:
+      - id: scripts-check-fast
+        name: scripts/check --fast (secrets, .env, lockfile, README, empty catch)
+        entry: bash scripts/check --fast
+        language: unsupported
+        pass_filenames: false
+        always_run: true
