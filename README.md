@@ -1,2 +1,59 @@
 # k12-qbank
-Open-source K12 question bank and teaching closed-loop system. Starts with junior high school math (rational numbers pilot), scales to primary/middle/high school and all subjects. Supports teacher web + Android app, PDF-to-question verification, paper generation, photo upload, AI analysis with teacher confirmation, and re-practice.
+
+**Open-source K12 Question Bank and Teaching Closed-Loop System**
+
+一个面向小学、初中、高中（K12）的开源题库与教学闭环系统。初期以初中数学（人教版七年级上册有理数运算）为试点，但整体架构支持扩展至全学段、全学科。
+
+## 核心理念
+
+形成“老师讲解知识点 → 学生练习 → 收集作答 → 分析错误 → 老师确认 → 针对性复习和练习 → 持续跟踪”的教学闭环。
+
+- 题目必须经老师核验后才能正式组卷和自动评分
+- AI 只提供建议，最终结论由老师确认
+- 历史卷面与作答可追溯，不随题库修改而改变
+- 支持纸质卷拍照上传、缺页补传、老师复核
+
+## 首版范围（试点）
+
+- **学科与学段**：初中数学（七年级上册有理数运算小范围）
+- **终端**：老师电脑网页端 + 可安装的安卓 App
+- **核心能力**：
+  - PDF 题目导入与老师核验
+  - 知识点标签与检索
+  - 组卷并为每生生成独立卷次（带学号）
+  - 拍照上传、缺页提醒、AI 分析建议
+  - 老师逐题确认与更正
+  - 原题重做 / 同类题 / 综合题推荐
+
+后续扩展：多册练习册、知识卡片、可编辑 PPT、家长报告、iOS、学生在线作答、全学科覆盖。
+
+## 架构原则
+
+- 模块化单体（按业务划分：catalog / knowledge / identity / practice / analysis / delivery）
+- 业务不变量由服务端强制执行（题目核验、历史快照、老师确认、学生授权）
+- 端口与适配器：AI / OCR / 存储可替换，不穿越核心规则
+- 数据库与文件分离：PostgreSQL + 对象/文件存储
+- 版本化：题目、答案、学生卷次均可追溯
+
+详细需求与架构设计见项目方案文档（试点阶段基线）。
+
+## 技术选型候选
+
+- 后端：Python + FastAPI（模块化单体）
+- 数据库：PostgreSQL
+- 前端：React / Vue（网页）
+- 移动端：Flutter 或 React Native（安卓优先，后续 iOS）
+- 公式：LaTeX + MathJax
+- AI / OCR：可替换供应商，必须通过业务端口
+
+## 许可证
+
+MIT License（建议，可按需调整）
+
+## 状态
+
+当前为需求对齐与试点准备阶段。仓库初创，欢迎讨论与贡献。
+
+---
+
+项目仓库：[https://github.com/wisdom-km/k12-qbank](https://github.com/wisdom-km/k12-qbank)
