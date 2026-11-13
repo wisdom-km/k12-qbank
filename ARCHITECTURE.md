@@ -97,7 +97,7 @@ apps/android/                   尚未创建
 | 组合根 | 可以 |  | 可以 | 可以 | 可以 | 可以 |
 | 网页 / App |  |  |  |  | 只通过 HTTPS API | 只限自己的 UI 框架 |
 
-`scripts/check_boundaries.py` 检查 domain、application、adapters 和 kernel 的 import，以及禁止 `utils`、`helpers`、`common`。组合根里的业务分支查不到，标 review。语言专用的 import-linter 或 dependency-cruiser 未落地；栈选定之前不用第二套工具。
+`scripts/check_boundaries.py` 检查 domain、application、adapters、kernel 和组合根的 import，禁止 `utils`、`helpers`、`common`，并拒绝第一段之外的切片目录、安卓工程、桌面壳和 Electron。组合根里的业务分支查不到，标 review。语言专用的 import-linter 或 dependency-cruiser 未落地；栈选定之前不用第二套工具。
 
 ## 禁止
 
@@ -110,11 +110,13 @@ apps/android/                   尚未创建
 | F-05 | 把 AI 建议写成正式确认 | 破坏 R3 | review，加 core 测试 |
 | F-06 | 覆盖旧学生卷的题目或答案快照 | 破坏 R2 | review，加 core 测试 |
 | F-07 | core 里 `print` 或 import 具体日志库 | 日志无法替换，也不能统一字段 | `scripts/check_logging.py` |
-| F-08 | 日志记录密钥、姓名、学号、整页照片、整段请求体 | R-1 和隐私 | 脚本查明显字段名；其余 review |
-| F-09 | 空 catch、`except: pass` | 错误被吞掉 | `scripts/check.ps1` 的 M-05 |
+| F-08 | 日志记录密钥、姓名、学号、整页照片、整段请求体 | R-1 和隐私 | `scripts/check_logging.py` 查 log 调用里的明显字段名和 f-string。字段换到下一行、照片内容，仍是 review |
+| F-09 | 空 catch、`except: pass` | 错误被吞掉 | `scripts/check.ps1` 的 M-05。干净环境是 `scripts/check` |
 | F-10 | 单个 Python 文件超过 800 行 | 模块变浅 | `scripts/check_boundaries.py` |
-| F-11 | 组合根里写业务分支 | 规则出现第二份 | review |
-| F-12 | 未确认 DEC-03 就调用真实模型处理学生卷 | 数据处理条件未知 | review。开发用假适配器 |
+| F-11 | 组合根里写业务分支，或导入 domain | 规则出现第二份 | 导入 domain 由 `scripts/check_boundaries.py` 拒绝。业务分支仍是 review |
+| F-12 | 未确认 DEC-03 就调用真实模型处理学生卷 | 数据处理条件未知 | review。开发用假适配器。未落地 |
+| F-13 | 第一段创建 catalog、practice 以外的切片，或建立安卓工程、桌面壳、Electron | 实现会摊开，低配电脑再带一个浏览器 | `scripts/check_boundaries.py` |
+| F-14 | 网页或 App 的源码导入 backend | 规则会抄进界面 | `scripts/check_boundaries.py`。`apps/` 还不存在时这项空过，目录一出现就查 |
 
 ## 文件大小
 
@@ -200,7 +202,7 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 
 指标和链路追踪：未落地。
 
-机器检查：`python scripts/check_logging.py`。它要求本文包含 request_id、绝不记、四个级别和 stdout，并扫描 kernel、domain、application。故意违规的样例不留在仓库里；证据见 `docs/evidence/G0-2026-11-14.md`。
+机器检查：`python scripts/check_logging.py`。它要求本文包含 request_id、绝不记、四个级别和 stdout。kernel、domain、application 里禁止 print 和具体日志库。全部 backend 的 log 调用禁止明显敏感字段和 f-string。故意违规的样例不留在仓库里。证据见 `docs/evidence/G0-2026-11-14.md` 和 `docs/evidence/guardrails-2026-11-14.md`。
 
 ## 测试
 
@@ -243,13 +245,14 @@ ASVS L1 自查是 SHOULD，还没做。
 
 | 编号 | 工具 | 状态 |
 | --- | --- | --- |
-| M-03 密钥形态 | `scripts/check.ps1` | 脚本已接。本机是否装了 gitleaks，以证据文件为准 |
-| M-04 日志 | `scripts/check_logging.py` | 已接 |
-| M-05 空 catch | `scripts/check.ps1` | 已接 |
-| 依赖方向、800 行、禁止 utils | `scripts/check_boundaries.py` | 已接 |
-| CI | `.github/workflows/ci.yml` | 文件已有。GitHub 上还没有一次成功记录时，不算已经强制 |
-| main 分支保护 | GitHub 设置 | 未落地 |
-| 远端 push protection | GitHub 设置 | 未核实，视为未落地 |
+| M-03 密钥形态 | `scripts/check` | 已接，并在 CI 里跑。远端 push protection 已开。证据见 `docs/evidence/G0-2026-11-14.md` |
+| M-04 日志 | `scripts/check_logging.py` | 已接。查 print、具体日志库、log 调用上的明显敏感字段和 f-string。运行中的失败日志演练未落地 |
+| M-05 空 catch | `scripts/check` | 已接 |
+| F-02、F-03、F-04、F-10、F-11 的 import、F-13、F-14 | `scripts/check_boundaries.py` | 已接进全量检查。pre-commit 的 `--fast` 不跑这项 |
+| F-01、F-05、F-06、F-11 的业务分支、F-12 | 无 | 未落地，标 review |
+| CI 的 `check` | `.github/workflows/ci.yml` | 已接。main 上最近一次成功是运行 `43466798575`。本次范围检查要等含它的提交进入 CI 之后，才算远端也在拦 |
+| main 分支保护 | GitHub 设置 | 已落地。只经拉取请求，必需检查是 `check`，管理员也不能绕过。不要求批准人数 |
+| 本机提交前钩子 | `.pre-commit-config.yaml` | 配置在仓库里。这台电脑没有 bash 时钩子装不上，未落地。绕过钩子也挡不住 CI |
 
 CI 全绿也不等于上表里「未落地」的项目已经在拦。
 

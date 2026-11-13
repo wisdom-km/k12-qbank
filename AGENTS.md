@@ -36,7 +36,9 @@
 | 改业务规则 | PRD 里对应的 US 和 AC；ARCHITECTURE 的不变量 R1–R6 |
 | 加适配器或换模型 | ARCHITECTURE 的端口；[docs/adr/0005-analysis-ports.md](docs/adr/0005-analysis-ports.md) |
 | 排查 bug | 先按 request_id 看日志，命令见下；再读 ARCHITECTURE 的运行日志 |
-| 组卷、拍卷、确认 | PRD 的 US-02 到 US-04；ARCHITECTURE 的练习切片 |
+| 第一段：网页核验、出卷、确认 | [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md)。只建 `catalog` 和 `practice` |
+| 拍卷、安卓 | 排在第一段网页之后。PRD 的 US-03、AC-03、AC-06 |
+| 桌面壳 | [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。网页在老师电脑上能核验并打开 PDF 之前不做 |
 | 改门禁或 `scripts/check*` | 停下问人。读 [docs/gates/HOW-TO-FIX.md](docs/gates/HOW-TO-FIX.md) |
 | 补测试 | ARCHITECTURE 的测试策略；对应 AC |
 | 第一条功能 | [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) |
@@ -45,11 +47,16 @@
 
 | 做什么 | 命令 | 上次实测 |
 | --- | --- | --- |
-| 看当前骨架 | `python scripts/status.py` | 见 docs/evidence/G0-2026-11-14.md |
-| 文档冒烟 | `python scripts/smoke_docs.py` | 见 docs/evidence/G0-2026-11-14.md |
-| 边界检查 | `python scripts/check_boundaries.py` | 见 docs/evidence/G0-2026-11-14.md |
-| 日志规则 | `python scripts/check_logging.py` | 见 docs/evidence/G0-2026-11-14.md |
-| 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` | 见 docs/evidence/G0-2026-11-14.md |
+| 安装 | 无依赖清单，不必安装 | 2026-11-14，不适用 |
+| 类型检查 | 未落地 | 未落地 |
+| 看当前骨架 | `python scripts/status.py` | 2026-11-14，退出码 0 |
+| 文档冒烟（当前唯一测试） | `python scripts/smoke_docs.py` | 2026-11-14，退出码 0 |
+| 只跑这一个测试文件 | `python scripts/smoke_docs.py` | 同上 |
+| 边界和第一段范围 | `python scripts/check_boundaries.py` | 2026-11-14，退出码 0 |
+| 日志规则 | `python scripts/check_logging.py` | 2026-11-14，退出码 0 |
+| 文件备份演练 | `python scripts/drill_backup.py` | 2026-11-14，退出码 0。夹具，不是正式数据 |
+| 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` | 2026-11-14，退出码 0 |
+| 干净环境检查 | GitHub Actions 的 `check` | 2026-11-14 成功，提交 `2eea213`，运行 `43466798575` |
 | 看日志 | 教学服务未落地，没有运行日志。落地后在该次运行的标准输出里搜 `request_id` | 未落地 |
 
 `python scripts/status.py` 不启动教学服务。
@@ -69,3 +76,5 @@
 ## 容易误导
 
 `backend/kernel` 只有日志事件和 Result，没有题库规则。技术栈仍是提议，见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md)。不要把 FastAPI、React 或 Flutter 写成已经选定。
+
+第一段只做浏览器里的核验、出卷和确认，只建 `catalog` 和 `practice`。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。

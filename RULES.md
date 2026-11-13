@@ -19,7 +19,7 @@
 | L-02 | 不吞错。禁止空 catch 和 `except: pass` | `scripts/check.ps1` |
 | L-03 | kernel、domain、application 只用注入的 Logger。禁止 print 和具体日志库 | `scripts/check_logging.py` |
 | L-04 | 新的入口、端口实现和外部调用要记 ARCHITECTURE 事件表里的事件 | review |
-| L-05 | 不记录密钥、session、连接串、姓名、学号、照片和整段请求体 | 脚本查明显字段；其余 review |
+| L-05 | 不记录密钥、session、连接串、姓名、学号、照片和整段请求体 | `scripts/check_logging.py` 查同一行 log 调用里的明显字段名和 f-string。换行拼接、照片内容仍是 review |
 
 用户看到的是人话和错误码。堆栈只留在日志里。
 
