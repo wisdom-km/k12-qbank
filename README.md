@@ -4,6 +4,15 @@
 
 档位是长期项目。要保存真实学情，老师会访问。当前仓库是架构约束和检查脚本，教学服务还没有实现。`python scripts/status.py` 只打印这句状态，不出卷、不启动网站。
 
+## 怎么跑
+
+- 安装：当前没有依赖清单。Python 见 `.python-version`（3.12）。密钥扫描另需本机 PATH 里的 gitleaks。
+- 启动：`python scripts/status.py`
+- 测试：`python scripts/smoke_docs.py`
+- 全量检查：`powershell -ExecutionPolicy Bypass -File scripts/check.ps1`
+- 日志在哪看：教学服务还没有运行日志。检查脚本的输出就在这条命令的终端里。
+- 需要的配置：见 `.env.example`。复制成 `.env` 后只留在本机。
+
 ## 现在可以运行的命令
 
 ```text
