@@ -52,7 +52,7 @@
 | 看当前骨架 | `python scripts/status.py` | 2026-11-14，退出码 0 |
 | 文档冒烟（当前唯一测试） | `python scripts/smoke_docs.py` | 2026-11-14，退出码 0 |
 | 只跑这一个测试文件 | `python scripts/smoke_docs.py` | 同上 |
-| 边界检查 | `python scripts/check_boundaries.py` | 2026-11-14，退出码 0 |
+| 边界和第一段范围 | `python scripts/check_boundaries.py` | 2026-11-14，退出码 0 |
 | 日志规则 | `python scripts/check_logging.py` | 2026-11-14，退出码 0 |
 | 文件备份演练 | `python scripts/drill_backup.py` | 2026-11-14，退出码 0。夹具，不是正式数据 |
 | 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` | 2026-11-14，退出码 0 |
