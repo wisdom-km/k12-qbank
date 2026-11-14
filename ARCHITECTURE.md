@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-状态：采纳的结构规则，加上仍为提议的技术栈。2026-11-14。
+状态：采纳的结构规则。服务端和网页技术栈见 ADR 0012。安卓界面和部署地点仍未拍板。2026-11-14。
 产品范围见 [PRD.md](PRD.md)。协作见 [RULES.md](RULES.md)。
 
 ## 设计目标
@@ -69,16 +69,15 @@ flowchart LR
 
 ## 目录
 
-现有代码只有 kernel。第一段代码只创建 `catalog` 和 `practice`。其余切片等有代码再加目录，不预先铺空包。桌面壳不在第一段。
+第一段代码只创建 `catalog` 和 `practice`。其余切片等有代码再加目录，不预先铺空包。桌面壳不在第一段。
 
 ```text
-backend/kernel/                 已有。LogEvent、Logger、Ok、Err
-backend/bootstrap/compose.py    唯一组合根。尚未创建
+backend/kernel/                 LogEvent、Logger、Ok、Err
+backend/bootstrap/compose.py    唯一组合根。只装配内存适配器
+backend/catalog/                核准快照。内存适配器
+backend/practice/               出卷和确认。内存适配器
 backend/<slice>/api.py          其他切片唯一可以导入的入口
-backend/<slice>/domain/
-backend/<slice>/application/
-backend/<slice>/adapters/
-apps/web/                       尚未创建
+apps/web/                       尚未创建。选定 React，见 ADR 0012
 apps/android/                   尚未创建
 ```
 
@@ -97,7 +96,7 @@ apps/android/                   尚未创建
 | 组合根 | 可以 |  | 可以 | 可以 | 可以 | 可以 |
 | 网页 / App |  |  |  |  | 只通过 HTTPS API | 只限自己的 UI 框架 |
 
-`scripts/check_boundaries.py` 检查 domain、application、adapters、kernel 和组合根的 import。相对导入先按源文件所在的包解析成绝对模块，再套用同一张允许表。它也禁止 `utils`、`helpers`、`common`，并拒绝第一段之外的切片目录、安卓工程、桌面壳和 Electron。组合根里的业务分支查不到，标 review。语言专用的 import-linter 或 dependency-cruiser 未落地；栈选定之前不用第二套工具。
+`scripts/check_boundaries.py` 检查 domain、application、adapters、kernel 和组合根的 import。相对导入先按源文件所在的包解析成绝对模块，再套用同一张允许表。它也禁止 `utils`、`helpers`、`common`，并拒绝第一段之外的切片目录、安卓工程、桌面壳和 Electron。组合根里的业务分支查不到，标 review。语言专用的 import-linter 或 dependency-cruiser 仍不引入。栈已按 ADR 0012 采纳，继续用这一支脚本。
 
 ## 禁止
 
@@ -135,7 +134,7 @@ apps/android/                   尚未创建
 | 授权 | 所有用例 | 允许，以及范围内的基础资料 | 拒绝 |
 | 日志 | 所有层 | 写出一条事件 | 日志失败不改业务结果，但要在进程错误流留下一次 |
 
-一个端口至少两个适配器才算真接缝：内存假实现，和以后的真实实现。现在只有日志端口的接口，没有写出适配器。
+一个端口至少两个适配器才算真接缝：内存假实现，和以后的真实实现。现在有内存假实现和日志的标准输出适配器。PostgreSQL、文件和真实模型适配器还没有，所以这些端口还不算真接缝。
 
 可替换点：模型供应商、文件存储、关系数据库产品、网页框架、App 框架。前三个走端口。后两个是独立的 `apps/`，只访问 HTTPS API。
 
@@ -143,7 +142,7 @@ apps/android/                   尚未创建
 
 ## 数据
 
-关系数据和文件分开，见 ADR 0009。数据库产品未定。
+关系数据和文件分开，见 ADR 0009。数据库产品定为 PostgreSQL（ADR 0012）。这一段还没有连接，也没有迁移。
 
 核心对象：来源与页、题目版本、答案版本、发布记录、知识点、题目和知识点的关系、学生、老师、负责关系、学生卷、页、照片版本、作答、建议、确认。
 
@@ -208,7 +207,7 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 
 | 层 | 怎么测 | 现在 |
 | --- | --- | --- |
-| core | 只调用用例和假端口。不渲染 UI，不联网。内存日志要能断言失败事件带 request_id | 未写。M1 要有 |
+| core | 只调用用例和假端口。不渲染 UI，不联网。内存日志要能断言失败事件带 request_id | `python -m unittest discover -s tests -v`。还不是契约测试或端到端 |
 | 契约 | 每个端口一套测试，假适配器和真实适配器都跑 | 未写 |
 | 端到端 | 少量。真机和付费模型不进每次提交的默认门禁，用单独命令 | 未写 |
 | 文档冒烟 | `python scripts/smoke_docs.py` | 已有。不能代替 AC |

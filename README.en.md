@@ -2,11 +2,11 @@
 
 [中文](README.md)
 
-A math question bank and teaching loop for teachers at one institution. The baseline is specification 1.1, dated 2026-11-07, *初中数学题库与教学系统完整需求与架构设计方案*. The repository statement of that scope is [PRD.md](PRD.md).
+A math question bank and teaching loop for teachers at one institution. The baseline is specification 1.1, dated 2026-11-07, *初中数学题库与教学系统完整需求与架构设计方案*. The original is [docs/source/完整需求与架构设计方案-1.1.md](docs/source/完整需求与架构设计方案-1.1.md). The repository statement of that scope is [PRD.md](PRD.md).
 
 A teacher in Heilongjiang uses a small set of checked questions from the PEP grade-7 first-volume chapter on rational-number operations. On a computer web page and an installable Android app, the teacher checks questions, prints a paper for each student, collects it, confirms the AI suggestion, and assigns the next practice. The scene is one teacher and about 100 students, later perhaps about three teachers and 300 students. Those numbers are a scene, not a capacity guarantee.
 
-This is a long-lived project. It will store real learning records, and teachers will use it. The repository today holds architecture constraints and check scripts. The teaching service is not implemented. `python scripts/status.py` only prints that status. It does not build a paper and it does not start a site.
+This is a long-lived project. It will store real learning records, and teachers will use it. The docs and the checks are in the repository. `catalog` and `practice` now have a minimal in-memory skeleton. There is no web page and no database yet. `python scripts/status.py` only prints that status. It does not build a paper and it does not start a site.
 
 ## The loop the teacher completes
 
@@ -31,7 +31,16 @@ The trial still needs both the web page and Android to finish the loop. The code
 3. Android photo, upload, and missing-page handling come after that slice.
 4. A desktop install shell comes later, after the web page can check a question and open a formula PDF on the teacher's computer. The candidate is stable Tauri 2. Electron is not the fallback.
 
-These are not chosen yet, because there is no trial data: framework versions, the Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions used when a second subject is added. Institution decisions DEC-01 through DEC-06 are still blank. FastAPI, PostgreSQL, React, and Flutter are still candidates. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
+The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). This slice does not import those frameworks yet. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
+
+## Current implementation
+
+| Part | State |
+| --- | --- |
+| Docs (PRD, architecture, rules, ADRs, gates) | Done |
+| Business code `catalog` / `practice` | Minimal skeleton started. On synthetic questions it refuses an unapproved issue and confirms one answer by operation key |
+| Teaching service | No HTTP process and no web page yet |
+| Stack | Python 3.12, FastAPI, PostgreSQL, and React (web first) are adopted. The framework packages are not installed yet |
 
 ## Commands
 
@@ -45,6 +54,7 @@ Remote checks are the [Actions job named check](https://github.com/wisdom-km/k12
 | --- | --- |
 | Show skeleton status | `python scripts/status.py` |
 | Document smoke | `python scripts/smoke_docs.py` |
+| Minimal core tests | `python -m unittest discover -s tests -v` |
 | Full check | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
 | Full check, clean environment | `bash scripts/check` |
 
@@ -56,8 +66,8 @@ Remote checks are the [Actions job named check](https://github.com/wisdom-km/k12
 | [PRD.md](PRD.md) | What to build, and what is explicitly out of scope |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, invariants, logging, and gates |
 | [RULES.md](RULES.md) | Commits, tests, and the forbidden list |
-| [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | The first loop, not started yet |
+| [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | The first loop: the skeleton has started, the web page has not |
 
 ## License
 
-The upstream note suggests MIT. This repository has no license file yet. That suggestion is unverified, so no license text is added here.
+[MIT](LICENSE). Copyright wisdom-km, 2026.
