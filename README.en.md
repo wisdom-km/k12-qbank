@@ -27,7 +27,7 @@ Online answering, student accounts, parent accounts, parent weekly or monthly re
 The trial still needs both the web page and Android to finish the loop. The code is narrower than that:
 
 1. The server holds the rules for issuing a paper and for the teacher's confirmation.
-2. The first slice is only the browser: check a question, issue a paper, and confirm. The only new directories are `catalog` and `practice`.
+2. The first slice is only the browser: check a question, issue a paper, and confirm. The only new directories are `catalog` and `practice`. `PHASE_SLICES` in `scripts/check.conf` lists the allowed slices and defaults to those two.
 3. Android photo, upload, and missing-page handling come after that slice.
 4. A desktop install shell comes later, after the web page can check a question and open a formula PDF on the teacher's computer. The candidate is stable Tauri 2. Electron is not the fallback.
 

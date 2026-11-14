@@ -18,7 +18,7 @@
 | F-04 | 出现 utils、helpers 或 common 目录 | 删掉该目录，把代码放回它所属的切片 | ARCHITECTURE 禁止 F-04 |
 | F-10 | 单个 Python 文件超过 800 行 | 按隐藏的决定拆开。要保留必须有豁免和 ADR | ARCHITECTURE 文件大小 |
 | F-11 | 组合根导入了 domain | 组合根只装配 application 和 adapters | ARCHITECTURE 禁止 F-11 |
-| F-13 | 出现第一段以外的切片、安卓工程、桌面壳或 Electron | 删掉该目录或依赖。若规格已经改到下一段，先改执行计划和 ARCHITECTURE，再在同一次改动里放宽 `PHASE_TOP` | `docs/exec-plans/active/rational-number-loop.md`，ADR 0011 |
+| F-13 | 出现当前阶段以外的切片、安卓工程、桌面壳或 Electron | 删掉该目录或依赖。若规格已经改到下一段，先改执行计划和 ARCHITECTURE，再在同一次改动里改 `scripts/check.conf` 的 `PHASE_SLICES`。空白值仍是 catalog 和 practice。非空环境变量 `PHASE_SLICES` 会覆盖文件，本地变绿前先确认没有设错 | `docs/exec-plans/active/rational-number-loop.md`，ADR 0011 |
 | F-14 | `apps/` 里导入了 backend | 改成调用 HTTPS API，不要引用服务端源码 | ARCHITECTURE 依赖允许表 |
 | L-03 | core 里有 print，或 import 了 logging、structlog、loguru | 改用注入的 Logger 和 LogEvent | ARCHITECTURE 运行日志 |
 | L-05 | log 调用带了密钥、姓名、学号，或用 f-string 拼日志 | 删掉该字段，改成固定字段的 LogEvent | ARCHITECTURE 绝不记 |

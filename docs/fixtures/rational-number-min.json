@@ -1,0 +1,33 @@
+{
+  "question": {
+    "question_version_id": "q-v1",
+    "subject_id": "math",
+    "stem": "计算：(-3)+5",
+    "approved": true
+  },
+  "answer": {
+    "answer_version_id": "a-v1",
+    "text": "2",
+    "approved": true
+  },
+  "student": {
+    "student_id": "student-synth"
+  },
+  "paper": {
+    "paper_id": "paper-1",
+    "teacher_id": "teacher-synth",
+    "student_id": "student-synth",
+    "subject_id": "math",
+    "question_version_id": "q-v1",
+    "answer_version_id": "a-v1",
+    "asset_ids": ["page-synth", "item-synth"],
+    "layout_template_id": "layout-1",
+    "review_version_id": "rev-1"
+  },
+  "photo_version": {
+    "page_id": "fixture-page-1",
+    "paper_id": "paper-1",
+    "version": 1,
+    "contains_image_bytes": false
+  }
+}

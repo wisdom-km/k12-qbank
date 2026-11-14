@@ -19,6 +19,23 @@
 | 版本冲突 | 另一个键确认同一复核版本得到冲突。复核版本变了，新键也拒绝，题目版本不变 | `test_second_key_on_the_same_review_conflicts`、`test_new_key_is_refused_when_the_review_version_changed` |
 | 快照冻结 | 发卷复制题目版本和答案版本。之后改题库，旧卷上的这两个版本不变。空白版本号不能出卷 | `test_issued_snapshot_stays_when_the_catalog_changes`、`test_blank_version_id_is_not_frozen` |
 
+## P2（2026-11-14）
+
+已做：
+
+| 项 | 结果 |
+| --- | --- |
+| 阶段切片可配置 | `scripts/check.conf` 的 `PHASE_SLICES`，默认 `catalog practice`。非空环境变量 `PHASE_SLICES` 覆盖该行。空白则用这个默认。未知切片名拒绝。`kernel` 和 `bootstrap` 始终允许，不写进名单 |
+| 健康检查占位 | `health_report()` 固定返回 `status=ok`。设计在 `docs/observability.md`。还没有 HTTP 进程，所以 M-14 还没通过 |
+| 错误上报 | 最小字段是 `error_id`、`request_id`、`app_version`、`platform`、`error_code`。不含学生照片和姓名 |
+| 合成夹具 | `docs/fixtures/rational-number-min.json` 含题目、答案、学生、卷次、照片版本。没有图片字节，也没有姓名 |
+
+下一步建议：
+
+- 继续本计划的步骤 7：老师在浏览器里核验并打开 PDF。不要为了这一步放宽 `PHASE_SLICES`，不要新建其他切片，也不要安装框架包。
+- HTTP 进程出现时，把 `GET /health` 接到 `health_report()`，再把 `SERVICE_CMD` 写成启动命令。那时才核对 M-14 的真实接口。
+- 新测试沿用 `docs/fixtures/` 里的合成标识。不要换成真实学生数据。
+
 ## 要证明的事
 
 在浏览器里，老师可以核验并发布一道题，给一名学生生成一份卷，打开 PDF，并确认一条作答记录。服务端拒绝未核准题目的正式出卷。相同确认再提交一次不产生第二条记录。这一段不包含手机拍照。
@@ -72,7 +89,7 @@
 ## 不要做
 
 - 不建知识卡、PPT、家长报告、iOS、桌面安装包、安卓工程。
-- 不一次建满六个切片目录。第一段只有 `catalog` 和 `practice`。授权先做 practice 用的内存端口。`knowledge`、`identity`、`analysis`、`delivery` 等有代码再创建。
+- 不一次建满六个切片目录。第一段只有 `catalog` 和 `practice`。允许名单是 `PHASE_SLICES`，默认仍是这两项。授权先做 practice 用的内存端口。`knowledge`、`identity`、`analysis`、`delivery` 等有代码再创建，并在同一次改动里放宽配置。
 - 不接真实模型，除非机构已经确认 DEC-03。未确认时只用假适配器，并且输出标明是假的。
 - 不把假适配器的演示写成 AC-04 或 AC-09 已通过。
 - 不在界面里判断能否出卷或能否确认。
@@ -119,6 +136,7 @@
 | 2026-11-14 | 桌面壳等网页能用再加，不用 Electron 当退路 | 再带一个浏览器会更占内存 | 同上 |
 | 2026-11-14 | 第一段只建 catalog 和 practice | 六个空目录会让实现摊开 | 同上 |
 | 2026-11-14 | 采纳 Python 3.12、FastAPI、PostgreSQL、React。这一段先不安装这些包 | 与现有 Python 检查一致，领域先不绑框架 | 用户要求选定该栈并写最小骨架 |
+| 2026-11-14 | 允许的业务切片改由 `PHASE_SLICES` 配置，默认仍是 catalog 和 practice | 下一段不必改检查脚本里的常量，默认也不放宽 | 用户要求做 P2 |
 
 ## 自检
 
