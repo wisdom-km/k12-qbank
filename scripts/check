@@ -48,6 +48,9 @@ REAL_DATA=$(conf_get REAL_DATA no)
 PUBLIC=$(conf_get PUBLIC no)
 RUN_CMD=$(conf_get RUN_CMD "")
 TEST_CMD=$(conf_get TEST_CMD "")
+TEST_KIND=$(conf_get TEST_KIND docs)
+SERVICE_CMD=$(conf_get SERVICE_CMD "")
+BUSINESS_TEST_CMD=$(conf_get BUSINESS_TEST_CMD "")
 INSTALL_CMD=$(conf_get INSTALL_CMD "")
 APP_DIRS=$(conf_get APP_DIRS ".")
 LINT_CMD=$(conf_get LINT_CMD "")
@@ -158,7 +161,16 @@ else
     report M-02 MUST FAIL "README first line must name the tier ($words), e.g. '原型，会扔掉. Run: $RUN_CMD'."
   else
     shown="'$RUN_CMD'"; [ -n "$TEST_CMD" ] && shown="$shown and '$TEST_CMD'"
-    report M-02 MUST PASS "README.md shows $shown"
+    report M-02 MUST RECORD "README.md records $shown. Recording the command does not start the teaching service."
+    if [ -n "$SERVICE_CMD" ]; then
+      if [ "$MODE_FAST" = yes ]; then
+        report M-02 MUST MANUAL "SERVICE_CMD is set. --fast did not start it."
+      elif run_cmd "$SERVICE_CMD"; then
+        report M-02 MUST PASS "teaching service start '$SERVICE_CMD' exit 0"
+      else
+        report M-02 MUST FAIL "teaching service start '$SERVICE_CMD' failed: $LAST_OUT"
+      fi
+    fi
   fi
 fi
 
@@ -340,11 +352,25 @@ if [ "$MODE_FAST" = no ]; then
   t_level=$(by_tier SHOULD MUST MUST)
   if [ -z "$TEST_CMD" ]; then
     report M-06 "$t_level" FAIL "TEST_CMD empty. Fix: add one repeatable smoke check and set TEST_CMD."
+  elif [ "$TEST_KIND" = docs ]; then
+    if run_cmd "$TEST_CMD"; then
+      report M-06 MUST DOCS "document smoke '$TEST_CMD' exit 0. Not a core unit test, contract test, or end-to-end test."
+    else
+      report M-06 MUST FAIL "document smoke '$TEST_CMD' failed: $LAST_OUT"
+    fi
   elif run_cmd "$TEST_CMD"; then
     report M-06 "$t_level" PASS "'$TEST_CMD' exit 0"
   else
-    # Every tier: a test that exists and fails blocks. Only "no tests at all" is SHOULD on demo.
     report M-06 MUST FAIL "'$TEST_CMD' failed: $LAST_OUT"
+  fi
+  if [ -n "$BUSINESS_TEST_CMD" ]; then
+    if [ "$MODE_FAST" = yes ]; then
+      report M-06 MUST MANUAL "BUSINESS_TEST_CMD is set. --fast did not run it."
+    elif run_cmd "$BUSINESS_TEST_CMD"; then
+      report M-06 MUST PASS "business smoke '$BUSINESS_TEST_CMD' exit 0"
+    else
+      report M-06 MUST FAIL "business smoke '$BUSINESS_TEST_CMD' failed: $LAST_OUT"
+    fi
   fi
 fi
 
@@ -373,7 +399,10 @@ if [ -n "$MUST_FAILED" ]; then
   echo "Do not say done, do not merge. Fix the FAIL lines, or ask the user; a waiver counts only if the user says it and it is in docs/WAIVERS.md (R-1/M-03 cannot be waived)."
   exit 1
 fi
-echo "RESULT: PASS (all MUST items this script can check)${SHOULD_FAILED:+  SHOULD failed:$SHOULD_FAILED}"
+echo "RESULT: PASS (machine checks that apply now)${SHOULD_FAILED:+  SHOULD failed:$SHOULD_FAILED}"
+if [ "$TEST_KIND" = docs ]; then
+  echo "M-02 RECORD means the command text is in the README. M-06 DOCS means document smoke only."
+fi
 echo "MANUAL lines still need evidence in the gate table."
 if [ "$MODE_FAST" = no ] && [ -n "$FP_FILE" ]; then fingerprint > "$FP_FILE" 2>/dev/null; fi
 exit 0

@@ -25,8 +25,8 @@
 - 红线：R-1 密钥不进仓库也不进日志；R-2 不对真实数据做没有备份的不可逆操作；R-3 不编造测试或检查结果。
 - 全量检查：Windows 用 `powershell -ExecutionPolicy Bypass -File scripts/check.ps1`。干净环境用 `bash scripts/check`。退出码非 0 就是未满足。
 - 豁免：只认用户原话，记在 [docs/WAIVERS.md](docs/WAIVERS.md)，并另写一条 ADR。R-1 到 R-3 不能豁免。
-- 关口：开工前 G0；说完成前 G1；合入前 G2；发布前 G3。到关口输出门禁表，每项只写 PASS（附证据）/ FAIL / WAIVED / N/A。
-- **任一 MUST 是 FAIL：报告「未满足：M-xx」和补法，不说完成，不合入，不发布。**
+- 关口：开工前 G0；说完成前 G1；合入前 G2；发布前 G3。每项只写 PASS（附证据）/ FAIL / WAIVED / N/A。哪个阶段拦什么，见 [ARCHITECTURE.md](ARCHITECTURE.md) 的「关口」。合成数据上的第一条路径，不被尚未存在的服务或数据库挡住。真实学生试用前才要求运行时安全验证，以及数据库和文件的联合恢复。
+- **某一关适用的 MUST 是 FAIL：报告「未满足：M-xx」和补法，不说完成，不合入，不发布。** 门禁表里任一 MUST 写成 FAIL 时，先看它是不是这一关适用的项。
 
 ## 按任务类型读哪些节
 
@@ -45,19 +45,20 @@
 
 ## 命令
 
-| 做什么 | 命令 | 上次实测 |
-| --- | --- | --- |
-| 安装 | 无依赖清单，不必安装 | 2026-11-14，不适用 |
-| 类型检查 | 未落地 | 未落地 |
-| 看当前骨架 | `python scripts/status.py` | 2026-11-14，退出码 0 |
-| 文档冒烟（当前唯一测试） | `python scripts/smoke_docs.py` | 2026-11-14，退出码 0 |
-| 只跑这一个测试文件 | `python scripts/smoke_docs.py` | 同上 |
-| 边界和第一段范围 | `python scripts/check_boundaries.py` | 2026-11-14，退出码 0 |
-| 日志规则 | `python scripts/check_logging.py` | 2026-11-14，退出码 0 |
-| 文件备份演练 | `python scripts/drill_backup.py` | 2026-11-14，退出码 0。夹具，不是正式数据 |
-| 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` | 2026-11-14，退出码 0 |
-| 干净环境检查 | GitHub Actions 的 `check` | 2026-11-14 成功，提交 `2eea213`，运行 `43466798575` |
-| 看日志 | 教学服务未落地，没有运行日志。落地后在该次运行的标准输出里搜 `request_id` | 未落地 |
+当次退出码以终端为准。远端结果看 [Actions 的 check](https://github.com/wisdom-km/k12-qbank/actions)。已经写下来的运行留在 [docs/evidence/](docs/evidence/)。
+
+| 做什么 | 命令 |
+| --- | --- |
+| 安装 | 无依赖清单，不必安装 |
+| 类型检查 | 未落地 |
+| 查看骨架状态 | `python scripts/status.py` |
+| 文档冒烟 | `python scripts/smoke_docs.py` |
+| 边界、相对导入和第一段范围 | `python scripts/check_boundaries.py` |
+| 日志规则 | `python scripts/check_logging.py` |
+| 文件备份演练 | `python scripts/drill_backup.py`。夹具记录在 `docs/evidence/backup-drill-2026-11-14.md`，不是正式数据 |
+| 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
+| 干净环境检查 | `bash scripts/check`。GitHub Actions 的 job 名是 `check` |
+| 看日志 | 教学服务未落地，没有运行日志。落地后在该次运行的标准输出里搜 `request_id` |
 
 `python scripts/status.py` 不启动教学服务。
 

@@ -33,24 +33,20 @@
 
 框架版本、安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据，不能写成已经选定。机构决定 DEC-01 到 DEC-06 还没填。FastAPI、PostgreSQL、React、Flutter 仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
 
-## 怎么跑
+## 命令
 
-- 安装：当前没有依赖清单。Python 见 `.python-version`（3.12）。密钥扫描另需本机 PATH 里的 gitleaks。
-- 启动：`python scripts/status.py`
-- 测试：`python scripts/smoke_docs.py`
-- 全量检查：Windows 用 `powershell -ExecutionPolicy Bypass -File scripts/check.ps1`。干净环境用 `bash scripts/check`。
-- 日志在哪看：教学服务还没有运行日志。检查脚本的输出就在这条命令的终端里。
-- 需要的配置：见 `.env.example`。复制成 `.env` 后只留在本机。不要提交 `.env`。
+安装：当前没有依赖清单。Python 见 `.python-version`（3.12）。密钥扫描另需本机 PATH 里的 gitleaks。配置见 `.env.example`，复制成 `.env` 后只留在本机。教学服务还没有运行日志。
 
-## 现在可以运行的命令
+检查结果里的 `RECORD` 只表示命令写在这里。`DOCS` 只表示文档冒烟。它们都不表示教学服务已经启动，也不表示 AC-01 到 AC-09 已通过。
 
-```text
-python scripts/status.py
-python scripts/smoke_docs.py
-powershell -ExecutionPolicy Bypass -File scripts/check.ps1
-```
+远端检查看 [Actions 的 check](https://github.com/wisdom-km/k12-qbank/actions)。验收入口见 [PRD 的验收](PRD.md#acceptance)：M1 是部分验证，M3 是试用验收，M4 是模型效果。
 
-文档冒烟通过，只说明约束文件还在，不说明 AC-01 到 AC-09 已通过。
+| 名称 | 命令 |
+| --- | --- |
+| 查看骨架状态 | `python scripts/status.py` |
+| 文档冒烟 | `python scripts/smoke_docs.py` |
+| 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
+| 全量检查（干净环境） | `bash scripts/check` |
 
 ## 先读
 
