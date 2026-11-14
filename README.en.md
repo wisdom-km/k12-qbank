@@ -2,62 +2,95 @@
 
 [中文](README.md)
 
-A math question bank and teaching loop for teachers at one institution. The baseline is specification 1.1, dated 2026-11-07, *初中数学题库与教学系统完整需求与架构设计方案*. The repository statement of that scope is [PRD.md](PRD.md).
+A junior high school mathematics practice and diagnosis system for institutional teachers.  
+It is built on a structured, verified question bank, starts from classroom teaching objectives, is grounded in student answer evidence, and treats teacher confirmation as the sole source of formal teaching conclusions.
 
-A teacher in Heilongjiang uses a small set of checked questions from the PEP grade-7 first-volume chapter on rational-number operations. On a computer web page and an installable Android app, the teacher checks questions, prints a paper for each student, collects it, confirms the AI suggestion, and assigns the next practice. The scene is one teacher and about 100 students, later perhaps about three teachers and 300 students. Those numbers are a scene, not a capacity guarantee.
+It is neither a pure OCR tool nor a system that lets large models freely generate exam papers. Its main value is to reduce teachers’ repetitive work in organizing questions, assembling papers, collecting answers, performing initial analysis, and selecting follow-up practice, while preserving teachers’ control over teaching content and student conclusions.
 
-This is a long-lived project. It will store real learning records, and teachers will use it. The repository today holds architecture constraints and check scripts. The teaching service is not implemented. `python scripts/status.py` only prints that status. It does not build a paper and it does not start a site.
+Baseline document: *Junior High School Mathematics Question Bank and Teaching System Requirements and Architecture Design V2.0* (2026-11-10).  
+The repository currently contains architecture constraints, domain models, and check scripts. The teaching service is not yet implemented.
 
-## The loop the teacher completes
+## Five Core Problems This System Solves
 
-1. Workbook pages stay traceable. The teacher checks the stem, the answer, the worked solution, and the knowledge point. A question can be issued only after both the question version and the applicable answer are approved.
-2. The teacher selects by knowledge point, chapter, item type, and difficulty, then generates a separate paper for one or more students. The printed PDF shows a student number and page numbers. It does not print the student's name.
-3. Pages come back by photo or by choosing an image. A missing page is flagged. A later upload keeps the history.
-4. The AI returns a per-question suggestion and the evidence for it. The teacher confirms, corrects, or marks by hand. A suggestion is not an official result until the teacher confirms it.
-5. Confirmed records stay available. The teacher then chooses the same question, a similar one, or a mixed one.
+| Problem | V2.0 Decision |
+|---------|---------------|
+| How does homework correspond to “what was taught in this lesson”? | Add classroom, class, and teaching objectives; link the assignment directly to the classroom and its objective snapshot |
+| When five students do the same set of questions, how is individual focus expressed? | Three-layer mechanism: shared required questions + personal focus markers + post-grading consolidation plans |
+| How does AI analysis automatically form the next set of questions? | Automatically generate constrained consolidation-plan drafts by selecting only from the approved question bank; teacher reviews before release |
+| How to avoid permanently labeling a student from a single wrong answer? | Introduce learning evidence and revisable mastery states that distinguish insufficient evidence, pending review, and confirmed issues |
+| How to see commonalities and differences among five students? | Provide class-level views of knowledge points, error causes, questions, and consolidation effects — not just average scores |
 
-A paper that has already been issued keeps the question and answer from that moment. Later edits to the bank do not change the old paper. A model failure, an unreadable page, or a missing page is not "the student got it wrong."
+The most important system boundary: **recognition failure, missing evidence, and student error are three distinct states.**
 
-## Not in the first batch
+## Complete Business Closed Loop
 
-Online answering, student accounts, parent accounts, parent weekly or monthly reports, knowledge-card editing and printing, editable slides, iOS, a mobile browser standing in for the Android app, cross-institution access, one comparable ability score, a vector database, microservices, offline marking, and a normal path that issues a paper without the check.
+Classroom and teaching objectives → Shared assignment with personal focus → Paper or online answering → Photo collection and evidence check → Recognition, scoring, and error-cause suggestions → Teacher review and confirmation → Student feedback, correction, and self-explanation → Learning evidence and mastery states → Consolidation plan draft → Teacher review and release → Re-practice and delayed retest → Evidence feedback.
 
-## The order of work now
+The system also supports analysis of class commonalities and individual differences.
 
-The trial still needs both the web page and Android to finish the loop. The code is narrower than that:
+First-version success is defined as completing this real closed loop (including a five-student shared assignment with personal focus and different consolidation-plan drafts), not merely “how many pages were recognized.”
 
-1. The server holds the rules for issuing a paper and for the teacher's confirmation.
-2. The first slice is only the browser: check a question, issue a paper, and confirm. The only new directories are `catalog` and `practice`.
-3. Android photo, upload, and missing-page handling come after that slice.
-4. A desktop install shell comes later, after the web page can check a question and open a formula PDF on the teacher's computer. The candidate is stable Tauri 2. Electron is not the fallback.
+## Architecture
 
-These are not chosen yet, because there is no trial data: framework versions, the Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions used when a second subject is added. Institution decisions DEC-01 through DEC-06 are still blank. FastAPI, PostgreSQL, React, and Flutter are still candidates. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
+The first version uses a **modular monolith**, PostgreSQL, controlled file storage, a persistent job table, and background workers. The web interface and Android app share the same HTTPS API entry point.
+
+Core modules and responsibilities:
+- `classroom`: Record lessons, teaching objectives, example questions, and teacher observations
+- `catalog`: Question import, verification, versioned release, and retrieval
+- `practice`: Shared assignments, per-student instances, paper snapshots, submissions, and evidence collection
+- `analysis`: AI analysis runs, suggestion generation, and structural validation
+- `remediation`: Learning evidence, mastery states, consolidation-plan drafts, and effect recording
+- `delivery`: Paper PDF and report generation
+- `identity`: Users, roles, responsibility relationships, and permission checks
+
+Key principles:
+- Original PDFs, page images, question crops, and student answer photos remain fully traceable
+- Questions and answer explanations are verified and versioned separately; formal release requires approval
+- When the same assignment is given to multiple students, each student receives an independent instance and historical snapshot
+- AI produces only suggestions; formal teaching conclusions require teacher confirmation
+- Issued assignments, photos, suggestions, and evaluation revisions cannot be overwritten in place
+- Permissions, privacy, audit, cost control, and backup/recovery are implemented from the first version
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed layering and invariants.
+
+## Technology Stack and Deployment (Candidates)
+
+| Component | Candidate | Notes |
+|-----------|-----------|-------|
+| Backend | Python + FastAPI | Modular monolith |
+| Database | PostgreSQL | Relational data and transactional constraints |
+| File storage | Local directory / object storage | Immutable asset management |
+| Web | React or Vue + MathJax | Complex verification and review prioritized on web |
+| Android | Flutter or React Native | Photo upload and lightweight confirmation |
+| AI | Multimodal / language model adapters | Staged, discardable, and human-fallback capable |
+| Deployment | Institution computer + controlled LAN | Pilot phase |
+
+Final choices will be recorded as ADRs after pilot data and institutional confirmation. See [docs/adr/](docs/adr/).
+
+The first version begins with a 1–2 week vertical validation (approved questions → create assignment → upload → suggestions → teacher confirmation) before estimating the full MVP schedule. Microservices are not built early.
+
+## Current Repository Status
+
+The teaching service is not yet implemented.  
+`python scripts/status.py` only reports skeleton status. It does not generate papers or start a server.
 
 ## Commands
 
-Install: there is no dependency manifest yet. Python is in `.python-version` (3.12). The secret scan also needs gitleaks on `PATH`. Config is in `.env.example`. Copy it to `.env` and keep that file on the machine. The teaching service has no runtime log yet.
-
-`RECORD` in the check output means the command is written here. `DOCS` means the document smoke. Neither means the teaching service started, and neither means AC-01 through AC-09 pass.
-
-Remote checks are the [Actions job named check](https://github.com/wisdom-km/k12-qbank/actions). Acceptance is in [the PRD](PRD.md#acceptance): M1 is the partial check, M3 is the trial, and M4 is the model measurement.
-
 | Name | Command |
-| --- | --- |
+|------|---------|
 | Show skeleton status | `python scripts/status.py` |
 | Document smoke | `python scripts/smoke_docs.py` |
-| Full check | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
-| Full check, clean environment | `bash scripts/check` |
+| Full check | `bash scripts/check` or PowerShell script |
 
-## Read first
+Remote checks: [GitHub Actions](https://github.com/wisdom-km/k12-qbank/actions).
 
-| File | What it holds |
-| --- | --- |
-| [AGENTS.md](AGENTS.md) | Short index and the mandatory checks for implementation |
-| [PRD.md](PRD.md) | What to build, and what is explicitly out of scope |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, invariants, logging, and gates |
-| [RULES.md](RULES.md) | Commits, tests, and the forbidden list |
-| [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | The first loop, not started yet |
+## Read First
+
+- [PRD.md](PRD.md) — What to build and what is explicitly out of scope
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Layers, invariants, and interfaces
+- [docs/exec-plans/active/](docs/exec-plans/active/) — Execution plans
+- [docs/adr/](docs/adr/) — Architecture decision records
 
 ## License
 
-The upstream note suggests MIT. This repository has no license file yet. That suggestion is unverified, so no license text is added here.
+Upstream notes suggest MIT. This repository currently has no license file.
