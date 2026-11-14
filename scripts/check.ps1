@@ -45,7 +45,7 @@ $LintCmd = Conf 'LINT_CMD' ''; $LogCheckCmd = Conf 'LOG_CHECK_CMD' ''
 $CoreDirs = (Conf 'CORE_DIRS' '') -split '\s+' | Where-Object { $_ }
 
 $GitExe = (Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
-function Invoke-Git { if ($GitExe) { & $GitExe @args 2>$null } else { $global:LASTEXITCODE = 127 } }
+function Invoke-Git { if ($GitExe) { & $GitExe -c core.quotepath=false @args 2>$null } else { $global:LASTEXITCODE = 127 } }
 $InGit = ((Invoke-Git rev-parse --is-inside-work-tree) -eq 'true')
 $HasHead = $false
 if ($InGit) { Invoke-Git rev-parse --verify -q HEAD | Out-Null; $HasHead = ($LASTEXITCODE -eq 0) }

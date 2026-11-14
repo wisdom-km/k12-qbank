@@ -12,6 +12,9 @@
 
 set -u
 
+# Non-ASCII paths must be real paths. Quoted octal escapes are not file names.
+git() { command git -c core.quotepath=false "$@"; }
+
 ROOT=$(cd "$(dirname "$0")/.." && pwd) || exit 1
 cd "$ROOT" || exit 1
 CONF="scripts/check.conf"
