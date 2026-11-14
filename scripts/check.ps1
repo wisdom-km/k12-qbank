@@ -39,6 +39,7 @@ $TierNote = ''
 if ($Tier -notin @('demo', 'tracer', 'long')) { $TierNote = "tier not confirmed (TIER='$Tier'), using tracer"; $Tier = 'tracer' }
 $RealData = Conf 'REAL_DATA' 'no'; $Public = Conf 'PUBLIC' 'no'
 $RunCmd = Conf 'RUN_CMD' ''; $TestCmd = Conf 'TEST_CMD' ''; $InstallCmd = Conf 'INSTALL_CMD' ''
+$TestKind = Conf 'TEST_KIND' 'docs'; $ServiceCmd = Conf 'SERVICE_CMD' ''; $BusinessTestCmd = Conf 'BUSINESS_TEST_CMD' ''
 $AppDirs = (Conf 'APP_DIRS' '.') -split '\s+' | Where-Object { $_ }
 $LintCmd = Conf 'LINT_CMD' ''; $LogCheckCmd = Conf 'LOG_CHECK_CMD' ''
 $CoreDirs = (Conf 'CORE_DIRS' '') -split '\s+' | Where-Object { $_ }
@@ -125,7 +126,15 @@ else {
   if (-not $readme.Contains($RunCmd)) { Report 'M-02' 'MUST' 'FAIL' "README.md does not show the run command '$RunCmd'. Fix: add it." }
   elseif ($TestCmd -and -not $readme.Contains($TestCmd)) { Report 'M-02' 'MUST' 'FAIL' "README.md does not show the test command '$TestCmd'. Fix: add it." }
   elseif ($words -and ($first -notmatch "(?i)$words")) { Report 'M-02' 'MUST' 'FAIL' "README first line must name the tier ($Tier)." }
-  else { Report 'M-02' 'MUST' 'PASS' "README.md shows '$RunCmd'" }
+  else {
+    $shown = "'$RunCmd'"; if ($TestCmd) { $shown = "$shown and '$TestCmd'" }
+    Report 'M-02' 'MUST' 'RECORD' "README.md records $shown. Recording the command does not start the teaching service."
+    if ($ServiceCmd) {
+      if ($Fast) { Report 'M-02' 'MUST' 'MANUAL' 'SERVICE_CMD is set. --fast did not start it.' }
+      elseif (Invoke-Configured $ServiceCmd) { Report 'M-02' 'MUST' 'PASS' "teaching service start '$ServiceCmd' exit 0" }
+      else { Report 'M-02' 'MUST' 'FAIL' "teaching service start '$ServiceCmd' failed: $script:LastOut" }
+    }
+  }
 }
 
 # ---------- M-03 / R-1 .env hygiene ----------
@@ -277,9 +286,17 @@ if (-not $Fast) {
 if (-not $Fast) {
   $tl = ByTier 'SHOULD' 'MUST' 'MUST'
   if (-not $TestCmd) { Report 'M-06' $tl 'FAIL' 'TEST_CMD empty. Fix: add one repeatable smoke check and set TEST_CMD.' }
+  elseif ($TestKind -eq 'docs') {
+    if (Invoke-Configured $TestCmd) { Report 'M-06' 'MUST' 'DOCS' "document smoke '$TestCmd' exit 0. Not a core unit test, contract test, or end-to-end test." }
+    else { Report 'M-06' 'MUST' 'FAIL' "document smoke '$TestCmd' failed: $script:LastOut" }
+  }
   elseif (Invoke-Configured $TestCmd) { Report 'M-06' $tl 'PASS' "'$TestCmd' exit 0" }
-  # Every tier: a test that exists and fails blocks. Only "no tests at all" is SHOULD on demo.
   else { Report 'M-06' 'MUST' 'FAIL' "'$TestCmd' failed: $script:LastOut" }
+  if ($BusinessTestCmd) {
+    if ($Fast) { Report 'M-06' 'MUST' 'MANUAL' 'BUSINESS_TEST_CMD is set. --fast did not run it.' }
+    elseif (Invoke-Configured $BusinessTestCmd) { Report 'M-06' 'MUST' 'PASS' "business smoke '$BusinessTestCmd' exit 0" }
+    else { Report 'M-06' 'MUST' 'FAIL' "business smoke '$BusinessTestCmd' failed: $script:LastOut" }
+  }
 }
 
 # ---------- M-08 CI ----------
@@ -302,7 +319,8 @@ if ($script:MustFailed) {
   exit 1
 }
 $sf = if ($script:ShouldFailed) { "  SHOULD failed: $($script:ShouldFailed -join ' ')" } else { '' }
-Write-Output "RESULT: PASS (all MUST items this script can check)$sf"
+Write-Output "RESULT: PASS (machine checks that apply now)$sf"
+if ($TestKind -eq 'docs') { Write-Output 'M-02 RECORD means the command text is in the README. M-06 DOCS means document smoke only.' }
 Write-Output 'MANUAL lines still need evidence in the gate table.'
 if (-not $Fast -and $FpFile) { Set-Content -Path $FpFile -Value (Get-Fingerprint) -Encoding ascii }
 exit 0

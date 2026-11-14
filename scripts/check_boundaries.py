@@ -8,6 +8,7 @@ from __future__ import annotations
 import ast
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,37 +48,68 @@ BACKEND_IMPORT = (
 )
 
 
+class BoundaryError(Exception):
+    def __init__(self, code: str) -> None:
+        self.code = code
+
+
+QUIET = False
+
+
 def fail(code: str, message: str, fix: str) -> None:
-    print(f"{code} FAIL: {message}")
-    print(f"Fix: {fix}")
-    raise SystemExit(1)
+    if not QUIET:
+        print(f"{code} FAIL: {message}")
+        print(f"Fix: {fix}")
+    raise BoundaryError(code)
 
 
-def slice_of(path: Path) -> str | None:
-    parts = path.relative_to(BACKEND).parts
+def slice_of(path: Path, backend: Path) -> str | None:
+    parts = path.relative_to(backend).parts
     return parts[0] if parts and parts[0] in SLICES else None
 
 
-def layer_of(path: Path) -> str | None:
-    parts = set(path.relative_to(BACKEND).parts)
+def layer_of(path: Path, backend: Path) -> str | None:
+    parts = set(path.relative_to(backend).parts)
     for name in ("domain", "application", "adapters"):
         if name in parts:
             return name
     return None
 
 
-def imported_modules(tree: ast.AST) -> list[str]:
+def package_parts(path: Path, backend: Path) -> list[str]:
+    if path.parent == backend:
+        return ["backend"]
+    return ["backend", *path.parent.relative_to(backend).parts]
+
+
+def resolve_from(path: Path, backend: Path, node: ast.ImportFrom) -> list[str]:
+    if node.level == 0:
+        return [node.module] if node.module else []
+    parts = package_parts(path, backend)
+    drop = node.level - 1
+    if drop > len(parts):
+        return ["<unresolved-relative>"]
+    base = parts[: len(parts) - drop]
+    if node.module:
+        return [".".join([*base, *node.module.split(".")])]
+    return [".".join([*base, alias.name]) for alias in node.names if alias.name != "*"]
+
+
+def imported_modules(path: Path, tree: ast.AST, backend: Path) -> list[str]:
     found: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             found.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            found.append(node.module)
+        elif isinstance(node, ast.ImportFrom):
+            found.extend(resolve_from(path, backend, node))
     return found
 
 
-def check_file(path: Path) -> None:
-    rel = path.relative_to(ROOT).as_posix()
+def check_file(path: Path, backend: Path = BACKEND) -> None:
+    try:
+        rel = path.relative_to(ROOT).as_posix()
+    except ValueError:
+        rel = path.as_posix()
     source = path.read_text(encoding="utf-8")
     if len(source.splitlines()) > HARD_LINE_CAP:
         fail(
@@ -86,14 +118,22 @@ def check_file(path: Path) -> None:
             "Split the module by what it hides, or ask for a waiver in docs/WAIVERS.md plus an ADR. "
             "See ARCHITECTURE.md 文件大小.",
         )
-    here = slice_of(path)
-    layer = layer_of(path)
-    in_kernel = rel.startswith("backend/kernel/")
-    in_bootstrap = rel.startswith("backend/bootstrap/")
+    here = slice_of(path, backend)
+    layer = layer_of(path, backend)
+    inside = path.relative_to(backend).as_posix()
+    in_kernel = inside.startswith("kernel/")
+    in_bootstrap = inside.startswith("bootstrap/")
     if here is None and layer is None and not in_kernel and not in_bootstrap:
         return
     tree = ast.parse(source, filename=rel)
-    for module in imported_modules(tree):
+    for module in imported_modules(path, tree, backend):
+        if module == "<unresolved-relative>":
+            fail(
+                "F-03",
+                f"{rel} has a relative import that does not resolve inside backend.",
+                "Write the import from the file's package with enough leading dots, "
+                "or use an absolute backend import. See ARCHITECTURE.md 禁止 F-03.",
+            )
         root_name = module.split(".", 1)[0]
         protected = layer in {"domain", "application"} or in_kernel
         if protected and root_name in FORBIDDEN_MODULES:
@@ -237,7 +277,57 @@ def check_apps_do_not_import_backend() -> None:
             )
 
 
+def run_fixtures() -> None:
+    """Isolated copies of the four import cases. They never touch backend/."""
+    global QUIET
+    cases = (
+        ("public api", "from ...catalog.api import published\n", None),
+        ("absolute internal", "from backend.catalog.domain.item import Item\n", "F-03"),
+        ("relative internal", "from ...catalog.domain.item import Item\n", "F-03"),
+        ("same-slice relative", "from ..domain.item import Item\n", None),
+    )
+    QUIET = True
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            backend = Path(tmp) / "backend"
+            app = backend / "practice" / "application"
+            app.mkdir(parents=True)
+            (backend / "catalog").mkdir()
+            (backend / "practice" / "domain").mkdir(parents=True)
+            for name, text, expected in cases:
+                path = app / "case.py"
+                path.write_text(text, encoding="utf-8")
+                caught: str | None = None
+                try:
+                    check_file(path, backend)
+                except BoundaryError as err:
+                    caught = err.code
+                if caught != expected:
+                    QUIET = False
+                    fail(
+                        "F-03",
+                        f"fixture {name} returned {caught}, expected {expected}.",
+                        "Resolve relative imports to the same absolute module as the written-out import. "
+                        "See ARCHITECTURE.md 禁止 F-03.",
+                    )
+    finally:
+        QUIET = False
+    print(
+        "F-03 FIXTURE PASS: public api, absolute cross-slice, relative cross-slice, same-slice relative."
+    )
+
+
 def main() -> int:
+    try:
+        run_fixtures()
+        scan_backend()
+    except BoundaryError:
+        return 1
+    print("LINT PASS: dependency direction, file-size cap, and first-slice scope hold.")
+    return 0
+
+
+def scan_backend() -> None:
     if BACKEND.is_dir():
         for banned in ("utils", "helpers", "common"):
             for folder in BACKEND.rglob(banned):
@@ -254,8 +344,6 @@ def main() -> int:
             check_file(path)
     check_phase_scope()
     check_apps_do_not_import_backend()
-    print("LINT PASS: dependency direction, file-size cap, and first-slice scope hold.")
-    return 0
 
 
 if __name__ == "__main__":

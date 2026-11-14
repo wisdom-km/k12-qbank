@@ -33,24 +33,20 @@ The trial still needs both the web page and Android to finish the loop. The code
 
 These are not chosen yet, because there is no trial data: framework versions, the Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions used when a second subject is added. Institution decisions DEC-01 through DEC-06 are still blank. FastAPI, PostgreSQL, React, and Flutter are still candidates. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
 
-## How to run
+## Commands
 
-- Install: there is no dependency manifest yet. Python is in `.python-version` (3.12). The secret scan also needs gitleaks on `PATH`.
-- Start: `python scripts/status.py`
-- Test: `python scripts/smoke_docs.py`
-- Full check: on Windows, `powershell -ExecutionPolicy Bypass -File scripts/check.ps1`. In a clean environment, `bash scripts/check`.
-- Where logs are: the teaching service has no runtime log yet. Check scripts print to the terminal that ran the command.
-- Config: see `.env.example`. Copy it to `.env` and keep that file on the machine. Do not commit `.env`.
+Install: there is no dependency manifest yet. Python is in `.python-version` (3.12). The secret scan also needs gitleaks on `PATH`. Config is in `.env.example`. Copy it to `.env` and keep that file on the machine. The teaching service has no runtime log yet.
 
-## Commands that run today
+`RECORD` in the check output means the command is written here. `DOCS` means the document smoke. Neither means the teaching service started, and neither means AC-01 through AC-09 pass.
 
-```text
-python scripts/status.py
-python scripts/smoke_docs.py
-powershell -ExecutionPolicy Bypass -File scripts/check.ps1
-```
+Remote checks are the [Actions job named check](https://github.com/wisdom-km/k12-qbank/actions). Acceptance is in [the PRD](PRD.md#acceptance): M1 is the partial check, M3 is the trial, and M4 is the model measurement.
 
-A passing document smoke test means the constraint files are still there. It does not mean AC-01 through AC-09 pass.
+| Name | Command |
+| --- | --- |
+| Show skeleton status | `python scripts/status.py` |
+| Document smoke | `python scripts/smoke_docs.py` |
+| Full check | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
+| Full check, clean environment | `bash scripts/check` |
 
 ## Read first
 

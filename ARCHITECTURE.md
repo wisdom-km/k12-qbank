@@ -97,7 +97,7 @@ apps/android/                   尚未创建
 | 组合根 | 可以 |  | 可以 | 可以 | 可以 | 可以 |
 | 网页 / App |  |  |  |  | 只通过 HTTPS API | 只限自己的 UI 框架 |
 
-`scripts/check_boundaries.py` 检查 domain、application、adapters、kernel 和组合根的 import，禁止 `utils`、`helpers`、`common`，并拒绝第一段之外的切片目录、安卓工程、桌面壳和 Electron。组合根里的业务分支查不到，标 review。语言专用的 import-linter 或 dependency-cruiser 未落地；栈选定之前不用第二套工具。
+`scripts/check_boundaries.py` 检查 domain、application、adapters、kernel 和组合根的 import。相对导入先按源文件所在的包解析成绝对模块，再套用同一张允许表。它也禁止 `utils`、`helpers`、`common`，并拒绝第一段之外的切片目录、安卓工程、桌面壳和 Electron。组合根里的业务分支查不到，标 review。语言专用的 import-linter 或 dependency-cruiser 未落地；栈选定之前不用第二套工具。
 
 ## 禁止
 
@@ -105,7 +105,7 @@ apps/android/                   尚未创建
 | --- | --- | --- | --- |
 | F-01 | 界面或控制器决定能否出卷、能否确认 | R1、R3 会分叉 | review。core 测试走用例 |
 | F-02 | domain 或 application 导入框架、ORM、模型 SDK | 内圈会绑死供应商 | `scripts/check_boundaries.py` |
-| F-03 | 导入其他切片的 domain、application、adapters | 边界会漏 | 同上，只能导入 `api` |
+| F-03 | 导入其他切片的 domain、application、adapters。绝对导入和等价的相对导入都算 | 边界会漏 | 同上，只能导入 `api`。相对导入先按源文件所在的包解析 |
 | F-04 | 新建 utils、helpers、common | 变成垃圾桶 | 同上 |
 | F-05 | 把 AI 建议写成正式确认 | 破坏 R3 | review，加 core 测试 |
 | F-06 | 覆盖旧学生卷的题目或答案快照 | 破坏 R2 | review，加 core 测试 |
@@ -241,20 +241,33 @@ ASVS L1 自查是 SHOULD，还没做。
 - 备份要同时包含数据库和文件。只拷一种不算备份。恢复演练还没有做。可丢失窗口待定标。
 - 迁移文件在第一次持久化时加入，并要能回退。当前没有迁移。
 
+## 关口
+
+历史证据保持原样：`docs/evidence/G0-2026-11-14.md` 和 `docs/evidence/G0-2026-11-14-after-ci.md` 里的日期和结论不改。那里的 M-10、M-11 写成 FAIL，是因为当时还没有运行中的服务和正式恢复。下面按阶段写清这些项什么时候才拦住下一步。
+
+| 关口 | 适用条件 | 需要的证据 | 失败时拦住 |
+| --- | --- | --- | --- |
+| G0 开工 | 写第一条本地路径。题目、学生和模型结果都是合成的，适配器标明是假的 | 架构文档在。密钥扫描和分支保护保持。不要求已经有运行中的服务 | 不接真实学生数据。不把学生卷发给真实模型。不把服务无控制地公开到公网 |
+| G1 完成 | 说这一段已经做完 | 只验证这段已经实现的授权、写入和重试。这段若写了持久化，还要有可回退的迁移，以及该阶段约定的恢复证据。只有文档冒烟不能当成 core 单测、契约或端到端 | 不能说完成 |
+| G2 合入 | 合入 main | `scripts/check` 的退出码。涉及密钥、权限、真实学生数据或门禁脚本的改动，由人复核，并在该 PR 的说明和 review 记录里留痕 | 不合入 |
+| 真实学生试用前 | 老师要用真实学情，或真实模型要处理学生卷 | M-10 里已经适用的运行时安全验证。数据库和文件在同一个恢复点上的联合恢复演练 | 不开始试用，不把真实卷发给模型 |
+
+现在该做、但还没有证据的项：没有运行中的服务，所以 M-10 的 8 条运行时都还不能证明。没有数据库，所以 M-11 的联合恢复还不能做。文件夹具演练的原始记录仍在 `docs/evidence/backup-drill-2026-11-14.md`。这两项现在不挡住合成数据上的第一条路径。真实学生试用前仍然挡住试用。
+
 ## 门禁现状
 
 | 编号 | 工具 | 状态 |
 | --- | --- | --- |
-| M-03 密钥形态 | `scripts/check` | 已接，并在 CI 里跑。远端 push protection 已开。证据见 `docs/evidence/G0-2026-11-14.md` |
+| M-03 密钥形态 | `scripts/check` | 已接，并在 CI 里跑。远端 push protection 的原始记录见 `docs/evidence/G0-2026-11-14.md` |
 | M-04 日志 | `scripts/check_logging.py` | 已接。查 print、具体日志库、log 调用上的明显敏感字段和 f-string。运行中的失败日志演练未落地 |
-| M-05 空 catch | `scripts/check` | 已接 |
-| F-02、F-03、F-04、F-10、F-11 的 import、F-13、F-14 | `scripts/check_boundaries.py` | 已接进全量检查。pre-commit 的 `--fast` 不跑这项 |
+| M-05 空 catch | `scripts/check` 与 `scripts/check.ps1` 同一项 | 已接 |
+| F-02、F-03、F-04、F-10、F-11 的 import、F-13、F-14 | `scripts/check_boundaries.py` | 已接进全量检查，含相对导入夹具。pre-commit 的 `--fast` 不跑这项 |
 | F-01、F-05、F-06、F-11 的业务分支、F-12 | 无 | 未落地，标 review |
-| CI 的 `check` | `.github/workflows/ci.yml` | 已接。main 上最近一次成功是运行 `43466798575`。本次范围检查要等含它的提交进入 CI 之后，才算远端也在拦 |
-| main 分支保护 | GitHub 设置 | 已落地。只经拉取请求，必需检查是 `check`，管理员也不能绕过。不要求批准人数 |
+| CI 的 `check` | `.github/workflows/ci.yml` | 已接。成功与否看 [Actions 的 check](https://github.com/wisdom-km/k12-qbank/actions)。过期的运行号不写在这里，历史运行留在 `docs/evidence/` |
+| main 分支保护 | GitHub 设置 | 规则已写上。当前设置以仓库的分支保护页为准，不在这里抄一份会过期的截图说明 |
 | 本机提交前钩子 | `.pre-commit-config.yaml` | 配置在仓库里。这台电脑没有 bash 时钩子装不上，未落地。绕过钩子也挡不住 CI |
 
-CI 全绿也不等于上表里「未落地」的项目已经在拦。
+CI 全绿也不等于上表里「未落地」的项目已经在拦。`M-02 RECORD` 只表示 README 写了命令。`M-06 DOCS` 只表示文档冒烟。教学服务落地后，才在 `scripts/check.conf` 填上 `SERVICE_CMD` 和 `BUSINESS_TEST_CMD`，CI 才会执行真实启动和最小业务冒烟。
 
 ## 教训
 
@@ -264,7 +277,7 @@ CI 全绿也不等于上表里「未落地」的项目已经在拦。
 
 命令见 [AGENTS.md](AGENTS.md)。Python 只用于当前的检查脚本，不表示后端已经选定 Python。`.python-version` 是给这些脚本和 CI 用的。
 
-第一条业务代码按 [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) 做。做之前先过 G0 里仍为 FAIL 的项，或拿到用户的豁免原话。
+第一条业务代码按 [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) 做。本地可以用合成题目、合成学生和假适配器。运行时安全验证，以及数据库和文件的联合恢复，按上面的「关口」留到真实学生试用前。
 
 ## 质量场景
 

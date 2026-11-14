@@ -92,7 +92,7 @@ main 只经 PR 合入。本地可以在功能分支上提交。一次 PR 一件�
 ## Definition of Done
 
 1. 行为符合对应 AC。没有 AC 的，写明观察到的行为。
-2. AGENTS 强制项里，本关口的 MUST 都是 PASS 或 WAIVED。FAIL 就不能说完成。
+2. 本关口适用的 MUST 都是 PASS 或 WAIVED。适用哪些项见 ARCHITECTURE 的「关口」。FAIL 就不能说完成。后续阶段才适用的运行时安全和联合恢复，不提前写成已经通过，也不用来挡住合成数据上的第一条路径。
 3. 新边界满足 L-01 到 L-05。
 4. 全量检查的命令和退出码记在 PR 或 `docs/evidence/`。
 5. 规格和代码一起改，若行为变了。
