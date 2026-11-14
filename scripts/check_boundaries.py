@@ -1,4 +1,9 @@
-"""Dependency direction, file-size cap, and first-slice scope.
+"""Dependency direction, file-size cap, and phase scope.
+
+Business slices allowed in this phase come from scripts/check.conf key
+PHASE_SLICES. A non-empty PHASE_SLICES environment variable overrides that
+line. A blank value uses catalog and practice. kernel and bootstrap are
+always allowed and are not listed in PHASE_SLICES.
 
 See ARCHITECTURE.md 依赖允许表 and 禁止 F-02, F-03, F-04, F-10, F-11, F-13, F-14.
 """
@@ -7,6 +12,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -14,9 +20,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
 SLICES = ("catalog", "knowledge", "identity", "practice", "analysis", "delivery")
-# First slice only. Widen this in the same change as the exec plan and ARCHITECTURE.
-PHASE_TOP = {"kernel", "bootstrap", "catalog", "practice"}
-KNOWN_TOP = PHASE_TOP | set(SLICES)
+ALWAYS_TOP = frozenset({"kernel", "bootstrap"})
+DEFAULT_SLICES = frozenset({"catalog", "practice"})
+KNOWN_TOP = ALWAYS_TOP | frozenset(SLICES)
 HARD_LINE_CAP = 800
 FORBIDDEN_MODULES = {
     "fastapi",
@@ -194,7 +200,68 @@ def check_file(path: Path, backend: Path = BACKEND) -> None:
                 )
 
 
-def check_phase_scope() -> None:
+def resolve_phase_slices(
+    conf_value: str, env_value: str | None
+) -> tuple[frozenset[str] | None, str, str]:
+    """Return the allowed business slices, an error, and where the list came from.
+
+    A non-empty env_value wins. A blank list uses catalog and practice.
+    A name outside SLICES is an error so a typo does not silently widen the phase.
+    """
+    env = (env_value or "").strip()
+    if env:
+        raw, source = env, "env"
+    else:
+        raw, source = conf_value.strip(), "check.conf"
+    tokens = raw.split()
+    if not tokens:
+        return frozenset(DEFAULT_SLICES), "", "default"
+    unknown = [token for token in tokens if token not in SLICES]
+    if unknown:
+        return None, "unknown phase slice: " + " ".join(unknown), source
+    return frozenset(tokens), "", source
+
+
+def conf_value(key: str) -> str:
+    """Last KEY=value in scripts/check.conf. The file is plain text, never executed."""
+    path = ROOT / "scripts" / "check.conf"
+    if not path.is_file():
+        return ""
+    found = ""
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        if name.strip() != key:
+            continue
+        found = value.strip()
+        if len(found) >= 2 and found[0] == found[-1] and found[0] in {'"', "'"}:
+            found = found[1:-1]
+    return found
+
+
+def current_phase() -> tuple[frozenset[str], str]:
+    allowed, error, source = resolve_phase_slices(
+        conf_value("PHASE_SLICES"),
+        os.environ.get("PHASE_SLICES"),
+    )
+    if allowed is None:
+        fail(
+            "F-13",
+            f"{error} (from {source}).",
+            "PHASE_SLICES accepts only: " + ", ".join(SLICES) + ". "
+            "Leave it blank to use catalog and practice. "
+            "kernel and bootstrap are always allowed and are not written in the list. "
+            "See scripts/check.conf.",
+        )
+    return allowed, source
+
+
+def check_phase_scope() -> tuple[frozenset[str], str]:
+    allowed, source = current_phase()
+    phase_top = set(ALWAYS_TOP) | set(allowed)
+    shown = " ".join(name for name in SLICES if name in allowed)
     if BACKEND.is_dir():
         for child in BACKEND.iterdir():
             if not child.is_dir() or child.name == "__pycache__":
@@ -207,13 +274,15 @@ def check_phase_scope() -> None:
                     "Use kernel, bootstrap, or one of: " + ", ".join(SLICES) + ". "
                     "See ARCHITECTURE.md 目录.",
                 )
-            if child.name not in PHASE_TOP:
+            if child.name not in phase_top:
                 fail(
                     "F-13",
-                    f"{rel} is outside the first slice.",
-                    "The first slice may only add catalog and practice. "
+                    f"{rel} is outside the current phase ({shown}, from {source}).",
+                    "The default phase allows catalog and practice. "
+                    "kernel and bootstrap stay allowed. "
                     "Change docs/exec-plans/active/rational-number-loop.md and ARCHITECTURE.md first, "
-                    "then update PHASE_TOP in scripts/check_boundaries.py in that same change. "
+                    "then set PHASE_SLICES in scripts/check.conf in that same change. "
+                    "A non-empty PHASE_SLICES environment variable overrides that line. "
                     "Do not widen the check just to make it pass.",
                 )
     for rel in FORBIDDEN_TREES:
@@ -252,6 +321,7 @@ def check_phase_scope() -> None:
                 f"{path.relative_to(ROOT).as_posix()} depends on electron.",
                 "Electron is not the fallback. Stay in the browser. See ADR 0011.",
             )
+    return allowed, source
 
 
 def check_apps_do_not_import_backend() -> None:
@@ -320,14 +390,18 @@ def run_fixtures() -> None:
 def main() -> int:
     try:
         run_fixtures()
-        scan_backend()
+        allowed, source = scan_backend()
     except BoundaryError:
         return 1
-    print("LINT PASS: dependency direction, file-size cap, and first-slice scope hold.")
+    shown = " ".join(name for name in SLICES if name in allowed)
+    print(
+        "LINT PASS: dependency direction, file-size cap, and phase scope "
+        f"({shown}, from {source}) hold."
+    )
     return 0
 
 
-def scan_backend() -> None:
+def scan_backend() -> tuple[frozenset[str], str]:
     if BACKEND.is_dir():
         for banned in ("utils", "helpers", "common"):
             for folder in BACKEND.rglob(banned):
@@ -342,8 +416,9 @@ def scan_backend() -> None:
             if "__pycache__" in path.parts:
                 continue
             check_file(path)
-    check_phase_scope()
+    phase = check_phase_scope()
     check_apps_do_not_import_backend()
+    return phase
 
 
 if __name__ == "__main__":

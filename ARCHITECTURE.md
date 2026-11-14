@@ -69,11 +69,12 @@ flowchart LR
 
 ## 目录
 
-第一段代码只创建 `catalog` 和 `practice`。其余切片等有代码再加目录，不预先铺空包。桌面壳不在第一段。
+第一段代码只创建 `catalog` 和 `practice`。这个名单写在 `scripts/check.conf` 的 `PHASE_SLICES`，默认就是这两项。非空环境变量 `PHASE_SLICES` 覆盖该行。放宽时先改本文件和执行计划，再改配置。其余切片等有代码再加目录，不预先铺空包。桌面壳不在第一段。`kernel` 和 `bootstrap` 始终允许，不写进这个名单。
 
 ```text
 backend/kernel/                 LogEvent、Logger、Ok、Err
-backend/bootstrap/compose.py    唯一组合根。只装配内存适配器
+backend/bootstrap/compose.py    唯一组合根。只装配内存适配器和健康检查占位
+backend/bootstrap/health.py     将来的 GET /health 正文。现在固定为 status=ok
 backend/catalog/                核准快照。内存适配器
 backend/practice/               出卷和确认。内存适配器
 backend/<slice>/api.py          其他切片唯一可以导入的入口
@@ -96,7 +97,7 @@ apps/android/                   尚未创建
 | 组合根 | 可以 |  | 可以 | 可以 | 可以 | 可以 |
 | 网页 / App |  |  |  |  | 只通过 HTTPS API | 只限自己的 UI 框架 |
 
-`scripts/check_boundaries.py` 检查 domain、application、adapters、kernel 和组合根的 import。相对导入先按源文件所在的包解析成绝对模块，再套用同一张允许表。它也禁止 `utils`、`helpers`、`common`，并拒绝第一段之外的切片目录、安卓工程、桌面壳和 Electron。组合根里的业务分支查不到，标 review。语言专用的 import-linter 或 dependency-cruiser 仍不引入。栈已按 ADR 0012 采纳，继续用这一支脚本。
+`scripts/check_boundaries.py` 检查 domain、application、adapters、kernel 和组合根的 import。相对导入先按源文件所在的包解析成绝对模块，再套用同一张允许表。它也禁止 `utils`、`helpers`、`common`，并拒绝 `PHASE_SLICES` 之外的切片目录、安卓工程、桌面壳和 Electron。组合根里的业务分支查不到，标 review。语言专用的 import-linter 或 dependency-cruiser 仍不引入。栈已按 ADR 0012 采纳，继续用这一支脚本。
 
 ## 禁止
 
@@ -114,7 +115,7 @@ apps/android/                   尚未创建
 | F-10 | 单个 Python 文件超过 800 行 | 模块变浅 | `scripts/check_boundaries.py` |
 | F-11 | 组合根里写业务分支，或导入 domain | 规则出现第二份 | 导入 domain 由 `scripts/check_boundaries.py` 拒绝。业务分支仍是 review |
 | F-12 | 未确认 DEC-03 就调用真实模型处理学生卷 | 数据处理条件未知 | review。开发用假适配器。未落地 |
-| F-13 | 第一段创建 catalog、practice 以外的切片，或建立安卓工程、桌面壳、Electron | 实现会摊开，低配电脑再带一个浏览器 | `scripts/check_boundaries.py` |
+| F-13 | 创建 `PHASE_SLICES` 以外的切片，或建立安卓工程、桌面壳、Electron。默认仍是 catalog 和 practice | 实现会摊开，低配电脑再带一个浏览器 | `scripts/check_boundaries.py` 读 `scripts/check.conf`。非空环境变量 `PHASE_SLICES` 覆盖该行 |
 | F-14 | 网页或 App 的源码导入 backend | 规则会抄进界面 | `scripts/check_boundaries.py`。`apps/` 还不存在时这项空过，目录一出现就查 |
 
 ## 文件大小
@@ -203,6 +204,10 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 
 机器检查：`python scripts/check_logging.py`。它要求本文包含 request_id、绝不记、四个级别和 stdout。kernel、domain、application 里禁止 print 和具体日志库。全部 backend 的 log 调用禁止明显敏感字段和 f-string。故意违规的样例不留在仓库里。证据见 `docs/evidence/G0-2026-11-14.md` 和 `docs/evidence/guardrails-2026-11-14.md`。
 
+## 健康检查与错误上报
+
+有服务端之后提供 `GET /health`。现在没有 HTTP 进程。`health_report()` 返回固定的 `status=ok`，组合根把它装配进去。返回里没有密钥、连接串、姓名、学号或学生照片。错误上报的最小字段和样例在 [docs/observability.md](docs/observability.md)。M-14 要到发布前、真实接口存在时才算通过。这一段的占位不代替那次检查。
+
 ## 测试
 
 | 层 | 怎么测 | 现在 |
@@ -260,7 +265,7 @@ ASVS L1 自查是 SHOULD，还没做。
 | M-03 密钥形态 | `scripts/check` | 已接，并在 CI 里跑。远端 push protection 的原始记录见 `docs/evidence/G0-2026-11-14.md` |
 | M-04 日志 | `scripts/check_logging.py` | 已接。查 print、具体日志库、log 调用上的明显敏感字段和 f-string。运行中的失败日志演练未落地 |
 | M-05 空 catch | `scripts/check` 与 `scripts/check.ps1` 同一项 | 已接 |
-| F-02、F-03、F-04、F-10、F-11 的 import、F-13、F-14 | `scripts/check_boundaries.py` | 已接进全量检查，含相对导入夹具。pre-commit 的 `--fast` 不跑这项 |
+| F-02、F-03、F-04、F-10、F-11 的 import、F-13、F-14 | `scripts/check_boundaries.py` | 已接进全量检查，含相对导入夹具。F-13 的业务切片来自 `PHASE_SLICES`，默认 catalog practice。pre-commit 的 `--fast` 不跑这项 |
 | F-01、F-05、F-06、F-11 的业务分支、F-12 | 无 | 未落地，标 review |
 | CI 的 `check` | `.github/workflows/ci.yml` | 已接。成功与否看 [Actions 的 check](https://github.com/wisdom-km/k12-qbank/actions)。过期的运行号不写在这里，历史运行留在 `docs/evidence/` |
 | main 分支保护 | GitHub 设置 | 规则已写上。当前设置以仓库的分支保护页为准，不在这里抄一份会过期的截图说明 |

@@ -18,6 +18,8 @@ REQUIRED = (
     "docs/WAIVERS.md",
     "docs/adr/0008-logging.md",
     "docs/exec-plans/active/rational-number-loop.md",
+    "docs/observability.md",
+    "docs/fixtures/README.md",
     ".env.example",
     ".gitignore",
     "scripts/check.ps1",
@@ -28,7 +30,7 @@ REQUIRED = (
 PHRASES = {
     "AGENTS.md": ("强制项", "长期", "scripts/check.ps1", "任一 MUST"),
     "PRD.md": ("范围外", "US-01", "AC-01"),
-    "ARCHITECTURE.md": ("R1", "R6", "request_id", "组合根"),
+    "ARCHITECTURE.md": ("R1", "R6", "request_id", "组合根", "PHASE_SLICES"),
     "RULES.md": ("L-01", "Definition of Done"),
     "README.md": ("python scripts/status.py", "python scripts/smoke_docs.py"),
 }

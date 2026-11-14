@@ -54,7 +54,7 @@
 | 查看骨架状态 | `python scripts/status.py` |
 | 文档冒烟 | `python scripts/smoke_docs.py` |
 | 最小 core 测试 | `python -m unittest discover -s tests -v` |
-| 边界、相对导入和第一段范围 | `python scripts/check_boundaries.py` |
+| 边界、相对导入和阶段范围 | `python scripts/check_boundaries.py`。允许的业务切片是 `scripts/check.conf` 的 `PHASE_SLICES`，默认 `catalog practice`。非空环境变量同名时覆盖 |
 | 日志规则 | `python scripts/check_logging.py` |
 | 文件备份演练 | `python scripts/drill_backup.py`。夹具记录在 `docs/evidence/backup-drill-2026-11-14.md`，不是正式数据 |
 | 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
