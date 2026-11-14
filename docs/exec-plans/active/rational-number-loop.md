@@ -9,6 +9,16 @@
 
 仓库有约束文档、kernel、门禁脚本，以及 `catalog` 和 `practice` 的内存骨架。没有数据库、没有网页、没有安卓工程。服务端和网页技术栈已由 ADR 0012 采纳，框架包还没安装。
 
+骨架在合成数据上已经能做到：
+
+| 能力 | 观察到的结果 | 测试 |
+| --- | --- | --- |
+| 未核准拒绝 | 题目或答案未核准时拒绝出卷，不写学生卷 | `test_unapproved_issue_is_refused_and_writes_nothing` |
+| 操作键幂等 | 相同操作键、相同内容返回原来的确认，不写第二条 | `test_same_key_replay_returns_the_original` |
+| 同键不同内容 | 拒绝，原来的确认仍是 `adopt` | `test_same_key_different_content_is_refused` |
+| 版本冲突 | 另一个键确认同一复核版本得到冲突。复核版本变了，新键也拒绝，题目版本不变 | `test_second_key_on_the_same_review_conflicts`、`test_new_key_is_refused_when_the_review_version_changed` |
+| 快照冻结 | 发卷复制题目版本和答案版本。之后改题库，旧卷上的这两个版本不变。空白版本号不能出卷 | `test_issued_snapshot_stays_when_the_catalog_changes`、`test_blank_version_id_is_not_frozen` |
+
 ## 要证明的事
 
 在浏览器里，老师可以核验并发布一道题，给一名学生生成一份卷，打开 PDF，并确认一条作答记录。服务端拒绝未核准题目的正式出卷。相同确认再提交一次不产生第二条记录。这一段不包含手机拍照。
@@ -17,7 +27,7 @@
 
 ## M1 契约
 
-下面四项是这一段的执行契约。技术栈还没采纳、机构还没确认的地方标为待确认。预期结果是做出来之后必须能观察到的事。
+下面四项是这一段的执行契约。服务端和网页技术栈已由 ADR 0012 采纳，框架包还没安装。机构还没确认的地方标为待确认。预期结果是做出来之后必须能观察到的事。
 
 ### 发卷时冻结什么
 
@@ -92,7 +102,7 @@
 | 步骤 | 计划 | 实际 | 证据 |
 | --- | --- | --- | --- |
 | 1 | 先定语言再写依赖 | 已采纳 Python 3.12、FastAPI、PostgreSQL、React。还没有依赖清单，所以还没有锁文件 | ADR 0012 |
-| 2 | 先提交核准快照、创建卷、确认作答的数据类型 | 已写在两个 `api.py` | `backend/catalog/api.py`、`backend/practice/api.py` |
+| 2 | 先提交核准快照、创建卷、确认作答的数据类型 | 已写。发卷快照是 `IssueSnapshot`，操作键是 `OperationKey` | `backend/catalog/api.py`、`backend/practice/api.py` |
 | 3 | 只在 catalog 和 practice 写最小规则 | 已写 R1、R2、R3、R5。授权是 practice 里的内存端口 | `backend/catalog/domain`、`backend/practice/domain` |
 | 4 | core 测试覆盖未核准拒绝、确认、重放 | 已写。假端口，不联网 | `python -m unittest discover -s tests -v` |
 | 5 | 组合根只装配，并有一条带 request_id 的失败日志 | 已装配内存适配器。存储失败会打出 ERROR 和 request_id | `backend/bootstrap/compose.py`，core 测试最后一条 |

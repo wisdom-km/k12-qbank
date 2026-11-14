@@ -11,7 +11,7 @@ from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 from backend.practice.api import ConfirmCommand
 from backend.practice.application.ports import Authorizer, PracticeStore
-from backend.practice.domain.confirm import Confirmation, same_content
+from backend.practice.domain.confirm import Confirmation, classify_operation, parse_operation_key
 
 
 def confirm_attempt(
@@ -24,6 +24,10 @@ def confirm_attempt(
 ) -> Ok[Confirmation] | Err:
     started = time.perf_counter()
     identify = new_id or (lambda: uuid.uuid4().hex)
+    parsed = parse_operation_key(command.operation_key)
+    if isinstance(parsed, Err):
+        return _refuse(logger, request_id, started, parsed.code, parsed.message)
+    operation_key = parsed.value
     loaded = read_store(
         lambda: store.get_paper(command.paper_id),
         logger,
@@ -45,7 +49,7 @@ def confirm_attempt(
             "this teacher cannot confirm for that student and subject",
         )
     found = read_store(
-        lambda: store.get_confirmation(command.operation_key),
+        lambda: store.get_confirmation(operation_key),
         logger,
         request_id,
         "practice.confirm",
@@ -54,27 +58,28 @@ def confirm_attempt(
     if isinstance(found, Err):
         return found
     existing = found.value
-    if existing is not None:
-        if same_content(
-            existing,
-            operation_key=command.operation_key,
-            paper_id=command.paper_id,
-            sub_question_id=command.sub_question_id,
-            teacher_id=command.teacher_id,
-            review_version_id=command.review_version_id,
-            decision=command.decision,
-            fixture_answer_id=command.fixture_answer_id,
-        ):
-            emit(
-                logger,
-                level="INFO",
-                event="attempt_confirmed",
-                request_id=request_id,
-                module="practice.confirm",
-                outcome=existing.confirmation_id,
-                started=started,
-            )
-            return Ok(existing)
+    kind = classify_operation(
+        existing,
+        operation_key=operation_key,
+        paper_id=command.paper_id,
+        sub_question_id=command.sub_question_id,
+        teacher_id=command.teacher_id,
+        review_version_id=command.review_version_id,
+        decision=command.decision,
+        fixture_answer_id=command.fixture_answer_id,
+    )
+    if kind == "replay" and existing is not None:
+        emit(
+            logger,
+            level="INFO",
+            event="attempt_confirmed",
+            request_id=request_id,
+            module="practice.confirm",
+            outcome=existing.confirmation_id,
+            started=started,
+        )
+        return Ok(existing)
+    if kind == "mismatch":
         return _refuse(
             logger,
             request_id,
@@ -109,7 +114,7 @@ def confirm_attempt(
         )
     record = Confirmation(
         confirmation_id=identify(),
-        operation_key=command.operation_key,
+        operation_key=operation_key,
         paper_id=command.paper_id,
         sub_question_id=command.sub_question_id,
         teacher_id=command.teacher_id,

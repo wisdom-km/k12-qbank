@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from backend.kernel.result import Err
+
 
 @dataclass(frozen=True)
 class Paper:
+    """question_version_id and answer_version_id are the frozen issue-time copy."""
+
     paper_id: str
     teacher_id: str
     student_id: str
@@ -31,7 +35,13 @@ def freeze_paper(
     asset_ids: tuple[str, ...],
     layout_template_id: str,
     review_version_id: str,
-) -> Paper:
+) -> Paper | Err:
+    """Copy the version ids onto the paper. Empty ids are refused and nothing is stored."""
+    if not question_version_id.strip() or not answer_version_id.strip():
+        return Err(
+            "not_frozen",
+            "the question version and the answer version must both be copied",
+        )
     return Paper(
         paper_id=paper_id,
         teacher_id=teacher_id,

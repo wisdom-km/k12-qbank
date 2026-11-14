@@ -6,7 +6,7 @@ import time
 import uuid
 from collections.abc import Callable
 
-from backend.catalog.api import ApprovalPort, issue_block
+from backend.catalog.api import ApprovalPort, copy_issue_snapshot, issue_block
 from backend.kernel.logger import Logger
 from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
@@ -61,17 +61,40 @@ def issue_paper(
     snapshot = loaded.value
     if snapshot is None:
         return Err("not_found", "the question version does not exist")
+    frozen = copy_issue_snapshot(snapshot)
+    if isinstance(frozen, Err):
+        emit(
+            logger,
+            level="WARN",
+            event="use_case_refused",
+            request_id=request_id,
+            module="practice.issue",
+            outcome=frozen.code,
+            started=started,
+        )
+        return frozen
     paper = freeze_paper(
         paper_id=identify(),
         teacher_id=command.teacher_id,
         student_id=command.student_id,
         subject_id=command.subject_id,
-        question_version_id=snapshot.question_version_id,
-        answer_version_id=snapshot.answer_version_id,
-        asset_ids=snapshot.asset_ids,
-        layout_template_id=snapshot.layout_template_id,
+        question_version_id=frozen.question_version_id,
+        answer_version_id=frozen.answer_version_id,
+        asset_ids=frozen.asset_ids,
+        layout_template_id=frozen.layout_template_id,
         review_version_id=command.review_version_id,
     )
+    if isinstance(paper, Err):
+        emit(
+            logger,
+            level="WARN",
+            event="use_case_refused",
+            request_id=request_id,
+            module="practice.issue",
+            outcome=paper.code,
+            started=started,
+        )
+        return paper
     saved = read_store(
         lambda: store.add_paper(paper),
         logger,

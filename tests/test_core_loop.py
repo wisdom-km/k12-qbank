@@ -123,7 +123,9 @@ class CoreLoopTest(unittest.TestCase):
         second = self._confirm(paper.paper_id, "key-1", "adopt")
         assert isinstance(first, Ok)
         assert isinstance(second, Ok)
+        self.assertIs(second.value, first.value)
         self.assertEqual(second.value.confirmation_id, first.value.confirmation_id)
+        self.assertEqual(second.value.decision, "adopt")
         self.assertEqual(self.practice.confirmation_count(), 1)
 
     def test_same_key_different_content_is_refused(self) -> None:
@@ -134,6 +136,9 @@ class CoreLoopTest(unittest.TestCase):
         assert isinstance(again, Err)
         self.assertEqual(again.code, "key_content_mismatch")
         self.assertEqual(self.practice.confirmation_count(), 1)
+        stored = self.practice.get_confirmation("key-1")
+        assert stored is not None
+        self.assertEqual(stored.decision, "adopt")
 
     def test_issued_snapshot_stays_when_the_catalog_changes(self) -> None:
         paper = self._issue()
@@ -200,6 +205,46 @@ class CoreLoopTest(unittest.TestCase):
         self.assertIsInstance(result, Err)
         assert isinstance(result, Err)
         self.assertEqual(result.code, "unauthorized")
+        self.assertEqual(self.practice.paper_count(), 0)
+
+    def test_blank_operation_key_writes_nothing(self) -> None:
+        paper = self._issue()
+        result = self._confirm(paper.paper_id, "   ", "adopt")
+        self.assertIsInstance(result, Err)
+        assert isinstance(result, Err)
+        self.assertEqual(result.code, "empty_operation_key")
+        self.assertEqual(self.practice.confirmation_count(), 0)
+
+    def test_blank_version_id_is_not_frozen(self) -> None:
+        self.approvals.put(
+            ApprovalSnapshot(
+                question_version_id="  ",
+                answer_version_id="a-v1",
+                asset_ids=("page-synth",),
+                layout_template_id="layout-1",
+                question_approved=True,
+                answer_approved=True,
+                retired=False,
+            )
+        )
+        result = issue_paper(
+            IssuePaperCommand(
+                teacher_id="teacher-synth",
+                student_id="student-synth",
+                subject_id="math",
+                question_version_id="  ",
+                review_version_id="rev-1",
+            ),
+            self.approvals,
+            self.auth,
+            self.practice,
+            self.logger,
+            "req-blank",
+            self.next_id,
+        )
+        self.assertIsInstance(result, Err)
+        assert isinstance(result, Err)
+        self.assertEqual(result.code, "not_frozen")
         self.assertEqual(self.practice.paper_count(), 0)
 
     def test_catalog_read_refuses_unapproved(self) -> None:
