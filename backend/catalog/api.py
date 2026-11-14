@@ -4,10 +4,16 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from backend.catalog.domain.approval import issue_block
-from backend.catalog.domain.snapshot import ApprovalSnapshot
+from backend.catalog.domain.approval import copy_issue_snapshot, issue_block
+from backend.catalog.domain.snapshot import ApprovalSnapshot, IssueSnapshot
 
-__all__ = ["ApprovalPort", "ApprovalSnapshot", "issue_block"]
+__all__ = [
+    "ApprovalPort",
+    "ApprovalSnapshot",
+    "IssueSnapshot",
+    "copy_issue_snapshot",
+    "issue_block",
+]
 
 
 class ApprovalPort(Protocol):
