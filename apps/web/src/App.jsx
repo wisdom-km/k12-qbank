@@ -5,9 +5,11 @@ import {
   acceptResponse,
   attemptBlock,
   cleared,
+  confirmPayload,
   retryBody,
   showConflictReload,
   startSwitch,
+  takeHandOut,
 } from "./confirm_gate.js";
 
 const REVIEW_VERSION_ID = "rev-1";
@@ -104,15 +106,42 @@ export default function App() {
   }
 
   function handOut() {
+    const token = generation.current;
+    const source = paper;
+    const view = {
+      paper: source,
+      attempt,
+      confirmation,
+      payload: savedPayload,
+      message,
+      error,
+      errorCode,
+    };
     return run(async () => {
-      const next = await call("/api/practice/papers/" + paper.paper_id + "/handout", {
-        method: "POST",
-        body: "{}",
-      });
-      setPaper({ ...paper, ...next });
-      const nextPapers = await call("/api/practice/papers");
-      setPapers(nextPapers.papers);
-      setMessage("已发放");
+      try {
+        const next = await call("/api/practice/papers/" + source.paper_id + "/handout", {
+          method: "POST",
+          body: "{}",
+        });
+        const taken = takeHandOut(view, token, generation.current, { paper: next });
+        if (!taken.apply) return;
+        setPaper(taken.view.paper);
+        const nextPapers = await call("/api/practice/papers");
+        const listed = acceptResponse(token, generation.current, nextPapers);
+        if (!listed.apply || !listed.body) return;
+        setPapers(listed.body.papers);
+        setMessage(taken.view.message);
+        setError("");
+        setErrorCode("");
+      } catch (reason) {
+        const taken = takeHandOut(view, token, generation.current, {
+          error: { code: reason.code || "", message: reason.message || "" },
+        });
+        if (!taken.apply) return;
+        setErrorCode(taken.view.errorCode);
+        setError(taken.view.error);
+        setMessage("");
+      }
     });
   }
 
@@ -136,15 +165,7 @@ export default function App() {
   }
 
   function currentPayload() {
-    return {
-      operation_key: operationKey,
-      paper_id: paper.paper_id,
-      sub_question_id: attempt.sub_question_id,
-      teacher_id: session.actor_teacher_id,
-      review_version_id: attempt.review_version_id,
-      decision,
-      fixture_answer_id: attempt.fixture_answer_id,
-    };
+    return confirmPayload(paper, attempt, session.actor_teacher_id, decision, operationKey);
   }
 
   function confirm() {

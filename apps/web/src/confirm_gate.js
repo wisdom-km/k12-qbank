@@ -30,6 +30,47 @@ export function acceptResponse(requestedGeneration, currentGeneration, body) {
   return { apply: true, body };
 }
 
+export function takeHandOut(view, token, currentGeneration, outcome) {
+  if (token !== currentGeneration) {
+    return { apply: false, view };
+  }
+  if (outcome.error) {
+    const code = outcome.error.code || "";
+    const text = outcome.error.message || "";
+    return {
+      apply: true,
+      view: {
+        ...view,
+        message: "",
+        errorCode: code,
+        error: code ? code + "：" + text : text,
+      },
+    };
+  }
+  return {
+    apply: true,
+    view: {
+      ...view,
+      paper: { ...view.paper, ...outcome.paper },
+      message: "已发放",
+      error: "",
+      errorCode: "",
+    },
+  };
+}
+
+export function confirmPayload(paper, attempt, teacherId, decision, operationKey) {
+  return {
+    operation_key: operationKey,
+    paper_id: paper.paper_id,
+    sub_question_id: attempt.sub_question_id,
+    teacher_id: teacherId,
+    review_version_id: attempt.review_version_id,
+    decision,
+    fixture_answer_id: attempt.fixture_answer_id,
+  };
+}
+
 export function attemptBlock(errorCode) {
   if (errorCode !== "attempt_not_current") {
     return null;

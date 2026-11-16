@@ -1,9 +1,12 @@
 """Start one process, wait until it is ready, run one smoke call, then stop it.
 
 A resident process is not waited on until it exits. When SERVICE_CMD is set,
-the check starts that process after install. The probe stops the process tree it started,
-including a shell wrapper and the service behind it. cleaned is true only
-after those processes have exited.
+the check starts that process after install. The ready token can arrive before
+the port is bound. The same ready budget then keeps asking for health until
+this process is bound and the body is status ok, the process exits, or the
+budget ends. The probe stops the process tree it started, including a shell
+wrapper and the service behind it. cleaned is true only after those processes
+have exited.
 """
 
 from __future__ import annotations
@@ -44,7 +47,8 @@ def supervise(
 ) -> ProbeResult:
     proc = _spawn(command, shell=shell, pipe=True)
     try:
-        ready = _wait_ready(proc, ready_token, timeout_s)
+        deadline = time.monotonic() + timeout_s
+        ready = _wait_ready(proc, ready_token, deadline)
         if ready == "exited":
             return _finish(proc, "startup_failed", f"exited {proc.returncode} before ready", proc.returncode)
         if ready == "timeout":
@@ -57,18 +61,18 @@ def supervise(
                     f"exited {proc.returncode} after ready",
                     proc.returncode,
                 )
-            health = _request_health(health_url)
-            if health != "ok":
-                if proc.poll() is not None:
-                    return _finish(
-                        proc,
-                        "startup_failed",
-                        f"exited {proc.returncode} before health completed",
-                        proc.returncode,
-                    )
-                return _finish(proc, "health_failed", health, None)
-            if not _bound_by(proc, health_url):
+            health = _wait_health(proc, health_url, deadline)
+            if health == "exited":
+                return _finish(
+                    proc,
+                    "startup_failed",
+                    f"exited {proc.returncode} before health completed",
+                    proc.returncode,
+                )
+            if health == "not_bound":
                 return _finish(proc, "not_bound", "the started process is not listening", None)
+            if health != "ok":
+                return _finish(proc, "health_failed", health, None)
         try:
             smoke_code = smoke()
         except SmokeTimedOut as exc:
@@ -89,12 +93,12 @@ def supervise(
         _stop(proc)
 
 
-def _request_health(url: str) -> str:
+def _request_health(url: str, timeout: float = 0.4) -> str:
     import json
     import urllib.request
 
     try:
-        with urllib.request.urlopen(url, timeout=2) as response:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
             status = getattr(response, "status", 200)
             raw = response.read()
     except Exception as exc:
@@ -121,7 +125,33 @@ def _finish(proc: subprocess.Popen[str], status: str, detail: str, code: int | N
     return ProbeResult(status, detail, cleaned, code)
 
 
-def _wait_ready(proc: subprocess.Popen[str], token: str, timeout_s: float) -> str:
+def _wait_health(proc: subprocess.Popen[str], url: str, deadline: float) -> str:
+    last = "health request failed: waiting"
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            return "exited"
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        health = _request_health(url, timeout=min(0.4, remaining))
+        if proc.poll() is not None:
+            return "exited"
+        if health == "ok":
+            if _bound_by(proc, url):
+                return "ok"
+            return "not_bound"
+        if not health.startswith("health request failed"):
+            if _bound_by(proc, url):
+                return health
+            return "not_bound"
+        last = health
+        pause = min(0.05, max(0.0, deadline - time.monotonic()))
+        if pause:
+            time.sleep(pause)
+    return last + "; ready budget elapsed"
+
+
+def _wait_ready(proc: subprocess.Popen[str], token: str, deadline: float) -> str:
     found = threading.Event()
 
     def read_stdout() -> None:
@@ -134,7 +164,6 @@ def _wait_ready(proc: subprocess.Popen[str], token: str, timeout_s: float) -> st
 
     thread = threading.Thread(target=read_stdout, daemon=True)
     thread.start()
-    deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         if found.is_set():
             thread.join(timeout=1)

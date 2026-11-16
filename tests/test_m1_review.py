@@ -343,6 +343,74 @@ class ReviewLoopTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.assertIn("GATE PASS", completed.stdout)
 
+    def test_late_handout_keeps_the_open_paper_and_its_confirm_body(self) -> None:
+        node = shutil.which("node")
+        self.assertIsNotNone(node, "node is required for the hand-out gate check")
+        assert node is not None
+        script = (
+            "import { startSwitch, cleared, acceptLoad, acceptResponse, takeHandOut,"
+            " confirmPayload, retryBody } from './apps/web/src/confirm_gate.js';"
+            "let generation = 0;"
+            "let view = {"
+            " paper: { paper_id: 'A', status: '可打印', student_id: 'student-synth' },"
+            " attempt: { answer_text: '学生写下了 5', sub_question_id: 'sq-1',"
+            " review_version_id: 'rev-1', fixture_answer_id: 'fixture-answer-A' },"
+            " confirmation: { confirmation_id: 'conf-A' },"
+            " payload: { operation_key: 'key-a', paper_id: 'A', decision: 'adopt' },"
+            " message: '', error: '', errorCode: ''"
+            "};"
+            "const handToken = generation;"
+            "generation = startSwitch(generation);"
+            "const blank = cleared();"
+            "view = { ...view, paper: { paper_id: 'B', status: '可打印', student_id: 'student-synth-2' },"
+            " attempt: blank.attempt, confirmation: blank.confirmation, payload: blank.payload };"
+            "const loaded = acceptLoad(generation, generation, {"
+            " answer_text: '学生写下了 5', sub_question_id: 'sq-1', review_version_id: 'rev-1',"
+            " fixture_answer_id: 'fixture-answer-B' });"
+            "if (!loaded.apply) process.exit(2);"
+            "view = { ...view, attempt: loaded.attempt, message: '已打开卷 B' };"
+            "const stored = confirmPayload(view.paper, view.attempt, 'teacher-synth', 'adopt', 'key-b');"
+            "view = { ...view, payload: stored, confirmation: { confirmation_id: 'conf-B' } };"
+            "const lateOk = takeHandOut(view, handToken, generation, { paper: { paper_id: 'A', status: '已发放' } });"
+            "if (lateOk.apply || lateOk.view.paper.paper_id !== 'B') process.exit(3);"
+            "if (lateOk.view.attempt.fixture_answer_id !== 'fixture-answer-B') process.exit(4);"
+            "if (lateOk.view.confirmation.confirmation_id !== 'conf-B') process.exit(5);"
+            "if (lateOk.view.message !== '已打开卷 B' || lateOk.view.error) process.exit(6);"
+            "const sent = confirmPayload(lateOk.view.paper, lateOk.view.attempt, 'teacher-synth', 'adopt', 'key-b');"
+            "if (sent.paper_id !== 'B' || sent.fixture_answer_id !== 'fixture-answer-B') process.exit(7);"
+            "if (sent.sub_question_id !== lateOk.view.attempt.sub_question_id) process.exit(8);"
+            "if (sent.review_version_id !== 'rev-1' || sent.paper_id !== lateOk.view.paper.paper_id) process.exit(9);"
+            "const again = retryBody(lateOk.view.payload, { operation_key: 'key-edited', paper_id: 'A', decision: 'reject' });"
+            "if (again !== lateOk.view.payload || again.paper_id !== 'B' || again.operation_key !== 'key-b') process.exit(10);"
+            "const lateBad = takeHandOut(view, handToken, generation,"
+            " { error: { code: 'retired', message: 'publication is retired' } });"
+            "if (lateBad.apply || lateBad.view.error || lateBad.view.errorCode) process.exit(11);"
+            "if (lateBad.view.paper.paper_id !== 'B' || lateBad.view.attempt.fixture_answer_id !== 'fixture-answer-B') process.exit(12);"
+            "const refreshed = acceptResponse(handToken, generation, { papers: [{ paper_id: 'A', status: '已发放' }] });"
+            "if (refreshed.apply || refreshed.body) process.exit(13);"
+            "const handed = takeHandOut(view, generation, generation, { paper: { status: '已发放' } });"
+            "if (!handed.apply || handed.view.paper.paper_id !== 'B' || handed.view.paper.status !== '已发放') process.exit(14);"
+            "if (handed.view.attempt.fixture_answer_id !== 'fixture-answer-B') process.exit(15);"
+            "if (handed.view.payload.operation_key !== 'key-b' || handed.view.confirmation.confirmation_id !== 'conf-B') process.exit(16);"
+            "const after = confirmPayload(handed.view.paper, handed.view.attempt, 'teacher-synth', 'adopt', handed.view.payload.operation_key);"
+            "if (after.paper_id !== 'B' || after.fixture_answer_id !== 'fixture-answer-B') process.exit(17);"
+            "const failed = takeHandOut(view, generation, generation,"
+            " { error: { code: 'retired', message: 'publication is retired' } });"
+            "if (!failed.apply || failed.view.paper.paper_id !== 'B') process.exit(18);"
+            "if (failed.view.errorCode !== 'retired' || !failed.view.error.includes('publication is retired')) process.exit(19);"
+            "if (failed.view.attempt.fixture_answer_id !== 'fixture-answer-B' || failed.view.message !== '') process.exit(20);"
+            "console.log('HANDOUT GATE PASS');"
+        )
+        completed = subprocess.run(
+            [node, "--input-type=module", "-e", script],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("HANDOUT GATE PASS", completed.stdout)
+
     def test_parallel_revisions_keep_distinct_versions_and_the_old_pdf(self) -> None:
         loop = compose()
         load_fixture(loop)

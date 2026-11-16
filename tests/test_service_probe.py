@@ -255,6 +255,79 @@ class ServiceProbeHealthTest(unittest.TestCase):
         with self.assertRaises(OSError):
             socket.create_connection(("127.0.0.1", port), timeout=1)
 
+    def test_delayed_bind_within_the_ready_budget_passes(self) -> None:
+        import socket
+
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        code = (
+            "import threading, time\n"
+            "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n"
+            "print('READY', flush=True)\n"
+            "time.sleep(4)\n"
+            "class Handler(BaseHTTPRequestHandler):\n"
+            "    def do_GET(self):\n"
+            "        body = b'{\"status\": \"ok\"}'\n"
+            "        self.send_response(200)\n"
+            "        self.send_header('Content-Type', 'application/json')\n"
+            "        self.send_header('Content-Length', str(len(body)))\n"
+            "        self.end_headers()\n"
+            "        self.wfile.write(body)\n"
+            "    def log_message(self, fmt, *args):\n"
+            "        return\n"
+            f"server = ThreadingHTTPServer(('127.0.0.1', {port}), Handler)\n"
+            "threading.Thread(target=server.serve_forever, daemon=True).start()\n"
+            "threading.Event().wait()\n"
+        )
+        started = time.monotonic()
+        result = supervise(
+            command(code),
+            ready_token="READY",
+            timeout_s=8,
+            smoke=lambda: 0,
+            health_url=f"http://127.0.0.1:{port}/health",
+        )
+        elapsed = time.monotonic() - started
+        self.assertEqual(result.status, "ok", result.detail)
+        self.assertTrue(result.cleaned)
+        self.assertGreater(elapsed, 3.5, result.detail)
+        self.assertLess(elapsed, 12, result.detail)
+        with self.assertRaises(OSError):
+            socket.create_connection(("127.0.0.1", port), timeout=1)
+
+    def test_health_waits_through_the_ready_budget_then_fails(self) -> None:
+        started = time.monotonic()
+        result = supervise(
+            command("import time; print('READY', flush=True); time.sleep(30)"),
+            ready_token="READY",
+            timeout_s=0.8,
+            smoke=lambda: 0,
+            health_url="http://127.0.0.1:9/health",
+        )
+        elapsed = time.monotonic() - started
+        self.assertEqual(result.status, "health_failed", result.detail)
+        self.assertIn("ready budget elapsed", result.detail)
+        self.assertTrue(result.cleaned)
+        self.assertGreater(elapsed, 0.6)
+        self.assertLess(elapsed, 3)
+
+    def test_exit_while_waiting_for_bind_fails_promptly(self) -> None:
+        started = time.monotonic()
+        result = supervise(
+            command("import time; print('READY', flush=True); time.sleep(0.15); raise SystemExit(7)"),
+            ready_token="READY",
+            timeout_s=8,
+            smoke=lambda: 0,
+            health_url="http://127.0.0.1:9/health",
+        )
+        elapsed = time.monotonic() - started
+        self.assertEqual(result.status, "startup_failed", result.detail)
+        self.assertIn("exited", result.detail)
+        self.assertTrue(result.cleaned)
+        self.assertLess(elapsed, 3, result.detail)
+
 
 class ServiceProbeRealEntryTest(unittest.TestCase):
     def test_exit_during_smoke_is_not_success(self) -> None:
