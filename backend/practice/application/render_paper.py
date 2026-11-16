@@ -10,7 +10,7 @@ from backend.kernel.logger import Logger
 from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeStore
-from backend.practice.domain.page_face import PaperPage, formula_from_stem
+from backend.practice.domain.page_face import PaperPage
 from backend.practice.domain.paper import Paper, mark_issued, mark_printable, recall_file
 
 
@@ -33,27 +33,18 @@ def render_paper(
     paper = loaded.value
     if paper.status != "待渲染":
         return _refuse(logger, request_id, started, "not_rendering", "only a paper waiting for render can become printable")
-    snapshot = read_store(
-        lambda: approvals.read_snapshot(paper.question_version_id),
-        logger,
-        request_id,
-        "practice.render",
-        started,
-    )
-    if isinstance(snapshot, Err):
-        return snapshot
-    if snapshot.value is None:
-        return _refuse(logger, request_id, started, "not_found", "the question version does not exist")
+    # The formula was copied at issue. A later bank edit must not change this page.
     face = PaperPage(
         question_version_id=paper.question_version_id,
         answer_version_id=paper.answer_version_id,
-        formula=formula_from_stem(snapshot.value.stem),
-        answer_text=snapshot.value.answer_text,
+        formula=paper.formula,
         student_id=paper.student_id,
         page_number=1,
         item_order=paper.item_order,
         asset_ids=paper.asset_ids,
         layout_template_id=paper.layout_template_id,
+        paper_id=paper.paper_id,
+        page_count=1,
     )
     drawn = renderer.render(face)
     if isinstance(drawn, Err):

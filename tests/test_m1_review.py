@@ -1,0 +1,437 @@
+"""Review regressions for the synthetic M1 loop. No real student and no database."""
+
+from __future__ import annotations
+
+import hashlib
+import shutil
+import subprocess
+import unittest
+from dataclasses import replace
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from backend.bootstrap.compose import Loop, compose
+from backend.bootstrap.http_app import create_app
+from backend.bootstrap.seed import load_fixture
+from backend.catalog.application.publish_version import publish_version, revise_text
+from backend.kernel.result import Err, Ok
+from backend.practice.adapters.memory import MemoryPractice
+from backend.practice.adapters.pdf_page import StdPdf
+from backend.practice.api import IssuePaperCommand
+from backend.practice.application.issue_paper import issue_paper
+from backend.practice.application.render_paper import render_paper
+from backend.practice.domain.confirm import Confirmation, OperationKey, PendingAnswer
+from backend.practice.domain.page_face import PaperPage
+from backend.practice.domain.paper import Paper, freeze_paper
+
+
+ROOT = Path(__file__).resolve().parents[1]
+ISSUE = {
+    "teacher_id": "teacher-synth",
+    "student_id": "student-synth",
+    "subject_id": "math",
+    "question_version_id": "q-v1",
+    "review_version_id": "rev-1",
+}
+
+
+class BindOnce(MemoryPractice):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def place_issued(self, paper: object, answer: object) -> None:
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("bind failed once")
+        super().place_issued(paper, answer)  # type: ignore[arg-type]
+
+
+class ReviewLoopTest(unittest.TestCase):
+    def test_same_student_papers_keep_distinct_pages_and_omit_the_answer(self) -> None:
+        with self._client() as client:
+            self._publish(client)
+            first = self._issue(client, "student-synth")
+            second = self._issue(client, "student-synth")
+            self.assertNotEqual(first["paper_id"], second["paper_id"])
+            self.assertNotEqual(first["file_checksum"], second["file_checksum"])
+            one = self._pdf(client, str(first["file_id"]))
+            two = self._pdf(client, str(second["file_id"]))
+        self.assertNotEqual(one, two)
+        self.assertNotIn(str(second["paper_id"]).encode(), one)
+        self.assertNotIn(str(first["paper_id"]).encode(), two)
+        for pdf, row in ((one, first), (two, second)):
+            self.assertIn(b"formula \\(-3\\)+5", pdf)
+            self.assertIn(b"student student-synth", pdf)
+            self.assertIn(b"name-rule omit", pdf)
+            self.assertIn(b"page 1", pdf)
+            self.assertIn(b"pages 1", pdf)
+            self.assertIn(("paper " + str(row["paper_id"])).encode(), pdf)
+            self.assertNotIn(b"answer ", pdf)
+
+    def test_times_sign_renders_and_unsupported_text_stays_waiting(self) -> None:
+        page = _page("2\u00d73")
+        drawn = StdPdf().render(page)
+        self.assertIsInstance(drawn, bytes)
+        assert isinstance(drawn, bytes)
+        self.assertIn("2\u00d73".encode("latin-1"), drawn)
+        self.assertNotIn(b"answer ", drawn)
+        refused = StdPdf().render(_page("\u221a2"))
+        self.assertIsInstance(refused, Err)
+        assert isinstance(refused, Err)
+        self.assertEqual(refused.code, "not_rendered")
+        self.assertEqual(refused.message, "this synthetic page cannot encode the formula")
+        with self._client() as client:
+            self._publish(client)
+            edited = client.post(
+                "/api/catalog/q-v1/revise",
+                json={"stem": "\u8ba1\u7b97\uff1a\u221a2", "answer_text": "\u5f85\u5b9a"},
+            )
+            self.assertEqual(edited.status_code, 200)
+            new_id = edited.json()["question_version_id"]
+            self.assertEqual(new_id, "q-v2")
+            self.assertEqual(edited.json()["question_approved"], False)
+            early = client.post("/api/practice/papers", json=dict(ISSUE, question_version_id=new_id))
+            self.assertEqual(early.status_code, 409)
+            self.assertEqual(early.json()["code"], "not_approved")
+            self.assertEqual(client.get("/api/practice/papers").json()["count"], 0)
+            published = client.post("/api/catalog/" + new_id + "/publish")
+            self.assertEqual(published.status_code, 200)
+            opened = client.post("/api/practice/papers", json=dict(ISSUE, question_version_id=new_id))
+            self.assertEqual(opened.status_code, 200, opened.text)
+            body = opened.json()
+            self.assertEqual(body["status"], "\u5f85\u6e32\u67d3")
+            self.assertIsNone(body["file_id"])
+            self.assertEqual(body["render_code"], "not_rendered")
+            self.assertEqual(body["render_message"], "this synthetic page cannot encode the formula")
+            self.assertEqual(client.get("/api/practice/papers").json()["count"], 1)
+            attempt = client.get("/api/practice/papers/" + body["paper_id"] + "/attempt")
+            self.assertEqual(attempt.status_code, 200)
+            self.assertEqual(attempt.json()["answer_text"], "\u5f85\u5b9a")
+
+    def test_waiting_paper_keeps_the_frozen_formula_after_a_bank_edit(self) -> None:
+        loop = compose()
+        load_fixture(loop)
+        published = publish_version("q-v1", loop.approvals, loop.logger, "req-pub")
+        self.assertIsInstance(published, Ok)
+        issued = issue_paper(
+            _command("q-v1"),
+            loop.approvals,
+            loop.auth,
+            loop.practice,
+            loop.logger,
+            "req-issue",
+            actor_teacher_id="teacher-synth",
+        )
+        self.assertIsInstance(issued, Ok)
+        assert isinstance(issued, Ok)
+        self.assertEqual(issued.value.status, "\u5f85\u6e32\u67d3")
+        self.assertEqual(issued.value.formula, "(-3)+5")
+        same = revise_text("q-v1", "\u8ba1\u7b97\uff1a(-3)+5", "2", loop.approvals, loop.logger, "req-same")
+        self.assertIsInstance(same, Ok)
+        assert isinstance(same, Ok)
+        self.assertEqual(same.value.question_version_id, "q-v1")
+        revised = revise_text("q-v1", "\u8ba1\u7b97\uff1a2\u00d73", "6", loop.approvals, loop.logger, "req-rev")
+        self.assertIsInstance(revised, Ok)
+        assert isinstance(revised, Ok)
+        self.assertEqual(revised.value.question_version_id, "q-v2")
+        self.assertEqual(revised.value.answer_version_id, "a-v2")
+        self.assertFalse(revised.value.question_approved)
+        original = loop.approvals.read_snapshot("q-v1")
+        assert original is not None
+        self.assertEqual(original.stem, "\u8ba1\u7b97\uff1a(-3)+5")
+        self.assertEqual(original.answer_text, "2")
+        self.assertTrue(original.question_approved)
+        self.assertTrue(original.answer_approved)
+        live = loop.approvals.read_snapshot("q-v1")
+        assert live is not None
+        loop.approvals.put(replace(live, stem="\u8ba1\u7b97\uff1a9+9", answer_text="18"))
+        drawn = render_paper(
+            issued.value.paper_id,
+            loop.approvals,
+            loop.auth,
+            loop.practice,
+            loop.files,
+            loop.renderer,
+            loop.logger,
+            "req-render",
+            actor_teacher_id="teacher-synth",
+        )
+        self.assertIsInstance(drawn, Ok)
+        assert isinstance(drawn, Ok)
+        self.assertEqual(drawn.value.question_version_id, "q-v1")
+        old_pdf = loop.files.read(drawn.value.file_id or "")
+        assert old_pdf is not None
+        self.assertIn(b"\\(-3\\)+5", old_pdf)
+        self.assertNotIn(b"9+9", old_pdf)
+        self.assertNotIn("2\u00d73".encode("latin-1"), old_pdf)
+        self.assertNotIn(b"answer ", old_pdf)
+        checksum = drawn.value.file_checksum
+        self.assertEqual(hashlib.sha256(old_pdf).hexdigest(), checksum)
+        blocked = issue_paper(
+            _command("q-v2"),
+            loop.approvals,
+            loop.auth,
+            loop.practice,
+            loop.logger,
+            "req-block",
+            actor_teacher_id="teacher-synth",
+        )
+        self.assertIsInstance(blocked, Err)
+        assert isinstance(blocked, Err)
+        self.assertEqual(blocked.code, "not_approved")
+        self.assertEqual(loop.practice.paper_count(), 1)
+        again = publish_version("q-v2", loop.approvals, loop.logger, "req-pub-2")
+        self.assertIsInstance(again, Ok)
+        newer = issue_paper(
+            _command("q-v2"),
+            loop.approvals,
+            loop.auth,
+            loop.practice,
+            loop.logger,
+            "req-new",
+            actor_teacher_id="teacher-synth",
+        )
+        self.assertIsInstance(newer, Ok)
+        assert isinstance(newer, Ok)
+        rendered_new = render_paper(
+            newer.value.paper_id,
+            loop.approvals,
+            loop.auth,
+            loop.practice,
+            loop.files,
+            loop.renderer,
+            loop.logger,
+            "req-render-2",
+            actor_teacher_id="teacher-synth",
+        )
+        self.assertIsInstance(rendered_new, Ok)
+        assert isinstance(rendered_new, Ok)
+        new_pdf = loop.files.read(rendered_new.value.file_id or "")
+        assert new_pdf is not None
+        self.assertIn("2\u00d73".encode("latin-1"), new_pdf)
+        self.assertNotIn(b"\\(-3\\)+5", new_pdf)
+        self.assertNotIn(b"answer ", new_pdf)
+        kept = loop.files.read(drawn.value.file_id or "")
+        self.assertEqual(kept, old_pdf)
+        self.assertEqual(hashlib.sha256(kept or b"").hexdigest(), checksum)
+        second_edit = revise_text(
+            "q-v1",
+            "\u8ba1\u7b97\uff1a(-9)+9",
+            "0",
+            loop.approvals,
+            loop.logger,
+            "req-rev-2",
+        )
+        self.assertIsInstance(second_edit, Ok)
+        assert isinstance(second_edit, Ok)
+        self.assertEqual(second_edit.value.question_version_id, "q-v3")
+        self.assertIsNotNone(loop.approvals.read_snapshot("q-v1"))
+        self.assertIsNotNone(loop.approvals.read_snapshot("q-v2"))
+
+    def test_missing_item_order_writes_nothing(self) -> None:
+        with self._client() as client:
+            self._publish(client)
+            snap = client.app.state.loop.approvals.read_snapshot("q-v1")
+            assert snap is not None
+            client.app.state.loop.approvals.put(replace(snap, item_order=()))
+            refused = client.post("/api/practice/papers", json=ISSUE)
+            self.assertEqual(refused.status_code, 409)
+            self.assertEqual(refused.json()["code"], "not_frozen")
+            self.assertEqual(client.get("/api/practice/papers").json()["count"], 0)
+            self.assertEqual(client.app.state.loop.practice.paper_count(), 0)
+            self.assertIsNone(client.app.state.loop.practice.find_answer_for_paper("missing"))
+
+    def test_bind_failure_leaves_no_orphan_and_retry_binds_one_answer(self) -> None:
+        practice = BindOnce()
+        with self._client(self._loop(practice=practice)) as client:
+            self._publish(client)
+            failed = client.post("/api/practice/papers", json=ISSUE)
+            self.assertEqual(failed.status_code, 409)
+            self.assertEqual(failed.json()["code"], "store_failed")
+            self.assertEqual(client.get("/api/practice/papers").json()["count"], 0)
+            self.assertEqual(practice.paper_count(), 0)
+            opened = self._issue(client, "student-synth")
+            self.assertEqual(opened["status"], "\u53ef\u6253\u5370")
+            self.assertEqual(client.get("/api/practice/papers").json()["count"], 1)
+            self.assertEqual(practice.paper_count(), 1)
+            attempt = client.get("/api/practice/papers/" + str(opened["paper_id"]) + "/attempt")
+            self.assertEqual(attempt.status_code, 200)
+            self.assertEqual(attempt.json()["paper_id"], opened["paper_id"])
+            self.assertEqual(attempt.json()["answer_text"], "2")
+            self.assertEqual(attempt.json()["fixture_answer_id"], opened["fixture_answer_id"])
+
+    def test_list_and_count_hide_records_the_teacher_cannot_see(self) -> None:
+        with self._client() as client:
+            self._publish(client)
+            store = client.app.state.loop.practice
+            hidden = _stored_paper("paper-hidden", "teacher-b", "student-other")
+            stranger = _stored_paper("paper-stranger", "teacher-synth", "student-other")
+            store.add_paper(hidden)
+            store.add_paper(stranger)
+            _confirm(store, hidden, "conf-hidden", "key-hidden", "teacher-b")
+            _confirm(store, stranger, "conf-stranger", "key-stranger", "teacher-synth")
+            self.assertEqual(store.confirmation_count(), 2)
+            self.assertEqual(client.get("/api/practice/papers").json()["count"], 0)
+            self.assertEqual(client.get("/api/practice/confirmations/count").json()["count"], 0)
+            opened = self._issue(client, "student-synth")
+            body = {
+                "operation_key": "key-web-visible",
+                "paper_id": opened["paper_id"],
+                "sub_question_id": "sq-1",
+                "teacher_id": "teacher-synth",
+                "review_version_id": "rev-1",
+                "decision": "adopt",
+                "fixture_answer_id": opened["fixture_answer_id"],
+            }
+            saved = client.post("/api/practice/confirmations", json=body)
+            self.assertEqual(saved.status_code, 200, saved.text)
+            self.assertEqual(saved.json()["count"], 1)
+            listed = client.get("/api/practice/papers").json()
+            self.assertEqual(listed["count"], 1)
+            self.assertEqual(listed["papers"][0]["paper_id"], opened["paper_id"])
+            self.assertEqual(client.get("/api/practice/confirmations/count").json()["count"], 1)
+            self.assertEqual(store.confirmation_count(), 3)
+
+    def test_confirm_gate_drops_a_late_load_and_retries_the_stored_body(self) -> None:
+        node = shutil.which("node")
+        self.assertIsNotNone(node, "node is required for the confirm gate check")
+        assert node is not None
+        script = (
+            "import { startSwitch, cleared, acceptLoad, retryBody, showConflictReload }"
+            " from './apps/web/src/confirm_gate.js';"
+            "const first = startSwitch(0);"
+            "const view = cleared();"
+            "if (view.attempt !== null || view.confirmAllowed !== false) process.exit(2);"
+            "const moved = startSwitch(first);"
+            "const late = acceptLoad(first, moved, { answer_text: 'old' });"
+            "if (late.apply !== false) process.exit(3);"
+            "const failed = acceptLoad(moved, moved, null);"
+            "if (failed.confirmAllowed !== false) process.exit(4);"
+            "const loaded = acceptLoad(moved, moved, { answer_text: '2' });"
+            "if (!loaded.confirmAllowed || loaded.attempt.answer_text !== '2') process.exit(5);"
+            "const stored = { decision: 'adopt', operation_key: 'key-web-1' };"
+            "const edited = { decision: 'reject', operation_key: 'key-web-9' };"
+            "const again = retryBody(stored, edited);"
+            "if (again !== stored || again.decision !== 'adopt') process.exit(6);"
+            "if (!showConflictReload('version_mismatch') || showConflictReload('unauthorized')) process.exit(7);"
+            "console.log('GATE PASS');"
+        )
+        completed = subprocess.run(
+            [node, "--input-type=module", "-e", script],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("GATE PASS", completed.stdout)
+
+    def _client(self, loop: Loop | None = None) -> TestClient:
+        return TestClient(create_app(loop, seed=True))
+
+    def _loop(self, **overrides: object) -> Loop:
+        base = compose()
+        values: dict[str, object] = {
+            "approvals": base.approvals,
+            "practice": base.practice,
+            "auth": base.auth,
+            "logger": base.logger,
+            "files": base.files,
+            "renderer": base.renderer,
+            "health": base.health,
+        }
+        values.update(overrides)
+        return Loop(**values)  # type: ignore[arg-type]
+
+    def _publish(self, client: TestClient) -> None:
+        response = client.post("/api/catalog/q-v1/publish")
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def _issue(self, client: TestClient, student_id: str) -> dict[str, object]:
+        response = client.post("/api/practice/papers", json=dict(ISSUE, student_id=student_id))
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
+
+    def _pdf(self, client: TestClient, file_id: str) -> bytes:
+        response = client.get("/api/practice/files/" + file_id)
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.content
+
+
+def _command(question_version_id: str) -> IssuePaperCommand:
+    return IssuePaperCommand(
+        teacher_id="teacher-synth",
+        student_id="student-synth",
+        subject_id="math",
+        question_version_id=question_version_id,
+        review_version_id="rev-1",
+    )
+
+
+def _page(formula: str) -> PaperPage:
+    return PaperPage(
+        question_version_id="q-v1",
+        answer_version_id="a-v1",
+        formula=formula,
+        student_id="student-synth",
+        page_number=1,
+        item_order=("sq-1",),
+        asset_ids=("page-synth",),
+        layout_template_id="layout-1",
+        paper_id="paper-1",
+        page_count=1,
+    )
+
+
+def _stored_paper(paper_id: str, teacher_id: str, student_id: str) -> Paper:
+    frozen = freeze_paper(
+        paper_id=paper_id,
+        teacher_id=teacher_id,
+        student_id=student_id,
+        subject_id="math",
+        question_version_id="q-v1",
+        answer_version_id="a-v1",
+        asset_ids=("page-synth",),
+        layout_template_id="layout-1",
+        review_version_id="rev-1",
+        item_order=("sq-1",),
+        formula="(-3)+5",
+    )
+    if isinstance(frozen, Err):
+        raise AssertionError(frozen.code)
+    return frozen
+
+
+def _confirm(store: MemoryPractice, paper: Paper, confirmation_id: str, key: str, teacher_id: str) -> None:
+    answer_id = "fixture-answer-" + paper.paper_id
+    store.put_answer(
+        PendingAnswer(
+            fixture_answer_id=answer_id,
+            paper_id=paper.paper_id,
+            sub_question_id="sq-1",
+            review_version_id="rev-1",
+            student_id=paper.student_id,
+            status="pending",
+            answer_text="2",
+        )
+    )
+    saved = store.commit_confirmation(
+        Confirmation(
+            confirmation_id=confirmation_id,
+            operation_key=OperationKey(key),
+            paper_id=paper.paper_id,
+            sub_question_id="sq-1",
+            teacher_id=teacher_id,
+            review_version_id="rev-1",
+            decision="adopt",
+            fixture_answer_id=answer_id,
+        )
+    )
+    if isinstance(saved, Err):
+        raise AssertionError(saved.code)
+
+
+if __name__ == "__main__":
+    unittest.main()

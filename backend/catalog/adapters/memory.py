@@ -14,3 +14,8 @@ class MemoryApprovals:
 
     def read_snapshot(self, question_version_id: str) -> ApprovalSnapshot | None:
         return self._items.get(question_version_id)
+
+    def has_version_id(self, version_id: str) -> bool:
+        if version_id in self._items:
+            return True
+        return any(item.answer_version_id == version_id for item in self._items.values())

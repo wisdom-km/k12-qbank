@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import replace
 
 from backend.catalog.api import ApprovalPort
@@ -15,6 +16,10 @@ from backend.kernel.use_log import emit, read_store
 class ApprovalWriter(ApprovalPort):
     def put(self, snapshot: ApprovalSnapshot) -> None:
         """Store the snapshot. A later put with the same question id replaces it."""
+
+    def has_version_id(self, version_id: str) -> bool:
+        """True when this question id is already stored. Adapters also see answer ids."""
+        return self.read_snapshot(version_id) is not None
 
 
 def publish_version(
@@ -113,7 +118,7 @@ def revise_text(
     logger: Logger,
     request_id: str,
 ) -> Ok[ApprovalSnapshot] | Err:
-    """Change the bank text. Papers that already stored a file keep that file id."""
+    """Store a new unapproved version. The original version and its approval stay."""
     started = time.perf_counter()
     loaded = read_store(
         lambda: approvals.read_snapshot(question_version_id),
@@ -127,7 +132,18 @@ def revise_text(
     snapshot = loaded.value
     if snapshot is None:
         return _refuse(logger, request_id, started, "not_found", "the question version does not exist")
-    updated = replace(snapshot, stem=stem, answer_text=answer_text)
+    if snapshot.stem == stem and snapshot.answer_text == answer_text:
+        return Ok(snapshot)
+    updated = replace(
+        snapshot,
+        question_version_id=_next_free_id(snapshot.question_version_id, approvals.has_version_id),
+        answer_version_id=_next_free_id(snapshot.answer_version_id, approvals.has_version_id),
+        stem=stem,
+        answer_text=answer_text,
+        question_approved=False,
+        answer_approved=False,
+        retired=False,
+    )
     saved = read_store(
         lambda: approvals.put(updated),
         logger,
@@ -147,6 +163,19 @@ def revise_text(
         started=started,
     )
     return Ok(updated)
+
+
+def _next_free_id(current: str, taken: Callable[[str], bool]) -> str:
+    prefix, sep, number = current.rpartition("-v")
+    if sep and number.isdigit():
+        nxt = int(number) + 1
+        while taken(f"{prefix}-v{nxt}"):
+            nxt += 1
+        return f"{prefix}-v{nxt}"
+    nxt = 2
+    while taken(f"{current}-v{nxt}"):
+        nxt += 1
+    return f"{current}-v{nxt}"
 
 
 def _refuse(logger: Logger, request_id: str, started: float, code: str, message: str) -> Err:

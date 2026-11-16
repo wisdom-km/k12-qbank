@@ -24,6 +24,7 @@ from backend.practice.api import ConfirmCommand, IssuePaperCommand, Paper
 from backend.practice.application.confirm_attempt import confirm_attempt
 from backend.practice.application.open_paper import open_paper, read_attempt
 from backend.practice.application.render_paper import hand_out_paper, read_file
+from backend.practice.application.visible import visible_confirmation_count, visible_papers
 
 _REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _WEB = Path(__file__).resolve().parents[2] / "apps" / "web" / "dist"
@@ -151,12 +152,12 @@ def create_app(loop: Loop | None = None, *, seed: bool = True) -> FastAPI:
 
     @app.get("/api/practice/papers")
     def papers() -> dict[str, object]:
-        rows = wired.practice.list_papers()
+        rows = visible_papers(ACTOR_TEACHER_ID, wired.auth, wired.practice)
         return {"count": len(rows), "papers": [_paper_body(row) for row in rows]}
 
     @app.get("/api/practice/confirmations/count")
     def confirmation_count() -> dict[str, int]:
-        return {"count": wired.practice.confirmation_count()}
+        return {"count": visible_confirmation_count(ACTOR_TEACHER_ID, wired.auth, wired.practice)}
 
     @app.post("/api/practice/papers")
     def issue(body: IssueBody, request: Request) -> JSONResponse:
@@ -181,7 +182,12 @@ def create_app(loop: Loop | None = None, *, seed: bool = True) -> FastAPI:
             return _error(request.state.request_id, result)
         opened = result.value
         return JSONResponse(
-            _paper_body(opened.paper, opened.fixture_answer_id, opened.render_code)
+            _paper_body(
+                opened.paper,
+                opened.fixture_answer_id,
+                opened.render_code,
+                opened.render_message,
+            )
         )
 
     @app.post("/api/practice/papers/{paper_id}/handout")
@@ -219,6 +225,7 @@ def create_app(loop: Loop | None = None, *, seed: bool = True) -> FastAPI:
                 "sub_question_id": view.sub_question_id,
                 "review_version_id": view.review_version_id,
                 "status": view.status,
+                "answer_text": view.answer_text,
             }
         )
 
@@ -264,7 +271,7 @@ def create_app(loop: Loop | None = None, *, seed: bool = True) -> FastAPI:
                 "paper_id": record.paper_id,
                 "sub_question_id": record.sub_question_id,
                 "decision": record.decision,
-                "count": wired.practice.confirmation_count(),
+                "count": visible_confirmation_count(ACTOR_TEACHER_ID, wired.auth, wired.practice),
             }
         )
 
@@ -302,7 +309,12 @@ def _snapshot_body(snapshot: ApprovalSnapshot) -> dict[str, object]:
     }
 
 
-def _paper_body(paper: Paper, fixture_answer_id: str | None = None, render_code: str | None = None) -> dict[str, object]:
+def _paper_body(
+    paper: Paper,
+    fixture_answer_id: str | None = None,
+    render_code: str | None = None,
+    render_message: str = "",
+) -> dict[str, object]:
     return {
         "paper_id": paper.paper_id,
         "status": paper.status,
@@ -319,6 +331,7 @@ def _paper_body(paper: Paper, fixture_answer_id: str | None = None, render_code:
         "layout_template_id": paper.layout_template_id,
         "fixture_answer_id": fixture_answer_id,
         "render_code": render_code,
+        "render_message": render_message,
     }
 
 

@@ -88,6 +88,14 @@ class MemoryPractice:
         with self._commit_lock:
             self._answers[answer.fixture_answer_id] = answer
 
+    def place_issued(self, paper: Paper, answer: PendingAnswer) -> None:
+        """Write the paper and the answer under the same lock, or write neither."""
+        with self._commit_lock:
+            if not _issue_inputs_ok(paper, answer):
+                raise ValueError("incomplete issue")
+            self._papers[paper.paper_id] = paper
+            self._answers[answer.fixture_answer_id] = answer
+
     def commit_confirmation(self, record: Confirmation) -> Confirmation | Err:
         """One lock covers the replay, the answer, the review version, the slot, and the insert."""
         with self._commit_lock:
@@ -116,3 +124,19 @@ class MemoryPractice:
     def confirmation_count(self) -> int:
         with self._commit_lock:
             return len(self._by_scope)
+
+    def list_confirmations(self) -> tuple[Confirmation, ...]:
+        with self._commit_lock:
+            return tuple(self._by_scope.values())
+
+
+def _issue_inputs_ok(paper: Paper, answer: PendingAnswer) -> bool:
+    return bool(
+        paper.item_order
+        and answer.fixture_answer_id
+        and answer.sub_question_id
+        and answer.paper_id == paper.paper_id
+        and answer.sub_question_id in paper.item_order
+        and answer.student_id == paper.student_id
+        and answer.review_version_id == paper.review_version_id
+    )

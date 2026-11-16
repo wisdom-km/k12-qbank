@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from backend.catalog.api import ApprovalPort, issuable_snapshot
 from backend.kernel.logger import Logger
@@ -12,20 +13,30 @@ from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 from backend.practice.api import IssuePaperCommand
 from backend.practice.application.ports import Authorizer, PracticeStore
+from backend.practice.domain.page_face import formula_from_stem
 from backend.practice.domain.paper import Paper, freeze_paper
 
 
-def issue_paper(
+@dataclass(frozen=True)
+class PreparedIssue:
+    """A paper and the answer text copied before any store write."""
+
+    paper: Paper
+    answer_text: str
+
+
+def prepare_issue(
     command: IssuePaperCommand,
     approvals: ApprovalPort,
     auth: Authorizer,
-    store: PracticeStore,
     logger: Logger,
     request_id: str,
     new_id: Callable[[], str] | None = None,
     *,
     actor_teacher_id: str,
-) -> Ok[Paper] | Err:
+    require_item_order: bool = False,
+) -> Ok[PreparedIssue] | Err:
+    """Check the catalog, the subject, and the teacher. Do not store a paper."""
     started = time.perf_counter()
     identify = new_id or (lambda: uuid.uuid4().hex)
     loaded = read_store(
@@ -37,18 +48,10 @@ def issue_paper(
     )
     if isinstance(loaded, Err):
         return loaded
-    ready = issuable_snapshot(loaded.value)
+    snapshot = loaded.value
+    ready = issuable_snapshot(snapshot)
     if isinstance(ready, Err):
-        emit(
-            logger,
-            level="WARN",
-            event="use_case_refused",
-            request_id=request_id,
-            module="practice.issue",
-            outcome=ready.code,
-            started=started,
-        )
-        return ready
+        return _refuse_issue(logger, request_id, started, ready.code, ready.message)
     if command.subject_id != ready.subject_id:
         return _refuse_issue(
             logger,
@@ -67,6 +70,8 @@ def issue_paper(
             "unauthorized",
             "this teacher cannot issue for that student and subject",
         )
+    if require_item_order and not ready.item_order:
+        return _refuse_issue(logger, request_id, started, "not_frozen", "the paper has no item order")
     paper = freeze_paper(
         paper_id=identify(),
         teacher_id=actor_teacher_id,
@@ -78,18 +83,38 @@ def issue_paper(
         layout_template_id=ready.layout_template_id,
         review_version_id=command.review_version_id,
         item_order=ready.item_order,
+        formula=formula_from_stem(snapshot.stem if snapshot is not None else ""),
     )
     if isinstance(paper, Err):
-        emit(
-            logger,
-            level="WARN",
-            event="use_case_refused",
-            request_id=request_id,
-            module="practice.issue",
-            outcome=paper.code,
-            started=started,
-        )
-        return paper
+        return _refuse_issue(logger, request_id, started, paper.code, paper.message)
+    answer_text = snapshot.answer_text if snapshot is not None else ""
+    return Ok(PreparedIssue(paper=paper, answer_text=answer_text))
+
+
+def issue_paper(
+    command: IssuePaperCommand,
+    approvals: ApprovalPort,
+    auth: Authorizer,
+    store: PracticeStore,
+    logger: Logger,
+    request_id: str,
+    new_id: Callable[[], str] | None = None,
+    *,
+    actor_teacher_id: str,
+) -> Ok[Paper] | Err:
+    prepared = prepare_issue(
+        command,
+        approvals,
+        auth,
+        logger,
+        request_id,
+        new_id,
+        actor_teacher_id=actor_teacher_id,
+    )
+    if isinstance(prepared, Err):
+        return prepared
+    paper = prepared.value.paper
+    started = time.perf_counter()
     saved = read_store(
         lambda: store.add_paper(paper),
         logger,

@@ -49,8 +49,10 @@
 启动本机合成站点（不启动数据库）：
 
 ```text
-python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765
+python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --no-access-log
 ```
+
+默认访问日志已关闭。带 `request_id` 的结构化日志仍打在标准输出。
 
 浏览器打开 `http://127.0.0.1:8765/`。老师身份固定为服务端的 `teacher-synth`。启动进程会读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
 

@@ -24,7 +24,7 @@ ISSUE = {
 
 
 class BoomStore(MemoryPractice):
-    def add_paper(self, paper: object) -> None:
+    def place_issued(self, paper: object, answer: object) -> None:
         raise RuntimeError("synthetic store fault")
 
 
@@ -77,13 +77,25 @@ class HttpLoopTest(unittest.TestCase):
             self.assertNotIn(b"student-synth-2", first_pdf)
             self.assertIn(b"student-synth-2", second_pdf)
             self.assertIn(b"page 1", first_pdf)
+            self.assertIn(b"pages 1", first_pdf)
+            self.assertIn(("paper " + str(first["paper_id"])).encode(), first_pdf)
+            self.assertNotIn(str(second["paper_id"]).encode(), first_pdf)
             self.assertIn(b"name-rule omit", first_pdf)
+            self.assertNotIn(b"answer ", first_pdf)
             self.assertEqual(hashlib_sha(first_pdf), first["file_checksum"])
             edited = client.post(
                 "/api/catalog/q-v1/revise",
                 json={"stem": "计算：(-9)+9", "answer_text": "0"},
             )
             self.assertEqual(edited.status_code, 200)
+            self.assertEqual(edited.json()["question_version_id"], "q-v2")
+            self.assertEqual(edited.json()["answer_version_id"], "a-v2")
+            self.assertEqual(edited.json()["question_approved"], False)
+            self.assertEqual(edited.json()["answer_approved"], False)
+            original = client.get("/api/catalog/q-v1").json()
+            self.assertEqual(original["stem"], "计算：(-3)+5")
+            self.assertEqual(original["answer_text"], "2")
+            self.assertEqual(original["question_approved"], True)
             again = client.get("/api/practice/files/" + first["file_id"]).content
             self.assertEqual(again, first_pdf)
             listed = client.get("/api/practice/papers").json()["papers"]
@@ -107,6 +119,7 @@ class HttpLoopTest(unittest.TestCase):
             self.assertEqual(opened["status"], "待渲染")
             self.assertIsNone(opened["file_id"])
             self.assertEqual(opened["render_code"], "not_rendered")
+            self.assertEqual(opened["render_message"], "draw failed")
             self.assertEqual(client.get("/api/practice/papers").json()["count"], 1)
         with self._client() as client:
             self._publish(client)
@@ -131,6 +144,7 @@ class HttpLoopTest(unittest.TestCase):
             opened = self._issue(client, "student-synth")
             attempt = client.get("/api/practice/papers/" + opened["paper_id"] + "/attempt")
             self.assertEqual(attempt.status_code, 200)
+            self.assertEqual(attempt.json()["answer_text"], "2")
             body = {
                 "operation_key": "key-web-1",
                 "paper_id": opened["paper_id"],

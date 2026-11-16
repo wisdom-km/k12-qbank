@@ -1,4 +1,4 @@
-"""Plain page face copied onto a PDF. No name field. No I/O."""
+"""Plain page face copied onto a PDF. No name field. No answer. No I/O."""
 
 from __future__ import annotations
 
@@ -7,17 +7,22 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class PaperPage:
-    """What a synthetic page may show. student_id is the number, not a name."""
+    """What a synthetic student page may show.
+
+    student_id is the number, not a name. The answer and the explanation stay
+    off this face. paper_id distinguishes two papers for the same student.
+    """
 
     question_version_id: str
     answer_version_id: str
     formula: str
-    answer_text: str
     student_id: str
     page_number: int
     item_order: tuple[str, ...]
     asset_ids: tuple[str, ...]
     layout_template_id: str
+    paper_id: str
+    page_count: int
 
 
 def formula_from_stem(stem: str) -> str:

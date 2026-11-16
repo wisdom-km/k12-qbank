@@ -175,6 +175,87 @@ class ServiceProbeCommandTest(unittest.TestCase):
                 _kill_pid(smoke_id)
 
 
+class ServiceProbeHealthTest(unittest.TestCase):
+    def test_exit_after_ready_fails_before_smoke(self) -> None:
+        result = supervise(
+            command("print('READY', flush=True)"),
+            ready_token="READY",
+            timeout_s=2,
+            smoke=lambda: 0,
+            health_url="http://127.0.0.1:9/health",
+        )
+        self.assertEqual(result.status, "startup_failed")
+        self.assertIn("exited", result.detail)
+        self.assertTrue(result.cleaned)
+
+    def test_occupied_port_fails_and_leaves_the_holder(self) -> None:
+        import socket
+
+        holder = socket.socket()
+        holder.bind(("127.0.0.1", 0))
+        holder.listen(1)
+        port = holder.getsockname()[1]
+        try:
+            code = (
+                "import socket, sys\n"
+                "sock = socket.socket()\n"
+                "try:\n"
+                f"    sock.bind(('127.0.0.1', {port}))\n"
+                "except OSError:\n"
+                "    sys.exit(4)\n"
+                "print('READY', flush=True)\n"
+            )
+            result = supervise(
+                command(code),
+                ready_token="READY",
+                timeout_s=2,
+                smoke=lambda: 0,
+            )
+            self.assertEqual(result.status, "startup_failed")
+            self.assertTrue(result.cleaned)
+            client = socket.create_connection(("127.0.0.1", port), timeout=1)
+            client.close()
+        finally:
+            holder.close()
+
+    def test_health_after_ready_then_the_port_is_free(self) -> None:
+        import socket
+
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        code = (
+            "import json, threading\n"
+            "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n"
+            "class Handler(BaseHTTPRequestHandler):\n"
+            "    def do_GET(self):\n"
+            "        body = b'{\"status\": \"ok\"}'\n"
+            "        self.send_response(200)\n"
+            "        self.send_header('Content-Type', 'application/json')\n"
+            "        self.send_header('Content-Length', str(len(body)))\n"
+            "        self.end_headers()\n"
+            "        self.wfile.write(body)\n"
+            "    def log_message(self, fmt, *args):\n"
+            "        return\n"
+            f"server = ThreadingHTTPServer(('127.0.0.1', {port}), Handler)\n"
+            "threading.Thread(target=server.serve_forever, daemon=True).start()\n"
+            "print('READY', flush=True)\n"
+            "threading.Event().wait()\n"
+        )
+        result = supervise(
+            command(code),
+            ready_token="READY",
+            timeout_s=3,
+            smoke=lambda: 0,
+            health_url=f"http://127.0.0.1:{port}/health",
+        )
+        self.assertEqual(result.status, "ok", result.detail)
+        self.assertTrue(result.cleaned)
+        with self.assertRaises(OSError):
+            socket.create_connection(("127.0.0.1", port), timeout=1)
+
+
 class ServiceProbeImportTest(unittest.TestCase):
     def test_module_imports_as_a_script(self) -> None:
         completed = subprocess.run(

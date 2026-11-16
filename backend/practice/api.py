@@ -41,6 +41,7 @@ class AttemptView:
     sub_question_id: str
     review_version_id: str
     status: str
+    answer_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class OpenedPaper:
     paper: Paper
     fixture_answer_id: str
     render_code: str | None
+    render_message: str = ""
 
 
 @dataclass(frozen=True)

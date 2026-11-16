@@ -1,7 +1,9 @@
 """One-page synthetic PDF. Helvetica only, so the product renderer stays unchosen.
 
-The page shows the formula, the answer, the synthetic student number, and a page
-number. It does not print a student name.
+The page shows the frozen formula, the synthetic student number, the paper
+instance, and the page numbers. It does not print a name, an answer, or an
+explanation. Latin-1 characters such as the multiplication sign are kept.
+Anything outside Latin-1 is a stable render error.
 """
 
 from __future__ import annotations
@@ -22,16 +24,17 @@ class StdPdf:
             "assets " + " ".join(page.asset_ids),
             "order " + " ".join(page.item_order),
             "formula " + page.formula,
-            "answer " + page.answer_text,
             "student " + page.student_id,
             "name-rule omit",
+            "paper " + page.paper_id,
             "page " + str(page.page_number),
+            "pages " + str(page.page_count),
         )
         try:
             encoded = [_pdf_text(line) for line in lines]
+            return _pdf(encoded)
         except UnicodeEncodeError:
             return Err("not_rendered", "this synthetic page cannot encode the formula")
-        return _pdf(encoded)
 
 
 def _pdf_text(text: str) -> str:
@@ -46,7 +49,7 @@ def _pdf(lines: list[str]) -> bytes:
         commands.append(f"1 0 0 1 48 {y} Tm ({line}) Tj")
         y -= 18
     commands.append("ET")
-    stream = ("\n".join(commands) + "\n").encode("ascii")
+    stream = ("\n".join(commands) + "\n").encode("latin-1")
     contents = (
         b"<< /Length "
         + str(len(stream)).encode("ascii")

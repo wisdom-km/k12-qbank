@@ -72,6 +72,7 @@ class PendingAnswer:
     review_version_id: str
     student_id: str
     status: str
+    answer_text: str = ""
 
 
 OFFICIAL_DECISIONS = frozenset({"adopt", "revise", "reject"})

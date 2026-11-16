@@ -1,4 +1,4 @@
-"""Issue one paper, bind the synthetic attempt, then render. Rules stay in the called use cases."""
+"""Issue one paper and bind the synthetic attempt as one store write, then render."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from backend.kernel.logger import Logger
 from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 from backend.practice.api import AttemptView, IssuePaperCommand, OpenedPaper
-from backend.practice.application.issue_paper import issue_paper
+from backend.practice.application.issue_paper import prepare_issue
 from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeStore
 from backend.practice.application.render_paper import render_paper
 from backend.practice.domain.confirm import PendingAnswer
@@ -29,21 +29,19 @@ def open_paper(
     *,
     actor_teacher_id: str,
 ) -> Ok[OpenedPaper] | Err:
-    issued = issue_paper(
+    prepared = prepare_issue(
         command,
         approvals,
         auth,
-        store,
         logger,
         request_id,
         new_id,
         actor_teacher_id=actor_teacher_id,
+        require_item_order=True,
     )
-    if isinstance(issued, Err):
-        return issued
-    paper = issued.value
-    if not paper.item_order:
-        return Err("not_frozen", "the paper has no item order")
+    if isinstance(prepared, Err):
+        return prepared
+    paper = prepared.value.paper
     attempt_id = "fixture-answer-" + paper.paper_id
     answer = PendingAnswer(
         fixture_answer_id=attempt_id,
@@ -52,10 +50,11 @@ def open_paper(
         review_version_id=paper.review_version_id,
         student_id=paper.student_id,
         status="pending",
+        answer_text=prepared.value.answer_text,
     )
     started = time.perf_counter()
     saved = read_store(
-        lambda: store.put_answer(answer),
+        lambda: store.place_issued(paper, answer),
         logger,
         request_id,
         "practice.bind",
@@ -63,6 +62,15 @@ def open_paper(
     )
     if isinstance(saved, Err):
         return saved
+    emit(
+        logger,
+        level="INFO",
+        event="paper_created",
+        request_id=request_id,
+        module="practice.issue",
+        outcome=paper.paper_id,
+        started=started,
+    )
     emit(
         logger,
         level="INFO",
@@ -85,8 +93,22 @@ def open_paper(
     )
     if isinstance(rendered, Err):
         current = store.get_paper(paper.paper_id) or paper
-        return Ok(OpenedPaper(paper=current, fixture_answer_id=attempt_id, render_code=rendered.code))
-    return Ok(OpenedPaper(paper=rendered.value, fixture_answer_id=attempt_id, render_code=None))
+        return Ok(
+            OpenedPaper(
+                paper=current,
+                fixture_answer_id=attempt_id,
+                render_code=rendered.code,
+                render_message=rendered.message,
+            )
+        )
+    return Ok(
+        OpenedPaper(
+            paper=rendered.value,
+            fixture_answer_id=attempt_id,
+            render_code=None,
+            render_message="",
+        )
+    )
 
 
 def read_attempt(
@@ -134,6 +156,7 @@ def read_attempt(
             sub_question_id=answer.sub_question_id,
             review_version_id=answer.review_version_id,
             status=answer.status,
+            answer_text=answer.answer_text,
         )
     )
 

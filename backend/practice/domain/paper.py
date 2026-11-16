@@ -9,7 +9,7 @@ from backend.kernel.result import Err
 
 @dataclass(frozen=True)
 class Paper:
-    """question_version_id and answer_version_id are the frozen issue-time copy."""
+    """question_version_id, answer_version_id, and formula are the frozen issue-time copy."""
 
     paper_id: str
     teacher_id: str
@@ -24,6 +24,7 @@ class Paper:
     status: str
     item_order: tuple[str, ...] = ()
     file_checksum: str | None = None
+    formula: str = ""
 
 
 def freeze_paper(
@@ -38,8 +39,9 @@ def freeze_paper(
     layout_template_id: str,
     review_version_id: str,
     item_order: tuple[str, ...] = (),
+    formula: str = "",
 ) -> Paper | Err:
-    """Copy the version ids onto the paper. Empty ids are refused and nothing is stored."""
+    """Copy the version ids and the formula onto the paper. Empty ids are refused."""
     if not question_version_id.strip() or not answer_version_id.strip():
         return Err(
             "not_frozen",
@@ -59,6 +61,7 @@ def freeze_paper(
         status="待渲染",
         item_order=tuple(item_order),
         file_checksum=None,
+        formula=formula,
     )
 
 

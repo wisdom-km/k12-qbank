@@ -43,8 +43,11 @@ def main() -> int:
     if b"\\(-3\\)+5" not in pdf or b"student-synth" not in pdf or b"page 1" not in pdf:
         print("SMOKE HTTP FAIL: pdf missing formula, student number, or page")
         return 1
-    if b"name-rule omit" not in pdf:
-        print("SMOKE HTTP FAIL: pdf missing the no-name rule")
+    if b"name-rule omit" not in pdf or b"pages 1" not in pdf or b"paper " not in pdf:
+        print("SMOKE HTTP FAIL: pdf missing the no-name rule, page count, or paper id")
+        return 1
+    if b"answer " in pdf:
+        print("SMOKE HTTP FAIL: pdf includes an answer")
         return 1
     print("SMOKE HTTP PASS")
     return 0

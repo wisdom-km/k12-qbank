@@ -49,8 +49,10 @@ Install: Python is in `.python-version` (3.12). Run `python -m pip install -r re
 Start the local synthetic site (this does not start a database):
 
 ```text
-python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765
+python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --no-access-log
 ```
+
+The default access log is off. Structured logs that include `request_id` still go to stdout.
 
 Open `http://127.0.0.1:8765/`. The server actor is `teacher-synth`. The process reads `docs/fixtures/rational-number-min.json` and clears both approval flags. There is no separate load command. The second synthetic student, `student-synth-2`, is only in the server grant. It does not add a seventh fixture block.
 

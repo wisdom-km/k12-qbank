@@ -57,6 +57,7 @@ SERVICE_SMOKE_CMD=$(conf_get SERVICE_SMOKE_CMD "")
 SERVICE_SMOKE_TIMEOUT=$(conf_get SERVICE_SMOKE_TIMEOUT "5")
 SERVICE_READY_TIMEOUT=$(conf_get SERVICE_READY_TIMEOUT "5")
 SERVICE_READY_TOKEN=$(conf_get SERVICE_READY_TOKEN "READY")
+SERVICE_HEALTH_URL=$(conf_get SERVICE_HEALTH_URL "")
 BUSINESS_TEST_CMD=$(conf_get BUSINESS_TEST_CMD "")
 INSTALL_CMD=$(conf_get INSTALL_CMD "")
 START_SERVICE=no
@@ -310,7 +311,15 @@ fi
 
 # Install runs before the process. A resident process is stopped after a bounded ready wait.
 if [ "$START_SERVICE" = yes ]; then
-  if python scripts/service_probe.py --command "$SERVICE_CMD" --timeout "$SERVICE_READY_TIMEOUT" --ready-token "$SERVICE_READY_TOKEN" --smoke "$SERVICE_SMOKE_CMD" --smoke-timeout "$SERVICE_SMOKE_TIMEOUT"; then
+  probe_ok=no
+  if [ -n "$SERVICE_HEALTH_URL" ]; then
+    if python scripts/service_probe.py --command "$SERVICE_CMD" --timeout "$SERVICE_READY_TIMEOUT" --ready-token "$SERVICE_READY_TOKEN" --smoke "$SERVICE_SMOKE_CMD" --smoke-timeout "$SERVICE_SMOKE_TIMEOUT" --health-url "$SERVICE_HEALTH_URL"; then
+      probe_ok=yes
+    fi
+  elif python scripts/service_probe.py --command "$SERVICE_CMD" --timeout "$SERVICE_READY_TIMEOUT" --ready-token "$SERVICE_READY_TOKEN" --smoke "$SERVICE_SMOKE_CMD" --smoke-timeout "$SERVICE_SMOKE_TIMEOUT"; then
+    probe_ok=yes
+  fi
+  if [ "$probe_ok" = yes ]; then
     report M-02 MUST PASS "service probe after install: ready, smoke, then the process is stopped"
   else
     report M-02 MUST FAIL "service probe failed after install. The process is stopped on timeout or smoke failure."

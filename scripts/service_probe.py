@@ -40,6 +40,7 @@ def supervise(
     timeout_s: float,
     smoke: Callable[[], int],
     shell: bool = False,
+    health_url: str = "",
 ) -> ProbeResult:
     proc = _spawn(command, shell=shell, pipe=True)
     try:
@@ -48,6 +49,24 @@ def supervise(
             return _finish(proc, "startup_failed", f"exited {proc.returncode} before ready", proc.returncode)
         if ready == "timeout":
             return _finish(proc, "ready_timeout", "ready wait elapsed", proc.returncode)
+        if health_url:
+            if proc.poll() is not None:
+                return _finish(
+                    proc,
+                    "startup_failed",
+                    f"exited {proc.returncode} after ready",
+                    proc.returncode,
+                )
+            health = _request_health(health_url)
+            if health != "ok":
+                if proc.poll() is not None:
+                    return _finish(
+                        proc,
+                        "startup_failed",
+                        f"exited {proc.returncode} before health completed",
+                        proc.returncode,
+                    )
+                return _finish(proc, "health_failed", health, None)
         try:
             smoke_code = smoke()
         except SmokeTimedOut as exc:
@@ -57,6 +76,27 @@ def supervise(
         return _finish(proc, "ok", "ready, smoke passed, process stopped", 0)
     finally:
         _stop(proc)
+
+
+def _request_health(url: str) -> str:
+    import json
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(url, timeout=2) as response:
+            status = getattr(response, "status", 200)
+            raw = response.read()
+    except Exception as exc:
+        return "health request failed: " + type(exc).__name__
+    if status != 200:
+        return "health status " + str(status)
+    try:
+        body = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return "health body is not json"
+    if not isinstance(body, dict) or set(body) != {"status"} or body.get("status") != "ok":
+        return "health body is not status ok"
+    return "ok"
 
 
 def _finish(proc: subprocess.Popen[str], status: str, detail: str, code: int | None) -> ProbeResult:
@@ -343,6 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ready-token", default="READY")
     parser.add_argument("--smoke", default="")
     parser.add_argument("--smoke-timeout", type=float, default=5)
+    parser.add_argument("--health-url", default="")
     args = parser.parse_args(argv)
     if args.smoke:
         smoke = _smoke_command(args.smoke, args.smoke_timeout)
@@ -357,6 +398,7 @@ def main(argv: list[str] | None = None) -> int:
         timeout_s=args.timeout,
         smoke=smoke,
         shell=True,
+        health_url=args.health_url,
     )
     print(f"{result.status} {result.detail} cleaned={result.cleaned}")
     return 0 if result.status == "ok" and result.cleaned else 1

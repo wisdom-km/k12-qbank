@@ -40,7 +40,7 @@ if ($Tier -notin @('demo', 'tracer', 'long')) { $TierNote = "tier not confirmed 
 $RealData = Conf 'REAL_DATA' 'no'; $Public = Conf 'PUBLIC' 'no'
 $RunCmd = Conf 'RUN_CMD' ''; $TestCmd = Conf 'TEST_CMD' ''; $InstallCmd = Conf 'INSTALL_CMD' ''
 $TestKind = Conf 'TEST_KIND' 'docs'; $ServiceCmd = Conf 'SERVICE_CMD' ''; $BusinessTestCmd = Conf 'BUSINESS_TEST_CMD' ''
-$ServiceSmoke = Conf 'SERVICE_SMOKE_CMD' ''; $ServiceSmokeTimeout = Conf 'SERVICE_SMOKE_TIMEOUT' '5'; $ServiceTimeout = Conf 'SERVICE_READY_TIMEOUT' '5'; $ServiceReady = Conf 'SERVICE_READY_TOKEN' 'READY'
+$ServiceSmoke = Conf 'SERVICE_SMOKE_CMD' ''; $ServiceSmokeTimeout = Conf 'SERVICE_SMOKE_TIMEOUT' '5'; $ServiceTimeout = Conf 'SERVICE_READY_TIMEOUT' '5'; $ServiceReady = Conf 'SERVICE_READY_TOKEN' 'READY'; $ServiceHealth = Conf 'SERVICE_HEALTH_URL' ''
 $script:StartService = $false
 $AppDirs = (Conf 'APP_DIRS' '.') -split '\s+' | Where-Object { $_ }
 $LintCmd = Conf 'LINT_CMD' ''; $LogCheckCmd = Conf 'LOG_CHECK_CMD' ''
@@ -249,7 +249,11 @@ if ($Ci -and -not $Fast -and $InstallCmd) {
 
 # Install runs before the process. A resident process is stopped after a bounded ready wait.
 if ($script:StartService) {
-  & python scripts/service_probe.py --command "$ServiceCmd" --timeout "$ServiceTimeout" --ready-token "$ServiceReady" --smoke "$ServiceSmoke" --smoke-timeout "$ServiceSmokeTimeout"
+  if ($ServiceHealth) {
+    & python scripts/service_probe.py --command "$ServiceCmd" --timeout "$ServiceTimeout" --ready-token "$ServiceReady" --smoke "$ServiceSmoke" --smoke-timeout "$ServiceSmokeTimeout" --health-url "$ServiceHealth"
+  } else {
+    & python scripts/service_probe.py --command "$ServiceCmd" --timeout "$ServiceTimeout" --ready-token "$ServiceReady" --smoke "$ServiceSmoke" --smoke-timeout "$ServiceSmokeTimeout"
+  }
   if ($LASTEXITCODE -eq 0) { Report 'M-02' 'MUST' 'PASS' 'service probe after install: ready, smoke, then the process is stopped' }
   else { Report 'M-02' 'MUST' 'FAIL' 'service probe failed after install. The process is stopped on timeout or smoke failure.' }
 } elseif (-not $ServiceCmd) {

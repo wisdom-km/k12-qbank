@@ -31,6 +31,13 @@ class PracticeStore(Protocol):
     def put_answer(self, answer: PendingAnswer) -> None:
         """Store one server-loaded pending answer."""
 
+    def place_issued(self, paper: Paper, answer: PendingAnswer) -> None:
+        """Store one paper and its pending answer together.
+
+        Check the item order and the answer inputs before either row is written.
+        A failure leaves both absent.
+        """
+
     def set_review_version(self, paper_id: str, review_version_id: str) -> None:
         """Replace only the review version. The issued snapshot stays."""
 
@@ -52,6 +59,9 @@ class PracticeStore(Protocol):
 
     def find_answer_for_paper(self, paper_id: str) -> PendingAnswer | None:
         """Return the pending answer bound to this paper, or None."""
+
+    def list_confirmations(self) -> tuple[Confirmation, ...]:
+        """Return every stored confirmation. The caller filters by teacher."""
 
 
 class FileStore(Protocol):
