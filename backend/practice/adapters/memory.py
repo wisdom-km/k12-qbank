@@ -71,6 +71,19 @@ class MemoryPractice:
                     return answer
             return None
 
+    def find_answer_for_review(
+        self, paper_id: str, sub_question_id: str, review_version_id: str
+    ) -> PendingAnswer | None:
+        with self._commit_lock:
+            for answer in self._answers.values():
+                if (
+                    answer.paper_id == paper_id
+                    and answer.sub_question_id == sub_question_id
+                    and answer.review_version_id == review_version_id
+                ):
+                    return answer
+            return None
+
     def set_review_version(self, paper_id: str, review_version_id: str) -> None:
         with self._commit_lock:
             current = self._papers[paper_id]

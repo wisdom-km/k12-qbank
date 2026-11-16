@@ -31,7 +31,8 @@
     "sub_question_id": "sq-1",
     "review_version_id": "rev-1",
     "student_id": "student-synth",
-    "status": "pending"
+    "status": "pending",
+    "text": "学生写下了 5"
   },
   "photo_version": {
     "page_id": "fixture-page-1",

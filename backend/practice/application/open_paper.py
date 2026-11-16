@@ -28,6 +28,7 @@ def open_paper(
     new_id: Callable[[], str] | None = None,
     *,
     actor_teacher_id: str,
+    attempt_text: str,
 ) -> Ok[OpenedPaper] | Err:
     prepared = prepare_issue(
         command,
@@ -42,6 +43,14 @@ def open_paper(
     if isinstance(prepared, Err):
         return prepared
     paper = prepared.value.paper
+    if not attempt_text.strip():
+        return _refuse(
+            logger,
+            request_id,
+            time.perf_counter(),
+            "attempt_missing",
+            "the synthetic attempt text is empty",
+        )
     attempt_id = "fixture-answer-" + paper.paper_id
     answer = PendingAnswer(
         fixture_answer_id=attempt_id,
@@ -50,7 +59,7 @@ def open_paper(
         review_version_id=paper.review_version_id,
         student_id=paper.student_id,
         status="pending",
-        answer_text=prepared.value.answer_text,
+        answer_text=attempt_text,
     )
     started = time.perf_counter()
     saved = read_store(
@@ -137,8 +146,11 @@ def read_attempt(
         actor_teacher_id, paper.student_id, paper.subject_id
     ):
         return _refuse(logger, request_id, started, "unauthorized", "this teacher cannot handle that paper")
+    if not paper.item_order:
+        return _refuse(logger, request_id, started, "not_frozen", "the paper has no item order")
+    sub_question_id = paper.item_order[0]
     found = read_store(
-        lambda: store.find_answer_for_paper(paper_id),
+        lambda: store.find_answer_for_review(paper_id, sub_question_id, paper.review_version_id),
         logger,
         request_id,
         "practice.bind",
@@ -148,7 +160,13 @@ def read_attempt(
         return found
     answer = found.value
     if answer is None:
-        return _refuse(logger, request_id, started, "answer_not_owned", "the answer is not bound to this student paper")
+        return _refuse(
+            logger,
+            request_id,
+            started,
+            "attempt_not_current",
+            "this review version has no attempt yet",
+        )
     return Ok(
         AttemptView(
             fixture_answer_id=answer.fixture_answer_id,

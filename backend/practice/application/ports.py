@@ -58,7 +58,12 @@ class PracticeStore(Protocol):
         """Return the paper that stored this file id, or None."""
 
     def find_answer_for_paper(self, paper_id: str) -> PendingAnswer | None:
-        """Return the pending answer bound to this paper, or None."""
+        """Return one pending answer bound to this paper, or None."""
+
+    def find_answer_for_review(
+        self, paper_id: str, sub_question_id: str, review_version_id: str
+    ) -> PendingAnswer | None:
+        """Return the attempt for this paper, sub-question, and review version."""
 
     def list_confirmations(self) -> tuple[Confirmation, ...]:
         """Return every stored confirmation. The caller filters by teacher."""

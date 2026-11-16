@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { call } from "./api.js";
-import { acceptLoad, cleared, retryBody, showConflictReload, startSwitch } from "./confirm_gate.js";
+import {
+  acceptLoad,
+  acceptResponse,
+  attemptBlock,
+  cleared,
+  retryBody,
+  showConflictReload,
+  startSwitch,
+} from "./confirm_gate.js";
 
 const REVIEW_VERSION_ID = "rev-1";
 
@@ -82,13 +90,16 @@ export default function App() {
           review_version_id: REVIEW_VERSION_ID,
         }),
       });
-      setPaper(opened);
-      const nextAttempt = await call("/api/practice/papers/" + opened.paper_id + "/attempt");
+      const posted = acceptResponse(token, generation.current, opened);
+      if (!posted.apply || !posted.body) return;
+      setPaper(posted.body);
+      const nextAttempt = await call("/api/practice/papers/" + posted.body.paper_id + "/attempt");
       const applied = acceptLoad(token, generation.current, nextAttempt);
       if (applied.apply) setAttempt(applied.attempt);
       const nextPapers = await call("/api/practice/papers");
+      if (generation.current !== token) return;
       setPapers(nextPapers.papers);
-      setMessage(opened.status === "可打印" ? "已出卷，可以打开 PDF" : "已出卷，仍待渲染");
+      setMessage(posted.body.status === "可打印" ? "已出卷，可以打开 PDF" : "已出卷，仍待渲染");
     });
   }
 
@@ -137,32 +148,40 @@ export default function App() {
   }
 
   function confirm() {
+    const token = generation.current;
     const payload = currentPayload();
     return run(async () => {
       const result = await call("/api/practice/confirmations", {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      setSavedPayload(payload);
-      setConfirmation(result);
+      const applied = acceptResponse(token, generation.current, { confirmation: result, payload });
+      if (!applied.apply || !applied.body) return;
+      setSavedPayload(applied.body.payload);
+      setConfirmation(applied.body.confirmation);
       setMessage("确认号 " + result.confirmation_id + "，正式记录 " + result.count + " 条");
     });
   }
 
   function retry() {
-    const payload = retryBody(savedPayload, currentPayload());
+    const token = generation.current;
+    const payload = retryBody(savedPayload, null);
+    if (!payload) return;
     return run(async () => {
       const result = await call("/api/practice/confirmations", {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      setConfirmation(result);
+      const applied = acceptResponse(token, generation.current, { confirmation: result, payload });
+      if (!applied.apply || !applied.body) return;
+      setConfirmation(applied.body.confirmation);
       setMessage("确认号 " + result.confirmation_id + "，正式记录 " + result.count + " 条");
     });
   }
 
   const approved = Boolean(item && item.question_approved && item.answer_approved && !item.retired);
   const waitingReason = paper && paper.status === "待渲染" && (paper.render_code || paper.render_message);
+  const blocked = attemptBlock(errorCode);
 
   return (
     <main>
@@ -278,7 +297,8 @@ export default function App() {
           操作键
           <input value={operationKey} onChange={(event) => setOperationKey(event.target.value)} />
         </label>
-        <button type="button" onClick={confirm} disabled={!attempt}>
+        {blocked && <p className="error">{blocked.notice}</p>}
+        <button type="button" onClick={confirm} disabled={!attempt || Boolean(blocked)}>
           确认
         </button>
         <button type="button" onClick={retry} disabled={!savedPayload}>
@@ -287,6 +307,11 @@ export default function App() {
         {showConflictReload(errorCode) && paper && (
           <button type="button" onClick={() => choosePaper(paper)}>
             重新查看当前作答
+          </button>
+        )}
+        {blocked && paper && (
+          <button type="button" onClick={() => choosePaper(paper)}>
+            {blocked.nextStep}
           </button>
         )}
         {confirmation && (

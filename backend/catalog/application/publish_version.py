@@ -13,6 +13,9 @@ from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 
 
+_SAVE_ATTEMPTS = 8
+
+
 class ApprovalWriter(ApprovalPort):
     def put(self, snapshot: ApprovalSnapshot) -> None:
         """Store the snapshot. A later put with the same question id replaces it."""
@@ -20,6 +23,25 @@ class ApprovalWriter(ApprovalPort):
     def has_version_id(self, version_id: str) -> bool:
         """True when this question id is already stored. Adapters also see answer ids."""
         return self.read_snapshot(version_id) is not None
+
+    def insert_if_absent(self, snapshot: ApprovalSnapshot) -> bool:
+        """Insert a new version. Return False when the question id or answer id is taken.
+
+        This does not replace an existing row. Adapters check and insert together.
+        """
+        if self.has_version_id(snapshot.question_version_id) or self.has_version_id(snapshot.answer_version_id):
+            return False
+        self.put(snapshot)
+        return True
+
+    def replace_if_current(self, expected: ApprovalSnapshot, updated: ApprovalSnapshot) -> bool:
+        """Replace expected with updated only when the stored row is still expected."""
+        if updated.question_version_id != expected.question_version_id:
+            return False
+        if self.read_snapshot(expected.question_version_id) != expected:
+            return False
+        self.put(updated)
+        return True
 
 
 def publish_version(
@@ -30,42 +52,51 @@ def publish_version(
 ) -> Ok[ApprovalSnapshot] | Err:
     """Mark the question and the answer approved. A retired version stays retired."""
     started = time.perf_counter()
-    loaded = read_store(
-        lambda: approvals.read_snapshot(question_version_id),
+    for _ in range(_SAVE_ATTEMPTS):
+        loaded = read_store(
+            lambda: approvals.read_snapshot(question_version_id),
+            logger,
+            request_id,
+            "catalog.publish",
+            started,
+        )
+        if isinstance(loaded, Err):
+            return loaded
+        snapshot = loaded.value
+        if snapshot is None:
+            return _refuse(logger, request_id, started, "not_found", "the question version does not exist")
+        if snapshot.retired:
+            return _refuse(logger, request_id, started, "retired", "the question version is retired")
+        if snapshot.question_approved and snapshot.answer_approved:
+            return Ok(snapshot)
+        updated = replace(snapshot, question_approved=True, answer_approved=True)
+        saved = read_store(
+            lambda row=updated, current=snapshot: approvals.replace_if_current(current, row),
+            logger,
+            request_id,
+            "catalog.publish",
+            started,
+        )
+        if isinstance(saved, Err):
+            return saved
+        if saved.value:
+            emit(
+                logger,
+                level="INFO",
+                event="question_published",
+                request_id=request_id,
+                module="catalog.publish",
+                outcome=updated.question_version_id,
+                started=started,
+            )
+            return Ok(updated)
+    return _refuse(
         logger,
         request_id,
-        "catalog.publish",
         started,
+        "version_conflict",
+        "the question version changed while it was being saved",
     )
-    if isinstance(loaded, Err):
-        return loaded
-    snapshot = loaded.value
-    if snapshot is None:
-        return _refuse(logger, request_id, started, "not_found", "the question version does not exist")
-    if snapshot.retired:
-        return _refuse(logger, request_id, started, "retired", "the question version is retired")
-    if snapshot.question_approved and snapshot.answer_approved:
-        return Ok(snapshot)
-    updated = replace(snapshot, question_approved=True, answer_approved=True)
-    saved = read_store(
-        lambda: approvals.put(updated),
-        logger,
-        request_id,
-        "catalog.publish",
-        started,
-    )
-    if isinstance(saved, Err):
-        return saved
-    emit(
-        logger,
-        level="INFO",
-        event="question_published",
-        request_id=request_id,
-        module="catalog.publish",
-        outcome=updated.question_version_id,
-        started=started,
-    )
-    return Ok(updated)
 
 
 def retire_version(
@@ -76,38 +107,49 @@ def retire_version(
 ) -> Ok[ApprovalSnapshot] | Err:
     """Mark the publication retired. Papers already stored keep their file id."""
     started = time.perf_counter()
-    loaded = read_store(
-        lambda: approvals.read_snapshot(question_version_id),
+    for _ in range(_SAVE_ATTEMPTS):
+        loaded = read_store(
+            lambda: approvals.read_snapshot(question_version_id),
+            logger,
+            request_id,
+            "catalog.publish",
+            started,
+        )
+        if isinstance(loaded, Err):
+            return loaded
+        snapshot = loaded.value
+        if snapshot is None:
+            return _refuse(logger, request_id, started, "not_found", "the question version does not exist")
+        if snapshot.retired:
+            return Ok(snapshot)
+        updated = replace(snapshot, retired=True)
+        saved = read_store(
+            lambda row=updated, current=snapshot: approvals.replace_if_current(current, row),
+            logger,
+            request_id,
+            "catalog.publish",
+            started,
+        )
+        if isinstance(saved, Err):
+            return saved
+        if saved.value:
+            emit(
+                logger,
+                level="INFO",
+                event="question_published",
+                request_id=request_id,
+                module="catalog.retire",
+                outcome=updated.question_version_id,
+                started=started,
+            )
+            return Ok(updated)
+    return _refuse(
         logger,
         request_id,
-        "catalog.publish",
         started,
+        "version_conflict",
+        "the question version changed while it was being saved",
     )
-    if isinstance(loaded, Err):
-        return loaded
-    snapshot = loaded.value
-    if snapshot is None:
-        return _refuse(logger, request_id, started, "not_found", "the question version does not exist")
-    updated = replace(snapshot, retired=True)
-    saved = read_store(
-        lambda: approvals.put(updated),
-        logger,
-        request_id,
-        "catalog.publish",
-        started,
-    )
-    if isinstance(saved, Err):
-        return saved
-    emit(
-        logger,
-        level="INFO",
-        event="question_published",
-        request_id=request_id,
-        module="catalog.retire",
-        outcome=updated.question_version_id,
-        started=started,
-    )
-    return Ok(updated)
 
 
 def revise_text(
@@ -134,35 +176,42 @@ def revise_text(
         return _refuse(logger, request_id, started, "not_found", "the question version does not exist")
     if snapshot.stem == stem and snapshot.answer_text == answer_text:
         return Ok(snapshot)
-    updated = replace(
-        snapshot,
-        question_version_id=_next_free_id(snapshot.question_version_id, approvals.has_version_id),
-        answer_version_id=_next_free_id(snapshot.answer_version_id, approvals.has_version_id),
-        stem=stem,
-        answer_text=answer_text,
-        question_approved=False,
-        answer_approved=False,
-        retired=False,
-    )
-    saved = read_store(
-        lambda: approvals.put(updated),
-        logger,
-        request_id,
-        "catalog.revise",
-        started,
-    )
-    if isinstance(saved, Err):
-        return saved
-    emit(
-        logger,
-        level="INFO",
-        event="question_published",
-        request_id=request_id,
-        module="catalog.revise",
-        outcome=updated.question_version_id,
-        started=started,
-    )
-    return Ok(updated)
+    for _ in range(_SAVE_ATTEMPTS):
+        question_id = _next_free_id(snapshot.question_version_id, approvals.has_version_id)
+        answer_id = _next_free_id(snapshot.answer_version_id, approvals.has_version_id)
+        if answer_id == question_id:
+            answer_id = _next_free_id(answer_id, approvals.has_version_id)
+        updated = replace(
+            snapshot,
+            question_version_id=question_id,
+            answer_version_id=answer_id,
+            stem=stem,
+            answer_text=answer_text,
+            question_approved=False,
+            answer_approved=False,
+            retired=False,
+        )
+        saved = read_store(
+            lambda row=updated: approvals.insert_if_absent(row),
+            logger,
+            request_id,
+            "catalog.revise",
+            started,
+        )
+        if isinstance(saved, Err):
+            return saved
+        if saved.value:
+            emit(
+                logger,
+                level="INFO",
+                event="question_published",
+                request_id=request_id,
+                module="catalog.revise",
+                outcome=updated.question_version_id,
+                started=started,
+            )
+            return Ok(updated)
+    return _refuse(logger, request_id, started, "version_conflict", "the new version id was taken")
 
 
 def _next_free_id(current: str, taken: Callable[[str], bool]) -> str:

@@ -144,7 +144,8 @@ class HttpLoopTest(unittest.TestCase):
             opened = self._issue(client, "student-synth")
             attempt = client.get("/api/practice/papers/" + opened["paper_id"] + "/attempt")
             self.assertEqual(attempt.status_code, 200)
-            self.assertEqual(attempt.json()["answer_text"], "2")
+            self.assertEqual(attempt.json()["answer_text"], "学生写下了 5")
+            self.assertNotEqual(attempt.json()["answer_text"], "2")
             body = {
                 "operation_key": "key-web-1",
                 "paper_id": opened["paper_id"],

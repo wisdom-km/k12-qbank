@@ -67,12 +67,23 @@ def supervise(
                         proc.returncode,
                     )
                 return _finish(proc, "health_failed", health, None)
+            if not _bound_by(proc, health_url):
+                return _finish(proc, "not_bound", "the started process is not listening", None)
         try:
             smoke_code = smoke()
         except SmokeTimedOut as exc:
             return _finish(proc, "smoke_timeout", exc.detail, None)
         if smoke_code != 0:
             return _finish(proc, "smoke_failed", f"smoke exit {smoke_code}", smoke_code)
+        if proc.poll() is not None:
+            return _finish(
+                proc,
+                "startup_failed",
+                f"exited {proc.returncode} before smoke finished",
+                proc.returncode,
+            )
+        if health_url and not _bound_by(proc, health_url):
+            return _finish(proc, "not_bound", "the started process stopped listening before smoke finished", None)
         return _finish(proc, "ok", "ready, smoke passed, process stopped", 0)
     finally:
         _stop(proc)
@@ -362,6 +373,112 @@ def _posix_alive(pid: int) -> bool:
     end = stat.rfind(")")
     parts = stat[end + 2 :].split()
     return bool(parts) and parts[0] != "Z"
+
+
+def _bound_by(proc: subprocess.Popen[str], health_url: str) -> bool:
+    port = _port_of(health_url)
+    if port is None:
+        return False
+    listeners = _listening_pids(port)
+    owned = {proc.pid, *_descendants(proc.pid)}
+    return bool(listeners & owned)
+
+
+def _port_of(url: str) -> int | None:
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.port:
+        return int(parsed.port)
+    if parsed.scheme == "http":
+        return 80
+    if parsed.scheme == "https":
+        return 443
+    return None
+
+
+def _listening_pids(port: int) -> set[int]:
+    if sys.platform == "win32":
+        return _windows_listening_pids(port)
+    return _posix_listening_pids(port)
+
+
+def _windows_listening_pids(port: int) -> set[int]:
+    import ctypes
+    import socket
+    from ctypes import wintypes
+
+    table_owner_pid_listener = 3
+    af_inet = 2
+    iphlpapi = ctypes.WinDLL("iphlpapi")
+    size = wintypes.DWORD(0)
+    iphlpapi.GetExtendedTcpTable(None, ctypes.byref(size), False, af_inet, table_owner_pid_listener, 0)
+    if size.value <= 0:
+        return set()
+    buf = ctypes.create_string_buffer(size.value)
+    ret = iphlpapi.GetExtendedTcpTable(buf, ctypes.byref(size), False, af_inet, table_owner_pid_listener, 0)
+    if ret != 0:
+        return set()
+
+    class Row(ctypes.Structure):
+        _fields_ = [
+            ("dwState", wintypes.DWORD),
+            ("dwLocalAddr", wintypes.DWORD),
+            ("dwLocalPort", wintypes.DWORD),
+            ("dwRemoteAddr", wintypes.DWORD),
+            ("dwRemotePort", wintypes.DWORD),
+            ("dwOwningPid", wintypes.DWORD),
+        ]
+
+    count = ctypes.cast(buf, ctypes.POINTER(wintypes.DWORD)).contents.value
+    rows = ctypes.cast(ctypes.addressof(buf) + ctypes.sizeof(wintypes.DWORD), ctypes.POINTER(Row))
+    found: set[int] = set()
+    for index in range(count):
+        local_port = socket.ntohs(int(rows[index].dwLocalPort) & 0xFFFF)
+        if local_port == port:
+            found.add(int(rows[index].dwOwningPid))
+    return found
+
+
+def _posix_listening_pids(port: int) -> set[int]:
+    inodes: set[str] = set()
+    for path in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            with open(path, encoding="utf-8") as handle:
+                lines = handle.read().splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            parts = line.split()
+            if len(parts) < 10 or ":" not in parts[1]:
+                continue
+            if parts[3] != "0A":
+                continue
+            if int(parts[1].rsplit(":", 1)[1], 16) == port:
+                inodes.add(parts[9])
+    if not inodes:
+        return set()
+    found: set[int] = set()
+    try:
+        names = os.listdir("/proc")
+    except OSError:
+        return found
+    for name in names:
+        if not name.isdigit():
+            continue
+        fd_dir = f"/proc/{name}/fd"
+        try:
+            fds = os.listdir(fd_dir)
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                target = os.readlink(f"{fd_dir}/{fd}")
+            except OSError:
+                continue
+            if target.startswith("socket:[") and target.endswith("]") and target[8:-1] in inodes:
+                found.add(int(name))
+    return found
 
 
 def _smoke_command(command: str, timeout_s: float) -> Callable[[], int]:

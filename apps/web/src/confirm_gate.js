@@ -23,6 +23,24 @@ export function acceptLoad(requestedGeneration, currentGeneration, attempt) {
   return { apply: true, attempt, confirmAllowed: true };
 }
 
+export function acceptResponse(requestedGeneration, currentGeneration, body) {
+  if (requestedGeneration !== currentGeneration) {
+    return { apply: false, body: null };
+  }
+  return { apply: true, body };
+}
+
+export function attemptBlock(errorCode) {
+  if (errorCode !== "attempt_not_current") {
+    return null;
+  }
+  return {
+    confirmAllowed: false,
+    notice: "当前无法确认。这一版复核还没有作答。",
+    nextStep: "重新打开这张卷",
+  };
+}
+
 export function retryBody(storedPayload, _editedPayload) {
   return storedPayload;
 }

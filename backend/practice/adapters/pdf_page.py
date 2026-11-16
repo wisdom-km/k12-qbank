@@ -2,8 +2,9 @@
 
 The page shows the frozen formula, the synthetic student number, the paper
 instance, and the page numbers. It does not print a name, an answer, or an
-explanation. Latin-1 characters such as the multiplication sign are kept.
-Anything outside Latin-1 is a stable render error.
+explanation. The font uses WinAnsiEncoding. Without that encoding, Helvetica
+uses StandardEncoding, byte D7 has no glyph, and a formula such as 2×3 is
+drawn as 23. Characters WinAnsi cannot draw are a stable render error.
 """
 
 from __future__ import annotations
@@ -38,7 +39,10 @@ class StdPdf:
 
 
 def _pdf_text(text: str) -> str:
-    raw = text.encode("latin-1").decode("latin-1")
+    for index, char in enumerate(text):
+        if ord(char) < 32 or ord(char) == 127:
+            raise UnicodeEncodeError("cp1252", text, index, index + 1, "control")
+    raw = text.encode("cp1252").decode("latin-1")
     return raw.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
@@ -63,7 +67,7 @@ def _pdf(lines: list[str]) -> bytes:
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
         b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
         contents,
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     ]
     out = bytearray(b"%PDF-1.4\n")
     offsets = [0]

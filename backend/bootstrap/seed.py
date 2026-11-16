@@ -12,6 +12,17 @@ from backend.catalog.api import ApprovalSnapshot
 FIXTURE = Path(__file__).resolve().parents[2] / "docs" / "fixtures" / "rational-number-min.json"
 
 
+def synthetic_attempt_text() -> str:
+    """The pending-answer text. It is not the catalog answer."""
+    data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    text = data["pending_answer"]["text"]
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("synthetic attempt text is empty")
+    if text == data["answer"]["text"]:
+        raise ValueError("synthetic attempt text matches the catalog answer")
+    return text
+
+
 def load_fixture(loop: Loop) -> None:
     """Copy the fixture. Approval stays false until the teacher publishes.
 

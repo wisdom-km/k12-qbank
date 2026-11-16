@@ -256,6 +256,155 @@ class ServiceProbeHealthTest(unittest.TestCase):
             socket.create_connection(("127.0.0.1", port), timeout=1)
 
 
+class ServiceProbeRealEntryTest(unittest.TestCase):
+    def test_exit_during_smoke_is_not_success(self) -> None:
+        def smoke() -> int:
+            time.sleep(0.3)
+            return 0
+
+        result = supervise(
+            command("print('READY', flush=True)"),
+            ready_token="READY",
+            timeout_s=2,
+            smoke=smoke,
+        )
+        self.assertEqual(result.status, "startup_failed")
+        self.assertIn("before smoke finished", result.detail)
+        self.assertTrue(result.cleaned)
+
+    def test_health_from_another_process_is_not_our_bind(self) -> None:
+        import socket
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                body = b'{"status": "ok"}'
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, fmt: str, *args: object) -> None:
+                return
+
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        holder = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+        thread = threading.Thread(target=holder.serve_forever, daemon=True)
+        thread.start()
+        try:
+            result = supervise(
+                command("import time; print('READY', flush=True); time.sleep(30)"),
+                ready_token="READY",
+                timeout_s=2,
+                smoke=lambda: 0,
+                health_url=f"http://127.0.0.1:{port}/health",
+            )
+            self.assertEqual(result.status, "not_bound", result.detail)
+            self.assertTrue(result.cleaned)
+            client = socket.create_connection(("127.0.0.1", port), timeout=1)
+            client.close()
+        finally:
+            holder.shutdown()
+            holder.server_close()
+
+    def test_cli_nonzero_when_the_service_exits_early(self) -> None:
+        completed = subprocess.run(
+            [
+                PY,
+                "scripts/service_probe.py",
+                "--command",
+                _shell_command([PY, "-c", "print('READY', flush=True)"]),
+                "--timeout",
+                "3",
+                "--ready-token",
+                "READY",
+                "--smoke",
+                _shell_command([PY, "-c", "import time; time.sleep(0.3)"]),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("startup_failed", completed.stdout)
+
+    def test_real_uvicorn_leaves_the_port_holder_when_bind_fails(self) -> None:
+        import socket
+        import threading
+
+        holder = socket.socket()
+        holder.bind(("127.0.0.1", 0))
+        # Uvicorn prints its ready line before bind. The probe then connects
+        # to the health URL, so this occupant has to accept that connection.
+        # A one-slot backlog with no accept leaves the next connect waiting.
+        holder.listen(8)
+        port = holder.getsockname()[1]
+        stop = threading.Event()
+
+        def accept_until_stopped() -> None:
+            holder.settimeout(0.2)
+            while not stop.is_set():
+                try:
+                    client, _addr = holder.accept()
+                except OSError:
+                    continue
+                client.close()
+
+        thread = threading.Thread(target=accept_until_stopped, daemon=True)
+        thread.start()
+        command = _shell_command(
+            [
+                PY,
+                "-m",
+                "uvicorn",
+                "backend.bootstrap.http_app:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+                "--no-access-log",
+            ]
+        )
+        try:
+            completed = subprocess.run(
+                [
+                    PY,
+                    "scripts/service_probe.py",
+                    "--command",
+                    command,
+                    "--timeout",
+                    "20",
+                    "--ready-token",
+                    "Application startup complete",
+                    "--smoke",
+                    _shell_command([PY, "-c", "import sys; raise SystemExit(0)"]),
+                    "--health-url",
+                    f"http://127.0.0.1:{port}/health",
+                ],
+                cwd=ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=40,
+            )
+            self.assertNotEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertTrue(
+                any(token in completed.stdout for token in ("startup_failed", "not_bound", "health_failed")),
+                completed.stdout + completed.stderr,
+            )
+            client = socket.create_connection(("127.0.0.1", port), timeout=1)
+            client.close()
+        finally:
+            stop.set()
+            holder.close()
+
+
 class ServiceProbeImportTest(unittest.TestCase):
     def test_module_imports_as_a_script(self) -> None:
         completed = subprocess.run(

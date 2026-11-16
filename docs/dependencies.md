@@ -37,4 +37,15 @@
 | vite | 6.4.6 | 构建 | MIT |
 | @vitejs/plugin-react | 4.7.0 | 构建 | MIT |
 
-没有加入 reportlab 或 WeasyPrint。合成 PDF 仍由标准库写成一页 Helvetica。
+没有加入 reportlab 或 WeasyPrint。合成 PDF 仍由标准库写成一页 Helvetica，字体编码是 WinAnsi。
+
+锁文件里还有这些构建期传递依赖。它们不进入 Python 进程。Apache-2.0 的 `baseline-browser-mapping` 和 BSD-3-Clause 的 `source-map-js` 在允许的许可证名单里。下面这些不在 MIT、BSD、Apache-2.0 名单里，待人审。这项决定不挡住其余修复，也没有为它增删包。
+
+| 包 | 锁里的版本 | 用途 | 许可证 |
+| --- | --- | --- | --- |
+| caniuse-lite | 1.0.30001826 | `browserslist` 的浏览器数据。`@babel/helper-compilation-targets` 在构建时用它 | CC-BY-4.0，待人审 |
+| electron-to-chromium | 1.5.486 | `browserslist` 把 Electron 版本对应到 Chromium。构建时使用 | ISC，待人审 |
+| semver | 6.3.2 | Babel 编译目标比较版本。构建时使用 | ISC，待人审 |
+| lru-cache | 5.1.1 | `@babel/helper-compilation-targets` 的缓存。构建时使用 | ISC，待人审 |
+| yallist | 3.1.1 | `lru-cache` 的传递依赖。构建时使用 | ISC，待人审 |
+| picocolors | 1.1.1 | Babel 和 Vite 在构建输出里上色。构建时使用 | ISC，待人审 |

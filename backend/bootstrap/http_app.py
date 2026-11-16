@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from backend.bootstrap.compose import Loop, compose
 from backend.bootstrap.health import health_report
-from backend.bootstrap.seed import load_fixture
+from backend.bootstrap.seed import load_fixture, synthetic_attempt_text
 from backend.bootstrap.synthetic import ACTOR_TEACHER_ID, QUESTION_VERSION_ID, STUDENT_IDS
 from backend.catalog.api import ApprovalSnapshot
 from backend.catalog.application.publish_version import publish_version, retire_version, revise_text
@@ -177,6 +177,7 @@ def create_app(loop: Loop | None = None, *, seed: bool = True) -> FastAPI:
             wired.logger,
             request.state.request_id,
             actor_teacher_id=ACTOR_TEACHER_ID,
+            attempt_text=synthetic_attempt_text(),
         )
         if isinstance(result, Err):
             return _error(request.state.request_id, result)

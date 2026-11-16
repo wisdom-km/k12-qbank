@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import subprocess
+import threading
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -14,6 +15,7 @@ from fastapi.testclient import TestClient
 from backend.bootstrap.compose import Loop, compose
 from backend.bootstrap.http_app import create_app
 from backend.bootstrap.seed import load_fixture
+from backend.catalog.adapters.memory import MemoryApprovals
 from backend.catalog.application.publish_version import publish_version, revise_text
 from backend.kernel.result import Err, Ok
 from backend.practice.adapters.memory import MemoryPractice
@@ -75,7 +77,8 @@ class ReviewLoopTest(unittest.TestCase):
         drawn = StdPdf().render(page)
         self.assertIsInstance(drawn, bytes)
         assert isinstance(drawn, bytes)
-        self.assertIn("2\u00d73".encode("latin-1"), drawn)
+        self.assertIn(b"/Encoding /WinAnsiEncoding", drawn)
+        self.assertIn("formula 2\u00d73".encode("cp1252"), drawn)
         self.assertNotIn(b"answer ", drawn)
         refused = StdPdf().render(_page("\u221a2"))
         self.assertIsInstance(refused, Err)
@@ -108,7 +111,8 @@ class ReviewLoopTest(unittest.TestCase):
             self.assertEqual(client.get("/api/practice/papers").json()["count"], 1)
             attempt = client.get("/api/practice/papers/" + body["paper_id"] + "/attempt")
             self.assertEqual(attempt.status_code, 200)
-            self.assertEqual(attempt.json()["answer_text"], "\u5f85\u5b9a")
+            self.assertEqual(attempt.json()["answer_text"], "\u5b66\u751f\u5199\u4e0b\u4e86 5")
+            self.assertNotEqual(attempt.json()["answer_text"], "\u5f85\u5b9a")
 
     def test_waiting_paper_keeps_the_frozen_formula_after_a_bank_edit(self) -> None:
         loop = compose()
@@ -259,7 +263,8 @@ class ReviewLoopTest(unittest.TestCase):
             attempt = client.get("/api/practice/papers/" + str(opened["paper_id"]) + "/attempt")
             self.assertEqual(attempt.status_code, 200)
             self.assertEqual(attempt.json()["paper_id"], opened["paper_id"])
-            self.assertEqual(attempt.json()["answer_text"], "2")
+            self.assertEqual(attempt.json()["answer_text"], "\u5b66\u751f\u5199\u4e0b\u4e86 5")
+            self.assertNotEqual(attempt.json()["answer_text"], "2")
             self.assertEqual(attempt.json()["fixture_answer_id"], opened["fixture_answer_id"])
 
     def test_list_and_count_hide_records_the_teacher_cannot_see(self) -> None:
@@ -299,8 +304,8 @@ class ReviewLoopTest(unittest.TestCase):
         self.assertIsNotNone(node, "node is required for the confirm gate check")
         assert node is not None
         script = (
-            "import { startSwitch, cleared, acceptLoad, retryBody, showConflictReload }"
-            " from './apps/web/src/confirm_gate.js';"
+            "import { startSwitch, cleared, acceptLoad, acceptResponse, retryBody,"
+            " showConflictReload, attemptBlock } from './apps/web/src/confirm_gate.js';"
             "const first = startSwitch(0);"
             "const view = cleared();"
             "if (view.attempt !== null || view.confirmAllowed !== false) process.exit(2);"
@@ -316,6 +321,16 @@ class ReviewLoopTest(unittest.TestCase):
             "const again = retryBody(stored, edited);"
             "if (again !== stored || again.decision !== 'adopt') process.exit(6);"
             "if (!showConflictReload('version_mismatch') || showConflictReload('unauthorized')) process.exit(7);"
+            "const blocked = attemptBlock('attempt_not_current');"
+            "if (!blocked || blocked.confirmAllowed !== false || !blocked.notice || !blocked.nextStep) process.exit(8);"
+            "if (attemptBlock('unauthorized')) process.exit(9);"
+            "const switched = startSwitch(moved);"
+            "const lateConfirm = acceptResponse(moved, switched, { confirmation: { confirmation_id: 'A' }, payload: { operation_key: 'key-a' } });"
+            "if (lateConfirm.apply !== false || lateConfirm.body) process.exit(10);"
+            "const kept = acceptResponse(switched, switched, { confirmation: { confirmation_id: 'B' }, payload: { operation_key: 'key-b' } });"
+            "if (!kept.apply || kept.body.payload.operation_key !== 'key-b') process.exit(11);"
+            "const storedRetry = retryBody({ operation_key: 'key-web-1', decision: 'adopt' }, null);"
+            "if (!storedRetry || storedRetry.decision !== 'adopt') process.exit(12);"
             "console.log('GATE PASS');"
         )
         completed = subprocess.run(
@@ -327,6 +342,150 @@ class ReviewLoopTest(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.assertIn("GATE PASS", completed.stdout)
+
+    def test_parallel_revisions_keep_distinct_versions_and_the_old_pdf(self) -> None:
+        loop = compose()
+        load_fixture(loop)
+        published = publish_version("q-v1", loop.approvals, loop.logger, "req-pub")
+        self.assertIsInstance(published, Ok)
+        issued = issue_paper(
+            _command("q-v1"),
+            loop.approvals,
+            loop.auth,
+            loop.practice,
+            loop.logger,
+            "req-old",
+            actor_teacher_id="teacher-synth",
+        )
+        self.assertIsInstance(issued, Ok)
+        assert isinstance(issued, Ok)
+        drawn = render_paper(
+            issued.value.paper_id,
+            loop.approvals,
+            loop.auth,
+            loop.practice,
+            loop.files,
+            loop.renderer,
+            loop.logger,
+            "req-draw",
+            actor_teacher_id="teacher-synth",
+        )
+        self.assertIsInstance(drawn, Ok)
+        assert isinstance(drawn, Ok)
+        old_pdf = loop.files.read(drawn.value.file_id or "")
+        assert old_pdf is not None
+        approvals = BothSeeFree(loop.approvals)
+        loop = self._loop(approvals=approvals, practice=loop.practice, auth=loop.auth, files=loop.files, renderer=loop.renderer, logger=loop.logger)
+        results: list[Ok[object] | Err | None] = [None, None]
+        stems = ("\u8ba1\u7b97\uff1a2\u00d73", "\u8ba1\u7b97\uff1a9+9")
+        answers = ("6", "18")
+
+        def work(index: int) -> None:
+            results[index] = revise_text(
+                "q-v1",
+                stems[index],
+                answers[index],
+                loop.approvals,
+                loop.logger,
+                "req-race-" + str(index),
+            )
+
+        threads = [threading.Thread(target=work, args=(index,)) for index in (0, 1)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5)
+        self.assertFalse(any(thread.is_alive() for thread in threads))
+        self.assertTrue(all(isinstance(item, Ok) for item in results))
+        versions = []
+        for item in results:
+            assert isinstance(item, Ok)
+            versions.append(item.value)
+        ids = {row.question_version_id for row in versions}
+        answer_ids = {row.answer_version_id for row in versions}
+        self.assertEqual(len(ids), 2)
+        self.assertEqual(len(answer_ids), 2)
+        self.assertNotIn("q-v1", ids)
+        original = loop.approvals.read_snapshot("q-v1")
+        assert original is not None
+        self.assertEqual(original.stem, "\u8ba1\u7b97\uff1a(-3)+5")
+        self.assertTrue(original.question_approved)
+        self.assertTrue(original.answer_approved)
+        self.assertEqual(loop.files.read(drawn.value.file_id or ""), old_pdf)
+        for row in versions:
+            self.assertFalse(row.question_approved)
+            self.assertFalse(row.answer_approved)
+            blocked = issue_paper(
+                _command(row.question_version_id),
+                loop.approvals,
+                loop.auth,
+                loop.practice,
+                loop.logger,
+                "req-block-" + row.question_version_id,
+                actor_teacher_id="teacher-synth",
+            )
+            self.assertIsInstance(blocked, Err)
+            assert isinstance(blocked, Err)
+            self.assertEqual(blocked.code, "not_approved")
+
+    def test_a_finished_retirement_is_not_overwritten_by_a_stale_publish(self) -> None:
+        loop = compose()
+        load_fixture(loop)
+        approvals = RetireWins(loop.approvals)
+        holder: dict[str, Ok[object] | Err] = {}
+
+        def publish() -> None:
+            holder["result"] = publish_version("q-v1", approvals, loop.logger, "req-stale-publish")
+
+        thread = threading.Thread(target=publish)
+        thread.start()
+        self.assertTrue(approvals.publish_waiting.wait(timeout=5))
+        from backend.catalog.application.publish_version import retire_version
+
+        retired = retire_version("q-v1", approvals, loop.logger, "req-retire")
+        approvals.allow_publish.set()
+        thread.join(timeout=5)
+        self.assertFalse(thread.is_alive())
+        self.assertIsInstance(retired, Ok)
+        result = holder["result"]
+        self.assertIsInstance(result, Err)
+        assert isinstance(result, Err)
+        self.assertEqual(result.code, "retired")
+        stored = approvals.read_snapshot("q-v1")
+        assert stored is not None
+        self.assertTrue(stored.retired)
+        self.assertFalse(stored.question_approved)
+
+    def test_refresh_reads_the_current_review_or_refuses(self) -> None:
+        with self._client() as client:
+            self._publish(client)
+            opened = self._issue(client, "student-synth")
+            paper_id = str(opened["paper_id"])
+            current = client.get("/api/practice/papers/" + paper_id + "/attempt")
+            self.assertEqual(current.status_code, 200)
+            self.assertEqual(current.json()["review_version_id"], "rev-1")
+            self.assertEqual(current.json()["answer_text"], "\u5b66\u751f\u5199\u4e0b\u4e86 5")
+            store = client.app.state.loop.practice
+            store.set_review_version(paper_id, "rev-2")
+            missing = client.get("/api/practice/papers/" + paper_id + "/attempt")
+            self.assertEqual(missing.status_code, 409)
+            self.assertEqual(missing.json()["code"], "attempt_not_current")
+            store.put_answer(
+                PendingAnswer(
+                    fixture_answer_id="fixture-answer-rev2",
+                    paper_id=paper_id,
+                    sub_question_id="sq-1",
+                    review_version_id="rev-2",
+                    student_id="student-synth",
+                    status="pending",
+                    answer_text="\u53e6\u4e00\u7248\u4f5c\u7b54",
+                )
+            )
+            refreshed = client.get("/api/practice/papers/" + paper_id + "/attempt")
+            self.assertEqual(refreshed.status_code, 200, refreshed.text)
+            self.assertEqual(refreshed.json()["review_version_id"], "rev-2")
+            self.assertEqual(refreshed.json()["answer_text"], "\u53e6\u4e00\u7248\u4f5c\u7b54")
+            self.assertNotEqual(refreshed.json()["answer_text"], "2")
 
     def _client(self, loop: Loop | None = None) -> TestClient:
         return TestClient(create_app(loop, seed=True))
@@ -358,6 +517,42 @@ class ReviewLoopTest(unittest.TestCase):
         response = client.get("/api/practice/files/" + file_id)
         self.assertEqual(response.status_code, 200, response.text)
         return response.content
+
+
+class BothSeeFree(MemoryApprovals):
+    """Both revisions observe q-v2 as free before either insert."""
+
+    def __init__(self, source: MemoryApprovals) -> None:
+        super().__init__()
+        self._items = source._items
+        self.both = threading.Barrier(2)
+
+    def has_version_id(self, version_id: str) -> bool:
+        seen = super().has_version_id(version_id)
+        if version_id == "q-v2" and not seen:
+            self.both.wait(timeout=5)
+        return seen
+
+
+class RetireWins(MemoryApprovals):
+    """Hold the first publish write until retire has stored its snapshot."""
+
+    def __init__(self, source: MemoryApprovals) -> None:
+        super().__init__()
+        self._items = source._items
+        self.publish_waiting = threading.Event()
+        self.allow_publish = threading.Event()
+
+    def replace_if_current(self, expected: object, updated: object) -> bool:
+        from backend.catalog.domain.snapshot import ApprovalSnapshot
+
+        assert isinstance(expected, ApprovalSnapshot)
+        assert isinstance(updated, ApprovalSnapshot)
+        if updated.question_approved and not updated.retired and not self.publish_waiting.is_set():
+            self.publish_waiting.set()
+            if not self.allow_publish.wait(timeout=5):
+                raise TimeoutError("retire did not release the stale publish")
+        return super().replace_if_current(expected, updated)
 
 
 def _command(question_version_id: str) -> IssuePaperCommand:

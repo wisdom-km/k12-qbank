@@ -106,6 +106,7 @@ class PhaseScopeTest(unittest.TestCase):
         self.assertEqual(data["pending_answer"]["fixture_answer_id"], "fixture-answer-1")
         self.assertEqual(data["pending_answer"]["paper_id"], "paper-1")
         self.assertEqual(data["pending_answer"]["status"], "pending")
+        self.assertNotEqual(data["pending_answer"]["text"], data["answer"]["text"])
         self.assertEqual(data["question"]["question_version_id"], "q-v1")
         self.assertEqual(data["answer"]["answer_version_id"], "a-v1")
         self.assertEqual(data["student"], {"student_id": "student-synth"})
