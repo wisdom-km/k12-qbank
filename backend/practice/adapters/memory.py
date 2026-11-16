@@ -39,6 +39,12 @@ class MemoryPractice:
         with self._commit_lock:
             self._papers[paper.paper_id] = paper
 
+    def replace_paper(self, paper: Paper) -> None:
+        with self._commit_lock:
+            if paper.paper_id not in self._papers:
+                raise KeyError(paper.paper_id)
+            self._papers[paper.paper_id] = paper
+
     def get_paper(self, paper_id: str) -> Paper | None:
         with self._commit_lock:
             return self._papers.get(paper_id)
@@ -46,6 +52,24 @@ class MemoryPractice:
     def paper_count(self) -> int:
         with self._commit_lock:
             return len(self._papers)
+
+    def list_papers(self) -> tuple[Paper, ...]:
+        with self._commit_lock:
+            return tuple(self._papers.values())
+
+    def find_paper_by_file(self, file_id: str) -> Paper | None:
+        with self._commit_lock:
+            for paper in self._papers.values():
+                if paper.file_id == file_id:
+                    return paper
+            return None
+
+    def find_answer_for_paper(self, paper_id: str) -> PendingAnswer | None:
+        with self._commit_lock:
+            for answer in self._answers.values():
+                if answer.paper_id == paper_id:
+                    return answer
+            return None
 
     def set_review_version(self, paper_id: str, review_version_id: str) -> None:
         with self._commit_lock:

@@ -65,7 +65,7 @@ def freeze_paper(
 def mark_printable(paper: Paper, *, file_id: str, checksum: str) -> Paper | Err:
     """A paper becomes printable only after a file id and checksum are stored.
 
-    This does not render bytes. The renderer is still unchosen.
+    The bytes themselves stay in the file store. This function only records the id.
     """
     if paper.status != "待渲染":
         return Err("not_rendering", "only a paper waiting for render can become printable")

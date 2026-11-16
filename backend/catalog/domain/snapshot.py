@@ -16,6 +16,8 @@ class ApprovalSnapshot:
     retired: bool
     subject_id: str
     item_order: tuple[str, ...] = ()
+    stem: str = ""
+    answer_text: str = ""
 
 
 @dataclass(frozen=True)

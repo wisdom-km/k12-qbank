@@ -1,13 +1,13 @@
 # 执行计划：有理数运算一条闭环
 
-状态：进行中。合成数据上的出卷和确认骨架已在 `catalog` 和 `practice`。网页、数据库和 PDF 还没有。2026-11-14。
+状态：进行中。本机合成数据可以核验、出卷、打开单页 PDF 并确认。数据库还没有。2026-11-16。
 对应：第一段代码只做网页上的核验、出卷和确认，覆盖 US-01、US-02 和确认这一步（US-04 里不依赖拍照的部分）。安卓拍照、上传和 AC-06 排在这段之后。桌面壳更后面。试用门槛仍是网页和安卓都能走完，那不是第一段的完成线。
 
 本计划自包含。不依赖某次聊天。
 
 ## 现状
 
-仓库有约束文档、kernel、门禁脚本，以及 `catalog` 和 `practice` 的内存骨架。没有数据库、没有网页、没有安卓工程。服务端和网页技术栈已由 ADR 0012 采纳，框架包还没安装。
+仓库有约束文档、kernel、门禁脚本，以及 `catalog` 和 `practice`。本机 HTTP 和 React 页面使用合成数据。没有数据库，没有安卓工程。PostgreSQL 仍按本计划留到后面的事务和唯一约束，这一步不写迁移。
 
 骨架在合成数据上已经能做到：
 
@@ -29,14 +29,14 @@
 | 项 | 结果 |
 | --- | --- |
 | 阶段切片可配置 | `scripts/check.conf` 的 `PHASE_SLICES`，默认 `catalog practice`。非空环境变量 `PHASE_SLICES` 覆盖该行。空白则用这个默认。未知切片名拒绝。`kernel` 和 `bootstrap` 始终允许，不写进名单 |
-| 健康检查占位 | `health_report()` 固定返回 `status=ok`。设计在 `docs/observability.md`。还没有 HTTP 进程，所以 M-14 还没通过 |
+| 健康检查 | `GET /health` 返回 `health_report()`，正文只有 `status`。不表示数据库就绪。错误上报接收接口还没有 |
 | 错误上报 | 最小字段是 `error_id`、`request_id`、`app_version`、`platform`、`error_code`。不含学生照片和姓名 |
 | 合成夹具 | `docs/fixtures/rational-number-min.json` 含题目、答案、学生、卷次、照片版本。没有图片字节，也没有姓名 |
 
 下一步建议：
 
-- 继续本计划的步骤 7：老师在浏览器里核验并打开 PDF。那一次改动再安装 ADR 0012 已经采纳的 Web 依赖，并在同一改动里补上锁文件、`APP_DIRS` 和 `INSTALL_CMD`。在那之前不要单独安装框架包，也不要放宽 `PHASE_SLICES`。
-- HTTP 进程出现时，把 `GET /health` 接到 `health_report()`，再把 `SERVICE_CMD` 和 `SERVICE_SMOKE_CMD` 写成启动命令和一条最小业务命令。检查会先安装，再限时等待就绪，然后停掉进程。那时才核对 M-14。现在 `SERVICE_CMD` 仍空。
+- 本机合成网页已经接上。`APP_DIRS` 是 `. apps/web`，`INSTALL_CMD` 安装锁定的 Python 依赖并 `npm ci` 后构建页面。`SERVICE_CMD` 启动合成 HTTP。不要放宽 `PHASE_SLICES`。
+- PostgreSQL、迁移、安卓和桌面壳仍不在这一步。
 - 新测试沿用 `docs/fixtures/` 里的合成标识。不要换成真实学生数据。
 
 ## 要证明的事
@@ -47,7 +47,7 @@
 
 ## M1 契约
 
-下面四项是这一段的执行契约。服务端和网页技术栈已由 ADR 0012 采纳，框架包还没安装。机构还没确认的地方标为待确认。预期结果是做出来之后必须能观察到的事。
+下面四项是这一段的执行契约。服务端和网页技术栈已由 ADR 0012 采纳。FastAPI 和 React 已锁版本。PostgreSQL 这一步不连接。机构还没确认的地方标为待确认。预期结果是做出来之后必须能观察到的事。
 
 ### 发卷时冻结什么
 
@@ -57,7 +57,9 @@
 
 可观察到：改题库之后，旧卷上的版本标识和文件标识不变；用旧标识读到的字节仍是发卷时那一份。
 
-待确认：PDF 由哪个程序渲染。ADR 0012 没有选定渲染程序。本轮不安装渲染包，也不把字节验收算进这一段。
+待确认：产品最终用哪个程序渲染 PDF。ADR 0012 没有选定。本轮合成样张用标准库写一页 Helvetica PDF，用来核对公式、页码和合成学号，不安装 reportlab 或 WeasyPrint。这不表示机构已经选定渲染程序。
+
+已测量的选项：标准库单页可以在浏览器里显示 `(-3)+5`、页码和合成学号，中文题干留在网页上。reportlab 加中文字体、WeasyPrint 都还没装。
 
 发卷时先查题目和答案都已核准、题目未停用。请求里的学科必须等于题库记录里的学科，老师身份必须等于服务端这次确定的老师。学生卷上写下的是题库里的学科、服务端老师、题目版本、答案版本、题序、素材和版面。
 
@@ -88,7 +90,7 @@
 | 决定不是采纳、修改或驳回 | 拒绝。已有的正式记录保持原样 |
 | 无权限再提交同一键 | 拒绝，不把原来的确认 ID 交出去 |
 
-待确认：操作键的具体字符串由谁生成。方案 1.1 第 10.2 节只把它写成输入，没有定格式。
+待确认：操作键的具体字符串由谁生成。方案 1.1 第 10.2 节只把它写成输入，没有定格式。网页把老师提交的字符串原样送上，示例是 `key-web-1`。这不表示生成方已经选定。
 
 ### 没有上传时的待确认作答
 
@@ -123,7 +125,7 @@
 3. 只在 `catalog` 和 `practice` 实现 R1、R2、R3、R5 的最小规则。授权用 practice 里的内存端口，不先建 `identity` 目录。
 4. core 测试用假端口。至少覆盖：未核准出卷被拒绝；确认后正式记录出现；相同操作键重放返回原结果；不同内容的同一操作键被拒绝。
 5. 组合根 `backend/bootstrap/compose.py` 只做装配。日志适配器写标准输出 JSON。故意制造一次确认失败，用 request_id 在输出里找到 ERROR。
-6. 一条命令能把这个用例跑起来。把 `scripts/check.conf` 的 `SERVICE_CMD` 设成那条启动命令，把 `BUSINESS_TEST_CMD` 设成最小业务冒烟，并写进 README。文档冒烟可以留下。`TEST_KIND` 保持 `docs`，直到 `TEST_CMD` 本身就是 core 测试。现在 `APP_DIRS=.`，仓库里没有 Web 或 Python 依赖清单，M-09 因此是 N/A。第一次加入清单时，同一改动里把 `APP_DIRS` 写成清单所在目录，并把 `INSTALL_CMD` 写成锁定安装命令。
+6. 一条命令能把这个用例跑起来。把 `scripts/check.conf` 的 `SERVICE_CMD` 设成那条启动命令，把 `BUSINESS_TEST_CMD` 设成最小业务冒烟，并写进 README。文档冒烟可以留下。`TEST_KIND` 保持 `docs`，直到 `TEST_CMD` 本身就是 core 测试。依赖清单在这次改动里：`APP_DIRS` 是 `. apps/web`，`INSTALL_CMD` 安装锁定的 Python 依赖并执行 `npm ci` 后构建页面。`requirements.txt` 每行用 `==`。网页锁文件是 `apps/web/package-lock.json`。
 7. 网页在老师这台电脑的浏览器里能核验、能打开 PDF。到这里第一段结束。
 8. 下一段再做安卓拍照、上传和缺页。网页和安卓都走完之前，不宣称 AC-06 通过。
 9. 桌面壳排在网页已经顺畅之后。第一段不安装 Tauri 或 Electron。
@@ -139,13 +141,13 @@
 
 | 步骤 | 计划 | 实际 | 证据 |
 | --- | --- | --- | --- |
-| 1 | 先定语言再写依赖 | 已采纳 Python 3.12、FastAPI、PostgreSQL、React。还没有依赖清单，所以还没有锁文件 | ADR 0012 |
+| 1 | 先定语言再写依赖 | 已采纳 Python 3.12、FastAPI、PostgreSQL、React。Python 和网页锁文件已进这次改动。PostgreSQL 还没连接，没有迁移 | ADR 0012，`requirements.txt`，`apps/web/package-lock.json` |
 | 2 | 先提交核准快照、创建卷、确认作答的数据类型 | 已写。发卷快照是 `IssueSnapshot`，操作键是 `OperationKey` | `backend/catalog/api.py`、`backend/practice/api.py` |
 | 3 | 只在 catalog 和 practice 写最小规则 | 已写 R1、R2、R3、R5。授权是 practice 里的内存端口 | `backend/catalog/domain`、`backend/practice/domain` |
 | 4 | core 测试覆盖未核准拒绝、确认、重放 | 已写。假端口，不联网 | `python -m unittest discover -s tests -v` |
 | 5 | 组合根只装配，并有一条带 request_id 的失败日志 | 已装配内存适配器。存储失败会打出 ERROR 和 request_id | `backend/bootstrap/compose.py`，core 测试最后一条 |
-| 6 | 一条命令跑通这条用例 | core 测试已写入 `BUSINESS_TEST_CMD`。没有 HTTP 进程，所以 `SERVICE_CMD` 仍空 | `scripts/check.conf` |
-| 7 | 老师电脑的浏览器能核验并打开 PDF | 未做 | 第一段到这里结束 |
+| 6 | 一条命令跑通这条用例 | `SERVICE_CMD` 启动合成 HTTP。`GET /health` 和一条业务冒烟由探针在安装后执行，然后停掉进程 | `scripts/check.conf`，`scripts/smoke_http.py` |
+| 7 | 老师电脑的浏览器能核验并打开 PDF | 本机内置浏览器走了核准发布、出卷、打开 PDF、确认和同键重试。两名合成学生各有一张可打印的卷。老师自己的电脑和打印机未操作 | `docs/evidence/m1-web-loop-2026-11-16.md` |
 | 8 | 安卓拍照和上传 | 未做 | AC-06 未核实 |
 | 9 | 桌面壳 | 未做 | ADR 0011 |
 
@@ -160,6 +162,7 @@
 | 2026-11-14 | 允许的业务切片改由 `PHASE_SLICES` 配置，默认仍是 catalog 和 practice | 下一段不必改检查脚本里的常量，默认也不放宽 | 用户要求做 P2 |
 | 2026-11-16 | 确认的版本核对、幂等、槽位冲突和写入放进同一次存储操作。学科以题库记录为准 | 内存适配器用一把锁保住这条契约。PostgreSQL 以后用事务和唯一约束实现同一行为。渲染程序和操作键字符串的生成方仍待确认 | 用户要求落实评审里的优先修复 |
 | 2026-11-16 | 幂等按卷、小问、服务端老师和操作键字符串分开。同一复核槽位仍只留一条。启动探针停掉自己拉起的进程树，冒烟有单独超时 | 裸操作键会把另一张卷误判成内容冲突。只结束外壳进程时，里面的服务还在跑 | 用户要求补上 PR #9 的这两项 |
+| 2026-11-16 | 本机合成路径用 FastAPI 和 React。确认契约仍由内存锁保住。PDF 样张用标准库单页，产品渲染器和操作键生成方仍待确认 | 当前计划这一步不要求 PostgreSQL。先让浏览器走通合成闭环 | 用户要求做 M1 本机合成网页闭环 |
 
 ## 自检
 

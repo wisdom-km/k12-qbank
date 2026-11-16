@@ -1,7 +1,7 @@
 """Start one process, wait until it is ready, run one smoke call, then stop it.
 
-A resident process is not waited on until it exits. SERVICE_CMD stays empty
-until an HTTP process exists. The probe stops the process tree it started,
+A resident process is not waited on until it exits. When SERVICE_CMD is set,
+the check starts that process after install. The probe stops the process tree it started,
 including a shell wrapper and the service behind it. cleaned is true only
 after those processes have exited.
 """
@@ -120,7 +120,9 @@ def _spawn(command: list[str] | str, *, shell: bool, pipe: bool) -> subprocess.P
 def _stop(proc: subprocess.Popen[str]) -> bool:
     tracked = getattr(proc, "_probe_pids", None)
     if tracked is None:
-        tracked = [proc.pid, *_descendants(proc.pid)]
+        # Stamp creation time before the kill. Windows can reuse a pid
+        # before this poll ends, and that new process is not our leftover.
+        tracked = [_stamp(pid) for pid in (proc.pid, *_descendants(proc.pid))]
         proc._probe_pids = tracked  # type: ignore[attr-defined]
     if not getattr(proc, "_probe_kill_sent", False):
         _kill_tree(proc)
@@ -139,7 +141,7 @@ def _stop(proc: subprocess.Popen[str]) -> bool:
     deadline = time.monotonic() + 2
     leftovers: list[int] = []
     while time.monotonic() < deadline:
-        leftovers = [pid for pid in tracked if _alive(pid)]
+        leftovers = [pid for pid, started in tracked if _same_process(pid, started)]
         if not leftovers:
             break
         time.sleep(0.05)
@@ -178,6 +180,20 @@ def _children(parent: int) -> list[int]:
     if sys.platform == "win32":
         return _windows_children(parent)
     return _posix_children(parent)
+
+
+def _stamp(pid: int) -> tuple[int, int | None]:
+    if sys.platform == "win32":
+        return pid, _windows_started(pid)
+    return pid, None
+
+
+def _same_process(pid: int, started: int | None) -> bool:
+    if not _alive(pid):
+        return False
+    if started is None or sys.platform != "win32":
+        return True
+    return _windows_started(pid) == started
 
 
 def _alive(pid: int) -> bool:
@@ -247,6 +263,33 @@ def _windows_alive(pid: int) -> bool:
     finally:
         kernel32.CloseHandle(handle)
     return bool(ok) and code.value == 259
+
+
+def _windows_started(pid: int) -> int | None:
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle = kernel32.OpenProcess(0x1000, False, pid)
+    if not handle:
+        return None
+    created = wintypes.FILETIME()
+    exited = wintypes.FILETIME()
+    kernel = wintypes.FILETIME()
+    user = wintypes.FILETIME()
+    try:
+        ok = kernel32.GetProcessTimes(
+            handle,
+            ctypes.byref(created),
+            ctypes.byref(exited),
+            ctypes.byref(kernel),
+            ctypes.byref(user),
+        )
+    finally:
+        kernel32.CloseHandle(handle)
+    if not ok:
+        return None
+    return (int(created.dwHighDateTime) << 32) | int(created.dwLowDateTime)
 
 
 def _posix_children(parent: int) -> list[int]:
