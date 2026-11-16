@@ -4,8 +4,11 @@ import {
   acceptLoad,
   acceptResponse,
   attemptBlock,
+  canHandOut,
   cleared,
   confirmPayload,
+  confirmReady,
+  patchHandOutList,
   retryBody,
   showConflictReload,
   startSwitch,
@@ -28,7 +31,9 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [errorCode, setErrorCode] = useState("");
+  const [issuing, setIssuing] = useState(false);
   const generation = useRef(0);
+  const paperNow = useRef(null);
 
   async function load() {
     const nextSession = await call("/api/session");
@@ -58,10 +63,16 @@ export default function App() {
     }
   }
 
+  function rememberPaper(next) {
+    paperNow.current = next;
+    setPaper(next);
+  }
+
   function beginSwitch() {
     const token = startSwitch(generation.current);
     generation.current = token;
     const blank = cleared();
+    setIssuing(false);
     setAttempt(blank.attempt);
     setConfirmation(blank.confirmation);
     setSavedPayload(blank.payload);
@@ -81,31 +92,38 @@ export default function App() {
 
   function issue() {
     const token = beginSwitch();
+    setIssuing(true);
     return run(async () => {
-      const opened = await call("/api/practice/papers", {
-        method: "POST",
-        body: JSON.stringify({
-          teacher_id: session.actor_teacher_id,
-          student_id: studentId,
-          subject_id: item.subject_id,
-          question_version_id: item.question_version_id,
-          review_version_id: REVIEW_VERSION_ID,
-        }),
-      });
-      const posted = acceptResponse(token, generation.current, opened);
-      if (!posted.apply || !posted.body) return;
-      setPaper(posted.body);
-      const nextAttempt = await call("/api/practice/papers/" + posted.body.paper_id + "/attempt");
-      const applied = acceptLoad(token, generation.current, nextAttempt);
-      if (applied.apply) setAttempt(applied.attempt);
-      const nextPapers = await call("/api/practice/papers");
-      if (generation.current !== token) return;
-      setPapers(nextPapers.papers);
-      setMessage(posted.body.status === "可打印" ? "已出卷，可以打开 PDF" : "已出卷，仍待渲染");
+      try {
+        const opened = await call("/api/practice/papers", {
+          method: "POST",
+          body: JSON.stringify({
+            teacher_id: session.actor_teacher_id,
+            student_id: studentId,
+            subject_id: item.subject_id,
+            question_version_id: item.question_version_id,
+            review_version_id: REVIEW_VERSION_ID,
+          }),
+        });
+        const posted = acceptResponse(token, generation.current, opened);
+        if (!posted.apply || !posted.body) return;
+        rememberPaper(posted.body);
+        const nextAttempt = await call("/api/practice/papers/" + posted.body.paper_id + "/attempt");
+        const applied = acceptLoad(token, generation.current, nextAttempt);
+        if (applied.apply) setAttempt(applied.attempt);
+        const nextPapers = await call("/api/practice/papers");
+        const listed = acceptResponse(token, generation.current, nextPapers);
+        if (!listed.apply || !listed.body) return;
+        setPapers(listed.body.papers);
+        setMessage(posted.body.status === "可打印" ? "已出卷，可以打开 PDF" : "已出卷，仍待渲染");
+      } finally {
+        if (generation.current === token) setIssuing(false);
+      }
     });
   }
 
   function handOut() {
+    if (!canHandOut(paper, issuing)) return;
     const token = generation.current;
     const source = paper;
     const view = {
@@ -117,15 +135,19 @@ export default function App() {
       error,
       errorCode,
     };
+    const liveId = () => (paperNow.current ? paperNow.current.paper_id : "");
     return run(async () => {
       try {
         const next = await call("/api/practice/papers/" + source.paper_id + "/handout", {
           method: "POST",
           body: "{}",
         });
-        const taken = takeHandOut(view, token, generation.current, { paper: next });
-        if (!taken.apply) return;
-        setPaper(taken.view.paper);
+        const taken = takeHandOut(view, token, generation.current, { paper: next }, liveId());
+        if (!taken.apply) {
+          setPapers((rows) => patchHandOutList(rows, next));
+          return;
+        }
+        rememberPaper(taken.view.paper);
         const nextPapers = await call("/api/practice/papers");
         const listed = acceptResponse(token, generation.current, nextPapers);
         if (!listed.apply || !listed.body) return;
@@ -134,9 +156,13 @@ export default function App() {
         setError("");
         setErrorCode("");
       } catch (reason) {
-        const taken = takeHandOut(view, token, generation.current, {
-          error: { code: reason.code || "", message: reason.message || "" },
-        });
+        const taken = takeHandOut(
+          view,
+          token,
+          generation.current,
+          { error: { code: reason.code || "", message: reason.message || "" } },
+          liveId(),
+        );
         if (!taken.apply) return;
         setErrorCode(taken.view.errorCode);
         setError(taken.view.error);
@@ -147,7 +173,7 @@ export default function App() {
 
   function choosePaper(row) {
     const token = beginSwitch();
-    setPaper(row);
+    rememberPaper(row);
     return run(async () => {
       try {
         const nextAttempt = await call("/api/practice/papers/" + row.paper_id + "/attempt");
@@ -169,6 +195,7 @@ export default function App() {
   }
 
   function confirm() {
+    if (issuing || !confirmReady(paper, attempt)) return;
     const token = generation.current;
     const payload = currentPayload();
     return run(async () => {
@@ -274,7 +301,7 @@ export default function App() {
             </a>
           </p>
         )}
-        {paper && paper.status === "可打印" && (
+        {canHandOut(paper, issuing) && (
           <button type="button" onClick={handOut}>
             正式发放
           </button>
@@ -319,7 +346,11 @@ export default function App() {
           <input value={operationKey} onChange={(event) => setOperationKey(event.target.value)} />
         </label>
         {blocked && <p className="error">{blocked.notice}</p>}
-        <button type="button" onClick={confirm} disabled={!attempt || Boolean(blocked)}>
+        <button
+          type="button"
+          onClick={confirm}
+          disabled={!confirmReady(paper, attempt) || Boolean(blocked) || issuing}
+        >
           确认
         </button>
         <button type="button" onClick={retry} disabled={!savedPayload}>

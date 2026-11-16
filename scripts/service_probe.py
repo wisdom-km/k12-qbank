@@ -4,8 +4,9 @@ A resident process is not waited on until it exits. When SERVICE_CMD is set,
 the check starts that process after install. The ready token can arrive before
 the port is bound. The same ready budget then keeps asking for health until
 this process is bound and the body is status ok, the process exits, or the
-budget ends. The probe stops the process tree it started, including a shell
-wrapper and the service behind it. cleaned is true only after those processes
+budget ends. Connecting and reading that body share one deadline. A body that
+is still arriving after the budget is a ready failure. The probe stops the
+process tree it started, including a shell wrapper and the service behind it. cleaned is true only after those processes
 have exited.
 """
 
@@ -93,16 +94,50 @@ def supervise(
         _stop(proc)
 
 
-def _request_health(url: str, timeout: float = 0.4) -> str:
+def _request_health(url: str, timeout: float = 0.4, deadline: float | None = None) -> str:
     import json
-    import urllib.request
+    import socket
+    from urllib.parse import urlsplit
 
+    if deadline is None:
+        deadline = time.monotonic() + max(0.0, timeout)
+    if time.monotonic() >= deadline:
+        return "health request failed: TimeoutError"
+    parts = urlsplit(url)
+    host = parts.hostname or "127.0.0.1"
+    port = parts.port or (443 if parts.scheme == "https" else 80)
+    path = parts.path or "/"
+    if parts.query:
+        path = path + "?" + parts.query
+    remaining = deadline - time.monotonic()
+    sock: socket.socket | None = None
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:
-            status = getattr(response, "status", 200)
-            raw = response.read()
+        if remaining <= 0:
+            return "health request failed: TimeoutError"
+        sock = socket.create_connection((host, port), timeout=min(timeout, remaining))
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return "health request failed: TimeoutError"
+        sock.settimeout(min(timeout, left))
+        host_header = host if port in (80, 443) else f"{host}:{port}"
+        request = (
+            f"GET {path} HTTP/1.1\r\nHost: {host_header}\r\n"
+            "Connection: close\r\nAccept: application/json\r\n\r\n"
+        )
+        sock.sendall(request.encode("ascii"))
+        message = _read_http_message(sock, deadline, timeout)
+        if message is None or time.monotonic() >= deadline:
+            return "health request failed: TimeoutError"
+    except (TimeoutError, socket.timeout):
+        return "health request failed: TimeoutError"
     except Exception as exc:
         return "health request failed: " + type(exc).__name__
+    finally:
+        if sock is not None:
+            sock.close()
+    status, raw = message
+    if time.monotonic() >= deadline:
+        return "health request failed: TimeoutError"
     if status != 200:
         return "health status " + str(status)
     try:
@@ -111,7 +146,68 @@ def _request_health(url: str, timeout: float = 0.4) -> str:
         return "health body is not json"
     if not isinstance(body, dict) or set(body) != {"status"} or body.get("status") != "ok":
         return "health body is not status ok"
+    if time.monotonic() >= deadline:
+        return "health request failed: TimeoutError"
     return "ok"
+
+
+def _read_http_message(
+    sock: object,
+    deadline: float,
+    timeout: float,
+) -> tuple[int, bytes] | None:
+    import socket
+
+    data = bytearray()
+    while True:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return None
+        sock.settimeout(min(timeout, left))  # type: ignore[attr-defined]
+        try:
+            block = sock.recv(4096)  # type: ignore[attr-defined]
+        except (TimeoutError, socket.timeout):
+            return None
+        if block:
+            data.extend(block)
+            message = _split_http(data, final=False)
+            if message is None:
+                continue
+            if time.monotonic() >= deadline:
+                return None
+            return message
+        message = _split_http(data, final=True)
+        if message is None or time.monotonic() >= deadline:
+            return None
+        return message
+
+
+def _split_http(raw: bytes, *, final: bool) -> tuple[int, bytes] | None:
+    mark = raw.find(b"\r\n\r\n")
+    if mark < 0:
+        return None
+    head = raw[:mark]
+    body = raw[mark + 4 :]
+    lines = head.split(b"\r\n")
+    status = 0
+    if lines:
+        parts = lines[0].split(b" ")
+        if len(parts) >= 2 and parts[1].isdigit():
+            status = int(parts[1])
+    length: int | None = None
+    for line in lines[1:]:
+        name, sep, value = line.partition(b":")
+        if not sep or name.lower() != b"content-length":
+            continue
+        try:
+            length = int(value.strip())
+        except ValueError:
+            return (status, body) if final else None
+    if length is None:
+        return (status, body) if final else None
+    if len(body) < length:
+        return None
+    return status, body[:length]
 
 
 def _finish(proc: subprocess.Popen[str], status: str, detail: str, code: int | None) -> ProbeResult:
@@ -133,9 +229,14 @@ def _wait_health(proc: subprocess.Popen[str], url: str, deadline: float) -> str:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
-        health = _request_health(url, timeout=min(0.4, remaining))
+        health = _request_health(url, timeout=min(0.4, remaining), deadline=deadline)
         if proc.poll() is not None:
             return "exited"
+        if time.monotonic() >= deadline:
+            if not str(health).startswith("health request failed"):
+                health = "health request failed: TimeoutError"
+            last = health
+            break
         if health == "ok":
             if _bound_by(proc, url):
                 return "ok"

@@ -411,6 +411,81 @@ class ReviewLoopTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.assertIn("HANDOUT GATE PASS", completed.stdout)
 
+    def test_issue_handout_overlap_keeps_the_open_paper(self) -> None:
+        node = shutil.which("node")
+        self.assertIsNotNone(node, "node is required for the overlap gate check")
+        assert node is not None
+        script = (
+            "import { startSwitch, cleared, acceptLoad, takeHandOut, confirmPayload,"
+            " retryBody, canHandOut, patchHandOutList, confirmReady } from './apps/web/src/confirm_gate.js';"
+            "const attemptA = { paper_id: 'A', answer_text: '学生写下了 5', sub_question_id: 'sq-1',"
+            " review_version_id: 'rev-1', fixture_answer_id: 'fixture-answer-A' };"
+            "const paperA = { paper_id: 'A', status: '可打印', student_id: 'student-synth' };"
+            "const paperB = { paper_id: 'B', status: '可打印', student_id: 'student-synth-2' };"
+            "const attemptB = { paper_id: 'B', answer_text: '学生写下了 5', sub_question_id: 'sq-1',"
+            " review_version_id: 'rev-1', fixture_answer_id: 'fixture-answer-B' };"
+            "let generation = 0;"
+            "const handToken = generation;"
+            "generation = startSwitch(generation);"
+            "const blank = cleared();"
+            "let switched = { paper: paperB, attempt: blank.attempt, confirmation: null, payload: null,"
+            " message: '', error: '', errorCode: '' };"
+            "const loadedFirst = acceptLoad(generation, generation, attemptB);"
+            "if (!loadedFirst.apply) process.exit(2);"
+            "switched = { ...switched, attempt: loadedFirst.attempt };"
+            "const lateFirst = takeHandOut(switched, handToken, generation, { paper: { paper_id: 'A', status: '已发放' } });"
+            "if (lateFirst.apply || lateFirst.view.paper.paper_id !== 'B') process.exit(2);"
+            "const sentFirst = confirmPayload(lateFirst.view.paper, lateFirst.view.attempt, 'teacher-synth', 'adopt', 'key-b');"
+            "if (sentFirst.paper_id !== 'B' || sentFirst.fixture_answer_id !== 'fixture-answer-B') process.exit(2);"
+            "if (canHandOut(paperA, false) !== true) process.exit(3);"
+            "generation = startSwitch(generation);"
+            "if (canHandOut(paperA, true) !== false) process.exit(3);"
+            "const issued = acceptLoad(generation, generation, attemptB);"
+            "if (!issued.apply || !confirmReady(paperB, issued.attempt)) process.exit(4);"
+            "let paper = paperB;"
+            "let attempt = issued.attempt;"
+            "const snapshot = { paper: paperA, attempt: attemptA, confirmation: null, payload: null,"
+            " message: '', error: '', errorCode: '' };"
+            "const lateOk = takeHandOut(snapshot, generation, generation,"
+            " { paper: { paper_id: 'A', status: '已发放' } }, paper.paper_id);"
+            "if (lateOk.apply) process.exit(6);"
+            "if (paper.paper_id !== 'B') process.exit(7);"
+            "if (attempt.fixture_answer_id !== 'fixture-answer-B') process.exit(8);"
+            "const sent = confirmPayload(paper, attempt, 'teacher-synth', 'adopt', 'key-b');"
+            "if (sent.paper_id !== 'B') process.exit(9);"
+            "if (sent.fixture_answer_id !== 'fixture-answer-B') process.exit(10);"
+            "let papers = [paperA, paperB];"
+            "papers = patchHandOutList(papers, { paper_id: 'A', status: '已发放' });"
+            "if (papers[0].status !== '已发放' || papers[0].paper_id !== 'A') process.exit(11);"
+            "if (papers[1].paper_id !== 'B' || paper.paper_id !== 'B') process.exit(11);"
+            "const stored = sent;"
+            "const lateBad = takeHandOut(snapshot, generation, generation,"
+            " { error: { code: 'retired', message: 'publication is retired' } }, paper.paper_id);"
+            "if (lateBad.apply || lateBad.view.error || lateBad.view.errorCode) process.exit(12);"
+            "const again = retryBody(stored, { operation_key: 'key-edited', paper_id: 'A', decision: 'reject' });"
+            "if (again !== stored || again.paper_id !== 'B' || again.fixture_answer_id !== 'fixture-answer-B') process.exit(13);"
+            "if (canHandOut(paperB, false) !== true) process.exit(14);"
+            "const owned = takeHandOut({ ...snapshot, paper: paperB, attempt: attemptB }, generation, generation,"
+            " { paper: { paper_id: 'B', status: '已发放' } }, 'B');"
+            "if (!owned.apply || owned.view.paper.paper_id !== 'B' || owned.view.paper.status !== '已发放') process.exit(15);"
+            "if (owned.view.attempt.fixture_answer_id !== 'fixture-answer-B') process.exit(16);"
+            "if (confirmReady({ paper_id: 'A', status: '已发放' }, attemptB) !== false) process.exit(17);"
+            "console.log('OVERLAP handout-then-switch paper=B attempt=fixture-answer-B');"
+            "console.log('OVERLAP issue-then-handout paper=' + paper.paper_id + ' attempt=' + attempt.fixture_answer_id);"
+            "console.log('OVERLAP GATE PASS');"
+        )
+        completed = subprocess.run(
+            [node, "--input-type=module", "-e", script],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("OVERLAP handout-then-switch paper=B attempt=fixture-answer-B", completed.stdout)
+        self.assertIn("OVERLAP issue-then-handout paper=B attempt=fixture-answer-B", completed.stdout)
+        self.assertIn("OVERLAP GATE PASS", completed.stdout)
+
     def test_parallel_revisions_keep_distinct_versions_and_the_old_pdf(self) -> None:
         loop = compose()
         load_fixture(loop)

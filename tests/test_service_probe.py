@@ -313,6 +313,89 @@ class ServiceProbeHealthTest(unittest.TestCase):
         self.assertGreater(elapsed, 0.6)
         self.assertLess(elapsed, 3)
 
+    def test_slow_health_body_past_the_ready_budget_fails(self) -> None:
+        import socket
+
+        import scripts.service_probe as probe_mod
+
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        budget = 1.0
+        with tempfile.TemporaryDirectory() as tmp:
+            stamp = Path(tmp) / "drop.txt"
+            code = (
+                "import socket, time\n"
+                "sock = socket.socket()\n"
+                f"sock.bind(('127.0.0.1', {port}))\n"
+                "sock.listen(1)\n"
+                "print('READY', flush=True)\n"
+                "conn, _addr = sock.accept()\n"
+                "body = b'{\"status\":\"ok\"}'\n"
+                "crlf = chr(13) + chr(10)\n"
+                "first = ('HTTP/1.1 200 OK' + crlf + 'Content-Type: application/json' + crlf).encode('ascii')\n"
+                "rest = ('Content-Length: %d' % len(body) + crlf + 'Connection: close' + crlf + crlf).encode('ascii')\n"
+                f"path = {stamp.as_posix()!r}\n"
+                "sent = 0\n"
+                "dropped = ''\n"
+                "try:\n"
+                "    conn.sendall(first)\n"
+                "    time.sleep(0.25)\n"
+                "    conn.sendall(rest)\n"
+                "    for piece in body:\n"
+                "        time.sleep(0.2)\n"
+                "        with open(path, 'w', encoding='utf-8') as handle:\n"
+                "            handle.write('%s %s' % (time.time(), sent))\n"
+                "        conn.sendall(bytes([piece]))\n"
+                "        sent += 1\n"
+                "except OSError as exc:\n"
+                "    dropped = type(exc).__name__\n"
+                "with open(path, 'w', encoding='utf-8') as handle:\n"
+                "    handle.write('%s %s %s' % (time.time(), sent, dropped))\n"
+                "time.sleep(30)\n"
+            )
+            marks: dict[str, float] = {}
+            original = probe_mod._finish
+
+            def wrapped(proc: subprocess.Popen[str], status: str, detail: str, code: int | None) -> probe_mod.ProbeResult:
+                marks["judged"] = time.time()
+                return original(proc, status, detail, code)
+
+            probe_mod._finish = wrapped
+            started = time.time()
+            try:
+                result = supervise(
+                    command(code),
+                    ready_token="READY",
+                    timeout_s=budget,
+                    smoke=lambda: 0,
+                    health_url=f"http://127.0.0.1:{port}/health",
+                )
+            finally:
+                probe_mod._finish = original
+            finished = time.time()
+            judged = marks["judged"] - started
+            cleaned_at = finished - started
+            progress = stamp.read_text(encoding="utf-8") if stamp.exists() else ""
+            sent = int(progress.split()[1]) if len(progress.split()) >= 2 else -1
+            print(
+                f"SLOW_HEALTH budget={budget:.1f} judged={judged:.3f} "
+                f"cleaned={cleaned_at:.3f} status={result.status} sent={sent} detail={result.detail}"
+            )
+            self.assertEqual(result.status, "health_failed", result.detail)
+            self.assertIn("ready budget elapsed", result.detail)
+            self.assertNotIn("status=ok", result.detail)
+            self.assertTrue(result.cleaned)
+            self.assertGreater(judged, 0.7, result.detail)
+            self.assertLess(judged, 1.8, result.detail)
+            self.assertGreaterEqual(cleaned_at, judged)
+            self.assertLess(cleaned_at, 2.2, result.detail)
+            self.assertGreaterEqual(sent, 0)
+            self.assertLess(sent, len(b'{"status":"ok"}'))
+            with self.assertRaises(OSError):
+                socket.create_connection(("127.0.0.1", port), timeout=1)
+
     def test_exit_while_waiting_for_bind_fails_promptly(self) -> None:
         started = time.monotonic()
         result = supervise(

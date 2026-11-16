@@ -30,8 +30,29 @@ export function acceptResponse(requestedGeneration, currentGeneration, body) {
   return { apply: true, body };
 }
 
-export function takeHandOut(view, token, currentGeneration, outcome) {
-  if (token !== currentGeneration) {
+export function canHandOut(paper, issuing) {
+  return Boolean(paper && paper.status === "可打印" && !issuing);
+}
+
+export function confirmReady(paper, attempt) {
+  if (!paper || !attempt) return false;
+  if (attempt.paper_id && attempt.paper_id !== paper.paper_id) return false;
+  return true;
+}
+
+export function patchHandOutList(papers, updated) {
+  if (!updated || !updated.paper_id) return papers;
+  return papers.map((row) => (row.paper_id === updated.paper_id ? { ...row, ...updated } : row));
+}
+
+export function takeHandOut(view, token, currentGeneration, outcome, currentPaperId) {
+  const sourceId = view.paper && view.paper.paper_id;
+  const liveId = currentPaperId === undefined ? sourceId : currentPaperId;
+  const returnedId = outcome.paper && outcome.paper.paper_id;
+  if (token !== currentGeneration || !sourceId || sourceId !== liveId) {
+    return { apply: false, view };
+  }
+  if (returnedId && returnedId !== sourceId) {
     return { apply: false, view };
   }
   if (outcome.error) {
