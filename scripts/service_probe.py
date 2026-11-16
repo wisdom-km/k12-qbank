@@ -5,7 +5,9 @@ the check starts that process after install. The ready token can arrive before
 the port is bound. The same ready budget then keeps asking for health until
 this process is bound and the body is status ok, the process exits, or the
 budget ends. Connecting and reading that body share one deadline. A body that
-is still arriving after the budget is a ready failure. The probe stops the
+is still arriving after the budget is a ready failure. Chunked and
+Content-Length bodies are both accepted. Only an http URL is requested; any
+other scheme is refused before a connection. The probe stops the
 process tree it started, including a shell wrapper and the service behind it. cleaned is true only after those processes
 have exited.
 """
@@ -13,8 +15,10 @@ have exited.
 from __future__ import annotations
 
 import argparse
+import io
 import os
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -96,16 +100,22 @@ def supervise(
 
 def _request_health(url: str, timeout: float = 0.4, deadline: float | None = None) -> str:
     import json
-    import socket
     from urllib.parse import urlsplit
 
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        return "health url is invalid"
+    if parts.scheme != "http":
+        return "health url scheme is not http"
     if deadline is None:
         deadline = time.monotonic() + max(0.0, timeout)
     if time.monotonic() >= deadline:
         return "health request failed: TimeoutError"
-    parts = urlsplit(url)
     host = parts.hostname or "127.0.0.1"
-    port = parts.port or (443 if parts.scheme == "https" else 80)
+    if port is None:
+        port = 80
     path = parts.path or "/"
     if parts.query:
         path = path + "?" + parts.query
@@ -151,63 +161,85 @@ def _request_health(url: str, timeout: float = 0.4, deadline: float | None = Non
     return "ok"
 
 
+class _BudgetSocket:
+    """Socket view whose reads stop at the ready deadline. The real socket stays open."""
+
+    def __init__(self, sock: socket.socket, deadline: float, timeout: float) -> None:
+        self._sock = sock
+        self._deadline = deadline
+        self._timeout = timeout
+        self._io_refs = 0
+
+    def recv_into(self, buffer: object, nbytes: int = 0, flags: int = 0) -> int:
+        left = self._deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError
+        self._sock.settimeout(min(self._timeout, left))
+        if nbytes and flags:
+            return self._sock.recv_into(buffer, nbytes, flags)
+        if nbytes:
+            return self._sock.recv_into(buffer, nbytes)
+        return self._sock.recv_into(buffer)
+
+    def fileno(self) -> int:
+        return self._sock.fileno()
+
+    def settimeout(self, value: float | None) -> None:
+        self._sock.settimeout(value)
+
+    def _decref_socketios(self) -> None:
+        if self._io_refs > 0:
+            self._io_refs -= 1
+
+    def makefile(
+        self,
+        mode: str = "r",
+        buffering: int | None = None,
+        *,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> io.BufferedReader:
+        del mode, encoding, errors, newline
+        raw = socket.SocketIO(self, "r")
+        size = io.DEFAULT_BUFFER_SIZE if buffering is None or buffering < 0 else buffering
+        return io.BufferedReader(raw, size)
+
+
 def _read_http_message(
-    sock: object,
+    sock: socket.socket,
     deadline: float,
     timeout: float,
 ) -> tuple[int, bytes] | None:
-    import socket
+    import http.client
 
-    data = bytearray()
+    response = http.client.HTTPResponse(_BudgetSocket(sock, deadline, timeout))
+    left = deadline - time.monotonic()
+    if left <= 0:
+        return None
+    sock.settimeout(min(timeout, left))
+    try:
+        response.begin()
+    except (TimeoutError, socket.timeout):
+        return None
+    if time.monotonic() >= deadline:
+        return None
+    parts: list[bytes] = []
     while True:
         left = deadline - time.monotonic()
         if left <= 0:
             return None
-        sock.settimeout(min(timeout, left))  # type: ignore[attr-defined]
+        sock.settimeout(min(timeout, left))
         try:
-            block = sock.recv(4096)  # type: ignore[attr-defined]
+            block = response.read(4096)
         except (TimeoutError, socket.timeout):
             return None
-        if block:
-            data.extend(block)
-            message = _split_http(data, final=False)
-            if message is None:
-                continue
-            if time.monotonic() >= deadline:
-                return None
-            return message
-        message = _split_http(data, final=True)
-        if message is None or time.monotonic() >= deadline:
+        if time.monotonic() >= deadline:
             return None
-        return message
-
-
-def _split_http(raw: bytes, *, final: bool) -> tuple[int, bytes] | None:
-    mark = raw.find(b"\r\n\r\n")
-    if mark < 0:
-        return None
-    head = raw[:mark]
-    body = raw[mark + 4 :]
-    lines = head.split(b"\r\n")
-    status = 0
-    if lines:
-        parts = lines[0].split(b" ")
-        if len(parts) >= 2 and parts[1].isdigit():
-            status = int(parts[1])
-    length: int | None = None
-    for line in lines[1:]:
-        name, sep, value = line.partition(b":")
-        if not sep or name.lower() != b"content-length":
-            continue
-        try:
-            length = int(value.strip())
-        except ValueError:
-            return (status, body) if final else None
-    if length is None:
-        return (status, body) if final else None
-    if len(body) < length:
-        return None
-    return status, body[:length]
+        if not block:
+            break
+        parts.append(block)
+    return response.status, b"".join(parts)
 
 
 def _finish(proc: subprocess.Popen[str], status: str, detail: str, code: int | None) -> ProbeResult:
@@ -230,6 +262,8 @@ def _wait_health(proc: subprocess.Popen[str], url: str, deadline: float) -> str:
         if remaining <= 0:
             break
         health = _request_health(url, timeout=min(0.4, remaining), deadline=deadline)
+        if health in ("health url scheme is not http", "health url is invalid"):
+            return health
         if proc.poll() is not None:
             return "exited"
         if time.monotonic() >= deadline:

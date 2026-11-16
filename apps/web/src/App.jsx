@@ -1,19 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { call } from "./api.js";
-import {
-  acceptLoad,
-  acceptResponse,
-  attemptBlock,
-  canHandOut,
-  cleared,
-  confirmPayload,
-  confirmReady,
-  patchHandOutList,
-  retryBody,
-  showConflictReload,
-  startSwitch,
-  takeHandOut,
-} from "./confirm_gate.js";
+import { attemptBlock, canHandOut, confirmReady, showConflictReload } from "./confirm_gate.js";
+import { createPaperActions } from "./paper_loop.js";
 
 const REVIEW_VERSION_ID = "rev-1";
 
@@ -32,24 +20,46 @@ export default function App() {
   const [error, setError] = useState("");
   const [errorCode, setErrorCode] = useState("");
   const [issuing, setIssuing] = useState(false);
-  const generation = useRef(0);
-  const paperNow = useRef(null);
-
-  async function load() {
-    const nextSession = await call("/api/session");
-    const nextItem = await call("/api/catalog/" + nextSession.question_version_id);
-    const nextPapers = await call("/api/practice/papers");
-    setSession(nextSession);
-    setItem(nextItem);
-    setPapers(nextPapers.papers);
-    if (!nextSession.student_ids.includes(studentId) && nextSession.student_ids[0]) {
-      setStudentId(nextSession.student_ids[0]);
-    }
+  const live = useRef({});
+  live.current = {
+    session,
+    item,
+    studentId,
+    paper,
+    attempt,
+    confirmation,
+    savedPayload,
+    message,
+    error,
+    errorCode,
+    decision,
+    operationKey,
+  };
+  const actions = useRef(null);
+  if (actions.current === null) {
+    actions.current = createPaperActions({
+      call,
+      reviewVersionId: REVIEW_VERSION_ID,
+      get: () => live.current,
+      setSession,
+      setItem,
+      setStudentId,
+      setPaper,
+      setPapers,
+      setAttempt,
+      setConfirmation,
+      setSavedPayload,
+      setMessage,
+      setError,
+      setErrorCode,
+      setIssuing,
+    });
   }
+  const loop = actions.current;
 
   useEffect(() => {
-    load().catch((reason) => setError(reason.message));
-  }, []);
+    loop.load().catch((reason) => setError(reason.message));
+  }, [loop]);
 
   async function run(action) {
     setError("");
@@ -63,22 +73,6 @@ export default function App() {
     }
   }
 
-  function rememberPaper(next) {
-    paperNow.current = next;
-    setPaper(next);
-  }
-
-  function beginSwitch() {
-    const token = startSwitch(generation.current);
-    generation.current = token;
-    const blank = cleared();
-    setIssuing(false);
-    setAttempt(blank.attempt);
-    setConfirmation(blank.confirmation);
-    setSavedPayload(blank.payload);
-    return token;
-  }
-
   function publish() {
     return run(async () => {
       const next = await call("/api/catalog/" + item.question_version_id + "/publish", {
@@ -87,143 +81,6 @@ export default function App() {
       });
       setItem(next);
       setMessage("已核准并发布");
-    });
-  }
-
-  function issue() {
-    const token = beginSwitch();
-    setIssuing(true);
-    return run(async () => {
-      try {
-        const opened = await call("/api/practice/papers", {
-          method: "POST",
-          body: JSON.stringify({
-            teacher_id: session.actor_teacher_id,
-            student_id: studentId,
-            subject_id: item.subject_id,
-            question_version_id: item.question_version_id,
-            review_version_id: REVIEW_VERSION_ID,
-          }),
-        });
-        const posted = acceptResponse(token, generation.current, opened);
-        if (!posted.apply || !posted.body) return;
-        rememberPaper(posted.body);
-        const nextAttempt = await call("/api/practice/papers/" + posted.body.paper_id + "/attempt");
-        const applied = acceptLoad(token, generation.current, nextAttempt);
-        if (applied.apply) setAttempt(applied.attempt);
-        const nextPapers = await call("/api/practice/papers");
-        const listed = acceptResponse(token, generation.current, nextPapers);
-        if (!listed.apply || !listed.body) return;
-        setPapers(listed.body.papers);
-        setMessage(posted.body.status === "可打印" ? "已出卷，可以打开 PDF" : "已出卷，仍待渲染");
-      } finally {
-        if (generation.current === token) setIssuing(false);
-      }
-    });
-  }
-
-  function handOut() {
-    if (!canHandOut(paper, issuing)) return;
-    const token = generation.current;
-    const source = paper;
-    const view = {
-      paper: source,
-      attempt,
-      confirmation,
-      payload: savedPayload,
-      message,
-      error,
-      errorCode,
-    };
-    const liveId = () => (paperNow.current ? paperNow.current.paper_id : "");
-    return run(async () => {
-      try {
-        const next = await call("/api/practice/papers/" + source.paper_id + "/handout", {
-          method: "POST",
-          body: "{}",
-        });
-        const taken = takeHandOut(view, token, generation.current, { paper: next }, liveId());
-        if (!taken.apply) {
-          setPapers((rows) => patchHandOutList(rows, next));
-          return;
-        }
-        rememberPaper(taken.view.paper);
-        const nextPapers = await call("/api/practice/papers");
-        const listed = acceptResponse(token, generation.current, nextPapers);
-        if (!listed.apply || !listed.body) return;
-        setPapers(listed.body.papers);
-        setMessage(taken.view.message);
-        setError("");
-        setErrorCode("");
-      } catch (reason) {
-        const taken = takeHandOut(
-          view,
-          token,
-          generation.current,
-          { error: { code: reason.code || "", message: reason.message || "" } },
-          liveId(),
-        );
-        if (!taken.apply) return;
-        setErrorCode(taken.view.errorCode);
-        setError(taken.view.error);
-        setMessage("");
-      }
-    });
-  }
-
-  function choosePaper(row) {
-    const token = beginSwitch();
-    rememberPaper(row);
-    return run(async () => {
-      try {
-        const nextAttempt = await call("/api/practice/papers/" + row.paper_id + "/attempt");
-        const applied = acceptLoad(token, generation.current, nextAttempt);
-        if (!applied.apply) return;
-        setAttempt(applied.attempt);
-        setMessage("已打开卷 " + row.paper_id);
-      } catch (reason) {
-        const applied = acceptLoad(token, generation.current, null);
-        if (!applied.apply) return;
-        setAttempt(null);
-        throw reason;
-      }
-    });
-  }
-
-  function currentPayload() {
-    return confirmPayload(paper, attempt, session.actor_teacher_id, decision, operationKey);
-  }
-
-  function confirm() {
-    if (issuing || !confirmReady(paper, attempt)) return;
-    const token = generation.current;
-    const payload = currentPayload();
-    return run(async () => {
-      const result = await call("/api/practice/confirmations", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      const applied = acceptResponse(token, generation.current, { confirmation: result, payload });
-      if (!applied.apply || !applied.body) return;
-      setSavedPayload(applied.body.payload);
-      setConfirmation(applied.body.confirmation);
-      setMessage("确认号 " + result.confirmation_id + "，正式记录 " + result.count + " 条");
-    });
-  }
-
-  function retry() {
-    const token = generation.current;
-    const payload = retryBody(savedPayload, null);
-    if (!payload) return;
-    return run(async () => {
-      const result = await call("/api/practice/confirmations", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      const applied = acceptResponse(token, generation.current, { confirmation: result, payload });
-      if (!applied.apply || !applied.body) return;
-      setConfirmation(applied.body.confirmation);
-      setMessage("确认号 " + result.confirmation_id + "，正式记录 " + result.count + " 条");
     });
   }
 
@@ -274,7 +131,7 @@ export default function App() {
             ))}
           </select>
         </label>
-        <button type="button" onClick={issue} disabled={!approved}>
+        <button type="button" onClick={() => loop.issue()} disabled={!approved}>
           出卷
         </button>
         {paper && (
@@ -302,7 +159,7 @@ export default function App() {
           </p>
         )}
         {canHandOut(paper, issuing) && (
-          <button type="button" onClick={handOut}>
+          <button type="button" onClick={() => loop.handOut()}>
             正式发放
           </button>
         )}
@@ -310,7 +167,7 @@ export default function App() {
           <ul>
             {papers.map((row) => (
               <li key={row.paper_id}>
-                <button type="button" onClick={() => choosePaper(row)}>
+                <button type="button" onClick={() => loop.choosePaper(row)}>
                   {row.student_id} · {row.status} · {row.paper_id}
                 </button>
               </li>
@@ -348,21 +205,21 @@ export default function App() {
         {blocked && <p className="error">{blocked.notice}</p>}
         <button
           type="button"
-          onClick={confirm}
+          onClick={() => loop.confirm()}
           disabled={!confirmReady(paper, attempt) || Boolean(blocked) || issuing}
         >
           确认
         </button>
-        <button type="button" onClick={retry} disabled={!savedPayload}>
+        <button type="button" onClick={() => loop.retry()} disabled={!savedPayload}>
           同键重试
         </button>
         {showConflictReload(errorCode) && paper && (
-          <button type="button" onClick={() => choosePaper(paper)}>
+          <button type="button" onClick={() => loop.choosePaper(paper)}>
             重新查看当前作答
           </button>
         )}
         {blocked && paper && (
-          <button type="button" onClick={() => choosePaper(paper)}>
+          <button type="button" onClick={() => loop.choosePaper(paper)}>
             {blocked.nextStep}
           </button>
         )}

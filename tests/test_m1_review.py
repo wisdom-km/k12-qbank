@@ -486,6 +486,26 @@ class ReviewLoopTest(unittest.TestCase):
         self.assertIn("OVERLAP issue-then-handout paper=B attempt=fixture-answer-B", completed.stdout)
         self.assertIn("OVERLAP GATE PASS", completed.stdout)
 
+    def test_stale_list_keeps_a_confirmed_handout_on_the_open_paper(self) -> None:
+        node = shutil.which("node")
+        self.assertIsNotNone(node, "node is required for the stale-list race")
+        assert node is not None
+        page = (ROOT / "apps/web/src/App.jsx").read_text(encoding="utf-8")
+        self.assertIn('from "./paper_loop.js"', page)
+        self.assertNotIn("setPapers(listed.body.papers)", page)
+        self.assertNotIn("setPapers(nextPapers.papers)", page)
+        completed = subprocess.run(
+            [node, str(ROOT / "tests" / "list_race.mjs")],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("LIST RACE A=已发放 open=B attempt=fixture-answer-B confirm=B retry=key-b", completed.stdout)
+        self.assertIn("LIST RACE late-error paper=B attempt=fixture-answer-B error=", completed.stdout)
+        self.assertIn("LIST RACE PASS", completed.stdout)
+
     def test_parallel_revisions_keep_distinct_versions_and_the_old_pdf(self) -> None:
         loop = compose()
         load_fixture(loop)

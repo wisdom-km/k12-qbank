@@ -396,6 +396,78 @@ class ServiceProbeHealthTest(unittest.TestCase):
             with self.assertRaises(OSError):
                 socket.create_connection(("127.0.0.1", port), timeout=1)
 
+    def test_chunked_health_body_within_the_ready_budget_passes(self) -> None:
+        import socket
+
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        code = (
+            "import socket, time\n"
+            "sock = socket.socket()\n"
+            f"sock.bind(('127.0.0.1', {port}))\n"
+            "sock.listen(1)\n"
+            "print('READY', flush=True)\n"
+            "conn, _addr = sock.accept()\n"
+            "conn.recv(4096)\n"
+            "body = b'{\"status\":\"ok\"}'\n"
+            "crlf = chr(13) + chr(10)\n"
+            "size = format(len(body), 'x')\n"
+            "payload = ('HTTP/1.1 200 OK' + crlf + 'Content-Type: application/json' + crlf"
+            " + 'Transfer-Encoding: chunked' + crlf + crlf + size + crlf).encode('ascii') + body"
+            " + (crlf + '0' + crlf + crlf).encode('ascii')\n"
+            "conn.sendall(payload)\n"
+            "conn.shutdown(socket.SHUT_WR)\n"
+            "time.sleep(30)\n"
+        )
+        started = time.monotonic()
+        result = supervise(
+            command(code),
+            ready_token="READY",
+            timeout_s=2,
+            smoke=lambda: 0,
+            health_url=f"http://127.0.0.1:{port}/health",
+        )
+        elapsed = time.monotonic() - started
+        print(f"CHUNKED_HEALTH elapsed={elapsed:.3f} status={result.status} detail={result.detail}")
+        self.assertEqual(result.status, "ok", result.detail)
+        self.assertEqual(result.detail, "ready, smoke passed, process stopped")
+        self.assertTrue(result.cleaned)
+        self.assertLess(elapsed, 2, result.detail)
+        with self.assertRaises(OSError):
+            socket.create_connection(("127.0.0.1", port), timeout=1)
+
+    def test_non_http_health_url_is_refused_before_connect(self) -> None:
+        started = time.monotonic()
+        result = supervise(
+            command("import time; print('READY', flush=True); time.sleep(30)"),
+            ready_token="READY",
+            timeout_s=3,
+            smoke=lambda: 0,
+            health_url="https://127.0.0.1:9/health",
+        )
+        elapsed = time.monotonic() - started
+        print(f"SCHEME_HEALTH elapsed={elapsed:.3f} status={result.status} detail={result.detail}")
+        self.assertEqual(result.status, "health_failed", result.detail)
+        self.assertIn("health url scheme is not http", result.detail)
+        self.assertNotIn("not_bound", result.detail)
+        self.assertNotIn("ready budget elapsed", result.detail)
+        self.assertTrue(result.cleaned)
+        self.assertLess(elapsed, 1.5, result.detail)
+
+    def test_invalid_health_port_is_refused_before_connect(self) -> None:
+        from scripts.service_probe import _request_health
+
+        started = time.monotonic()
+        detail = _request_health(
+            "http://127.0.0.1:not-a-port/health",
+            timeout=2,
+            deadline=time.monotonic() + 2,
+        )
+        self.assertEqual(detail, "health url is invalid")
+        self.assertLess(time.monotonic() - started, 0.5)
+
     def test_exit_while_waiting_for_bind_fails_promptly(self) -> None:
         started = time.monotonic()
         result = supervise(
