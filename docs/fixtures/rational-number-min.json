@@ -22,7 +22,16 @@
     "answer_version_id": "a-v1",
     "asset_ids": ["page-synth", "item-synth"],
     "layout_template_id": "layout-1",
-    "review_version_id": "rev-1"
+    "review_version_id": "rev-1",
+    "item_order": ["sq-1"]
+  },
+  "pending_answer": {
+    "fixture_answer_id": "fixture-answer-1",
+    "paper_id": "paper-1",
+    "sub_question_id": "sq-1",
+    "review_version_id": "rev-1",
+    "student_id": "student-synth",
+    "status": "pending"
   },
   "photo_version": {
     "page_id": "fixture-page-1",

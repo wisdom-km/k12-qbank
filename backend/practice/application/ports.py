@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from backend.practice.domain.confirm import Confirmation
+from backend.kernel.result import Err
+from backend.practice.domain.confirm import Confirmation, OperationKey, PendingAnswer
 from backend.practice.domain.paper import Paper
 
 
@@ -20,11 +21,21 @@ class PracticeStore(Protocol):
     def get_paper(self, paper_id: str) -> Paper | None:
         """Return the paper, or None when it does not exist."""
 
-    def get_confirmation(self, operation_key: str) -> Confirmation | None:
+    def get_confirmation(self, operation_key: OperationKey) -> Confirmation | None:
         """Return the confirmation stored for this key, or None."""
 
-    def find_slot(self, paper_id: str, sub_question_id: str, review_version_id: str) -> str | None:
+    def find_slot(self, paper_id: str, sub_question_id: str, review_version_id: str) -> OperationKey | None:
         """Return the operation key that already holds this review, or None."""
 
-    def add_confirmation(self, record: Confirmation) -> None:
-        """Store one new confirmation."""
+    def put_answer(self, answer: PendingAnswer) -> None:
+        """Store one server-loaded pending answer."""
+
+    def set_review_version(self, paper_id: str, review_version_id: str) -> None:
+        """Replace only the review version. The issued snapshot stays."""
+
+    def commit_confirmation(self, record: Confirmation) -> Confirmation | Err:
+        """Re-check the key, the answer, the review version, and the slot, then write.
+
+        Those steps happen together. Two callers cannot both become the official
+        record for one paper, sub-question, and review version.
+        """

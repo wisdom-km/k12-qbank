@@ -6,7 +6,7 @@ import time
 import uuid
 from collections.abc import Callable
 
-from backend.catalog.api import ApprovalPort, copy_issue_snapshot, issue_block
+from backend.catalog.api import ApprovalPort, issuable_snapshot
 from backend.kernel.logger import Logger
 from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
@@ -23,20 +23,11 @@ def issue_paper(
     logger: Logger,
     request_id: str,
     new_id: Callable[[], str] | None = None,
+    *,
+    actor_teacher_id: str,
 ) -> Ok[Paper] | Err:
     started = time.perf_counter()
     identify = new_id or (lambda: uuid.uuid4().hex)
-    if not auth.allow(command.teacher_id, command.student_id, command.subject_id):
-        emit(
-            logger,
-            level="WARN",
-            event="use_case_refused",
-            request_id=request_id,
-            module="practice.issue",
-            outcome="unauthorized",
-            started=started,
-        )
-        return Err("unauthorized", "this teacher cannot issue for that student and subject")
     loaded = read_store(
         lambda: approvals.read_snapshot(command.question_version_id),
         logger,
@@ -46,43 +37,47 @@ def issue_paper(
     )
     if isinstance(loaded, Err):
         return loaded
-    blocked = issue_block(loaded.value)
-    if blocked is not None:
+    ready = issuable_snapshot(loaded.value)
+    if isinstance(ready, Err):
         emit(
             logger,
             level="WARN",
             event="use_case_refused",
             request_id=request_id,
             module="practice.issue",
-            outcome=blocked.code,
+            outcome=ready.code,
             started=started,
         )
-        return blocked
-    snapshot = loaded.value
-    if snapshot is None:
-        return Err("not_found", "the question version does not exist")
-    frozen = copy_issue_snapshot(snapshot)
-    if isinstance(frozen, Err):
-        emit(
+        return ready
+    if command.subject_id != ready.subject_id:
+        return _refuse_issue(
             logger,
-            level="WARN",
-            event="use_case_refused",
-            request_id=request_id,
-            module="practice.issue",
-            outcome=frozen.code,
-            started=started,
+            request_id,
+            started,
+            "subject_mismatch",
+            "the requested subject does not match the catalog record",
         )
-        return frozen
+    if command.teacher_id != actor_teacher_id or not auth.allow(
+        actor_teacher_id, command.student_id, ready.subject_id
+    ):
+        return _refuse_issue(
+            logger,
+            request_id,
+            started,
+            "unauthorized",
+            "this teacher cannot issue for that student and subject",
+        )
     paper = freeze_paper(
         paper_id=identify(),
-        teacher_id=command.teacher_id,
+        teacher_id=actor_teacher_id,
         student_id=command.student_id,
-        subject_id=command.subject_id,
-        question_version_id=frozen.question_version_id,
-        answer_version_id=frozen.answer_version_id,
-        asset_ids=frozen.asset_ids,
-        layout_template_id=frozen.layout_template_id,
+        subject_id=ready.subject_id,
+        question_version_id=ready.question_version_id,
+        answer_version_id=ready.answer_version_id,
+        asset_ids=ready.asset_ids,
+        layout_template_id=ready.layout_template_id,
         review_version_id=command.review_version_id,
+        item_order=ready.item_order,
     )
     if isinstance(paper, Err):
         emit(
@@ -114,3 +109,16 @@ def issue_paper(
         started=started,
     )
     return Ok(paper)
+
+
+def _refuse_issue(logger: Logger, request_id: str, started: float, code: str, message: str) -> Err:
+    emit(
+        logger,
+        level="WARN",
+        event="use_case_refused",
+        request_id=request_id,
+        module="practice.issue",
+        outcome=code,
+        started=started,
+    )
+    return Err(code, message)

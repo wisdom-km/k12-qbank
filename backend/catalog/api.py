@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from backend.catalog.domain.approval import copy_issue_snapshot, issue_block
+from backend.catalog.domain.approval import copy_issue_snapshot, issuable_snapshot, issue_block
 from backend.catalog.domain.snapshot import ApprovalSnapshot, IssueSnapshot
 
 __all__ = [
@@ -12,6 +12,7 @@ __all__ = [
     "ApprovalSnapshot",
     "IssueSnapshot",
     "copy_issue_snapshot",
+    "issuable_snapshot",
     "issue_block",
 ]
 

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import io
+import json
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 
 from backend.bootstrap.stdout_log import StdoutLogger
 from backend.catalog.adapters.memory import MemoryApprovals
@@ -16,6 +18,9 @@ from backend.practice.adapters.memory import MemoryAuth, MemoryPractice
 from backend.practice.api import ConfirmCommand, IssuePaperCommand
 from backend.practice.application.confirm_attempt import confirm_attempt
 from backend.practice.application.issue_paper import issue_paper
+from backend.practice.domain.confirm import OperationKey, PendingAnswer
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class ListLogger:
@@ -52,6 +57,8 @@ def approved() -> ApprovalSnapshot:
         question_approved=True,
         answer_approved=True,
         retired=False,
+        subject_id="math",
+        item_order=("sq-1",),
     )
 
 
@@ -87,6 +94,7 @@ class CoreLoopTest(unittest.TestCase):
                 question_approved=False,
                 answer_approved=True,
                 retired=False,
+                subject_id="math",
             )
         )
         result = issue_paper(
@@ -97,6 +105,7 @@ class CoreLoopTest(unittest.TestCase):
             self.logger,
             "req-refuse",
             self.next_id,
+            actor_teacher_id="teacher-synth",
         )
         self.assertIsInstance(result, Err)
         assert isinstance(result, Err)
@@ -136,7 +145,7 @@ class CoreLoopTest(unittest.TestCase):
         assert isinstance(again, Err)
         self.assertEqual(again.code, "key_content_mismatch")
         self.assertEqual(self.practice.confirmation_count(), 1)
-        stored = self.practice.get_confirmation("key-1")
+        stored = self.practice.get_confirmation(OperationKey("key-1"))
         assert stored is not None
         self.assertEqual(stored.decision, "adopt")
 
@@ -151,6 +160,8 @@ class CoreLoopTest(unittest.TestCase):
                 question_approved=True,
                 answer_approved=True,
                 retired=False,
+                subject_id="math",
+                item_order=("sq-9",),
             )
         )
         stored = self.practice.get_paper(paper.paper_id)
@@ -159,6 +170,8 @@ class CoreLoopTest(unittest.TestCase):
         self.assertEqual(stored.answer_version_id, "a-v1")
         self.assertEqual(stored.asset_ids, ("page-synth", "item-synth"))
         self.assertEqual(stored.layout_template_id, "layout-1")
+        self.assertEqual(stored.item_order, ("sq-1",))
+        self.assertEqual(stored.subject_id, "math")
         self.assertIsNone(stored.file_id)
         self.assertEqual(stored.status, "待渲染")
 
@@ -201,6 +214,7 @@ class CoreLoopTest(unittest.TestCase):
             self.logger,
             "req-auth",
             self.next_id,
+            actor_teacher_id="teacher-other",
         )
         self.assertIsInstance(result, Err)
         assert isinstance(result, Err)
@@ -225,6 +239,7 @@ class CoreLoopTest(unittest.TestCase):
                 question_approved=True,
                 answer_approved=True,
                 retired=False,
+                subject_id="math",
             )
         )
         result = issue_paper(
@@ -241,6 +256,7 @@ class CoreLoopTest(unittest.TestCase):
             self.logger,
             "req-blank",
             self.next_id,
+            actor_teacher_id="teacher-synth",
         )
         self.assertIsInstance(result, Err)
         assert isinstance(result, Err)
@@ -257,6 +273,7 @@ class CoreLoopTest(unittest.TestCase):
                 question_approved=True,
                 answer_approved=False,
                 retired=False,
+                subject_id="math",
             )
         )
         result = read_snapshot("q-v1", self.approvals, self.logger, "req-read")
@@ -283,6 +300,7 @@ class CoreLoopTest(unittest.TestCase):
                 logger,
                 "req-err-1",
                 self.next_id,
+                actor_teacher_id="teacher-synth",
             )
         text = buffer.getvalue()
         self.assertIsInstance(result, Err)
@@ -302,9 +320,22 @@ class CoreLoopTest(unittest.TestCase):
             self.logger,
             "req-issue",
             self.next_id,
+            actor_teacher_id="teacher-synth",
         )
         self.assertIsInstance(result, Ok)
         assert isinstance(result, Ok)
+        pending = json.loads((ROOT / "docs" / "fixtures" / "rational-number-min.json").read_text(encoding="utf-8"))
+        answer = pending["pending_answer"]
+        self.practice.put_answer(
+            PendingAnswer(
+                fixture_answer_id=answer["fixture_answer_id"],
+                paper_id=result.value.paper_id,
+                sub_question_id=answer["sub_question_id"],
+                review_version_id=answer["review_version_id"],
+                student_id=answer["student_id"],
+                status=answer["status"],
+            )
+        )
         return result.value
 
     def _confirm(self, paper_id: str, operation_key: str, decision: str):
@@ -323,6 +354,7 @@ class CoreLoopTest(unittest.TestCase):
             self.logger,
             "req-confirm",
             self.next_id,
+            actor_teacher_id="teacher-synth",
         )
 
 

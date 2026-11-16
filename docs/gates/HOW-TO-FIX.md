@@ -14,7 +14,7 @@
 | M-09 | 有依赖清单却没有锁文件 | 生成锁文件并提交。安装命令用锁定安装 | ADR 0010 选定技术栈之后 |
 | LINT | 跨切片导入了内部模块，或出现 utils | 改为导入对方的 `api`。删掉 utils / helpers / common | ADR 0003、0004 |
 | F-02 | domain 或 application 导入了框架、ORM 或模型 SDK | 把该 import 移到 adapters 或组合根 | ARCHITECTURE 依赖允许表 |
-| F-03 | 导入了其他切片的 domain、application 或 adapters，包括等价的相对导入 | 只导入 `backend/<切片>/api.py`。相对导入会先按源文件所在的包解析 | ARCHITECTURE 禁止 F-03 |
+| F-03 | 导入了其他切片的 domain、application 或 adapters，包括包成员导入和等价的相对导入；应用层导入了 bootstrap；切片 api.py 导入了另一切片的内部 | 只导入 `backend/<切片>/api.py`。相对导入会先按源文件所在的包解析。api.py 可以导入本切片自己的领域类型 | ARCHITECTURE 禁止 F-03 |
 | F-04 | 出现 utils、helpers 或 common 目录 | 删掉该目录，把代码放回它所属的切片 | ARCHITECTURE 禁止 F-04 |
 | F-10 | 单个 Python 文件超过 800 行 | 按隐藏的决定拆开。要保留必须有豁免和 ADR | ARCHITECTURE 文件大小 |
 | F-11 | 组合根导入了 domain | 组合根只装配 application 和 adapters | ARCHITECTURE 禁止 F-11 |
