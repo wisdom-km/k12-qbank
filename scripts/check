@@ -54,6 +54,7 @@ TEST_CMD=$(conf_get TEST_CMD "")
 TEST_KIND=$(conf_get TEST_KIND docs)
 SERVICE_CMD=$(conf_get SERVICE_CMD "")
 SERVICE_SMOKE_CMD=$(conf_get SERVICE_SMOKE_CMD "")
+SERVICE_SMOKE_TIMEOUT=$(conf_get SERVICE_SMOKE_TIMEOUT "5")
 SERVICE_READY_TIMEOUT=$(conf_get SERVICE_READY_TIMEOUT "5")
 SERVICE_READY_TOKEN=$(conf_get SERVICE_READY_TOKEN "READY")
 BUSINESS_TEST_CMD=$(conf_get BUSINESS_TEST_CMD "")
@@ -309,7 +310,7 @@ fi
 
 # Install runs before the process. A resident process is stopped after a bounded ready wait.
 if [ "$START_SERVICE" = yes ]; then
-  if python scripts/service_probe.py --command "$SERVICE_CMD" --timeout "$SERVICE_READY_TIMEOUT" --ready-token "$SERVICE_READY_TOKEN" --smoke "$SERVICE_SMOKE_CMD"; then
+  if python scripts/service_probe.py --command "$SERVICE_CMD" --timeout "$SERVICE_READY_TIMEOUT" --ready-token "$SERVICE_READY_TOKEN" --smoke "$SERVICE_SMOKE_CMD" --smoke-timeout "$SERVICE_SMOKE_TIMEOUT"; then
     report M-02 MUST PASS "service probe after install: ready, smoke, then the process is stopped"
   else
     report M-02 MUST FAIL "service probe failed after install. The process is stopped on timeout or smoke failure."

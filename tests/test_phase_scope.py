@@ -69,6 +69,8 @@ class PhaseScopeTest(unittest.TestCase):
         self.assertNotIn('run_cmd "$SERVICE_CMD"', check)
         self.assertIn('--command "$SERVICE_CMD"', check)
         self.assertIn('--command "$ServiceCmd"', ps1)
+        self.assertIn('--smoke-timeout "$SERVICE_SMOKE_TIMEOUT"', check)
+        self.assertIn('--smoke-timeout "$ServiceSmokeTimeout"', ps1)
 
     def test_unknown_slice_is_refused(self) -> None:
         allowed, error, source = self.bounds.resolve_phase_slices("", "catalog nosuch")

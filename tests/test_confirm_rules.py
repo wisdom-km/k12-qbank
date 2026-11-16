@@ -15,7 +15,7 @@ from backend.practice.adapters.memory import MemoryAuth, MemoryPractice
 from backend.practice.api import ConfirmCommand, IssuePaperCommand
 from backend.practice.application.confirm_attempt import confirm_attempt
 from backend.practice.application.issue_paper import issue_paper
-from backend.practice.domain.confirm import Confirmation, OperationKey, PendingAnswer
+from backend.practice.domain.confirm import Confirmation, ConfirmationScope, OperationKey, PendingAnswer
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -122,6 +122,69 @@ class ConfirmRulesTest(unittest.TestCase):
         self.assertEqual(self.practice.confirmation_count(), 1)
         print(f"RACE different-keys id={oks[0].value.confirmation_id} count=1")
 
+    def test_same_key_on_two_papers_writes_two_records(self) -> None:
+        first = self._issue_answer("ans-a")
+        second = self._issue_answer("ans-b")
+        left = self._confirm(first.paper_id, "key-1", "adopt", fixture_answer_id="ans-a")
+        right = self._confirm(second.paper_id, "key-1", "adopt", fixture_answer_id="ans-b")
+        self.assertIsInstance(left, Ok)
+        self.assertIsInstance(right, Ok)
+        assert isinstance(left, Ok)
+        assert isinstance(right, Ok)
+        self.assertNotEqual(left.value.confirmation_id, right.value.confirmation_id)
+        self.assertEqual(self.practice.confirmation_count(), 2)
+        print(f"SCOPE two-papers ids={left.value.confirmation_id},{right.value.confirmation_id} count=2")
+
+    def test_same_key_on_two_sub_questions_writes_two_records(self) -> None:
+        paper = self._issue_answer("ans-a", "sq-1")
+        self.practice.put_answer(
+            PendingAnswer(
+                fixture_answer_id="ans-b",
+                paper_id=paper.paper_id,
+                sub_question_id="sq-2",
+                review_version_id="rev-1",
+                student_id="student-synth",
+                status="pending",
+            )
+        )
+        left = self._confirm(paper.paper_id, "key-1", "adopt", fixture_answer_id="ans-a", sub_question_id="sq-1")
+        right = self._confirm(paper.paper_id, "key-1", "adopt", fixture_answer_id="ans-b", sub_question_id="sq-2")
+        self.assertIsInstance(left, Ok)
+        self.assertIsInstance(right, Ok)
+        assert isinstance(left, Ok)
+        assert isinstance(right, Ok)
+        self.assertNotEqual(left.value.confirmation_id, right.value.confirmation_id)
+        self.assertEqual(self.practice.confirmation_count(), 2)
+        print(f"SCOPE two-subs ids={left.value.confirmation_id},{right.value.confirmation_id} count=2")
+
+    def test_two_teachers_same_key_string_conflict_on_one_slot(self) -> None:
+        paper = self._issue()
+        self.practice.gate = threading.Barrier(2)
+        self.auth.grant("teacher-b", "student-synth", "math")
+        results: list[Ok[Confirmation] | Err] = []
+        lock = threading.Lock()
+
+        def run(teacher: str) -> None:
+            outcome = self._confirm(paper.paper_id, "key-1", "adopt", teacher=teacher)
+            with lock:
+                results.append(outcome)
+
+        first = threading.Thread(target=run, args=("teacher-synth",))
+        second = threading.Thread(target=run, args=("teacher-b",))
+        first.start()
+        second.start()
+        first.join(5)
+        second.join(5)
+        oks = [item for item in results if isinstance(item, Ok)]
+        errs = [item for item in results if isinstance(item, Err)]
+        self.assertEqual(len(oks), 1)
+        self.assertEqual(len(errs), 1)
+        assert isinstance(oks[0], Ok)
+        assert isinstance(errs[0], Err)
+        self.assertEqual(errs[0].code, "confirm_conflict")
+        self.assertEqual(self.practice.confirmation_count(), 1)
+        print(f"SCOPE same-string-two-teachers id={oks[0].value.confirmation_id} count=1")
+
     def test_concurrent_same_key_returns_one_id(self) -> None:
         paper = self._issue()
         self.practice.gate = threading.Barrier(2)
@@ -169,7 +232,7 @@ class ConfirmRulesTest(unittest.TestCase):
         self.assertEqual(len(oks), 1)
         self.assertEqual(errs[0].code, "key_content_mismatch")
         assert isinstance(oks[0], Ok)
-        stored = self.practice.get_confirmation(OperationKey("key-1"))
+        stored = self.practice.get_confirmation(self._scope(paper.paper_id))
         assert stored is not None
         self.assertEqual(stored.confirmation_id, oks[0].value.confirmation_id)
         self.assertEqual(stored.decision, oks[0].value.decision)
@@ -223,7 +286,7 @@ class ConfirmRulesTest(unittest.TestCase):
         stored = self.practice.get_paper(paper.paper_id)
         assert stored is not None
         self.assertEqual(stored.review_version_id, "rev-2")
-        kept = self.practice.get_confirmation(OperationKey("key-1"))
+        kept = self.practice.get_confirmation(self._scope(paper.paper_id))
         assert kept is not None
         self.assertEqual(kept.decision, "adopt")
         print(f"RACE replay-during-version id={replay.value.confirmation_id} count=1")
@@ -237,7 +300,7 @@ class ConfirmRulesTest(unittest.TestCase):
         self.assertEqual(result.code, "answer_not_owned")
         self.assertEqual(self.practice.confirmation_count(), 0)
         self.assertEqual(self.practice.paper_count(), 2)
-        self.assertIsNone(self.practice.get_confirmation(OperationKey("key-cross")))
+        self.assertIsNone(self.practice.get_confirmation(self._scope(second.paper_id, "key-cross")))
         self.assertNotEqual(first.paper_id, second.paper_id)
 
     def test_unknown_sub_question_and_answer_are_refused(self) -> None:
@@ -283,7 +346,7 @@ class ConfirmRulesTest(unittest.TestCase):
         self.assertEqual(refused.code, "invalid_decision")
         self.assertEqual(fresh.code, "invalid_decision")
         self.assertEqual(self.practice.confirmation_count(), 1)
-        stored = self.practice.get_confirmation(OperationKey("key-1"))
+        stored = self.practice.get_confirmation(self._scope(paper.paper_id))
         assert stored is not None
         self.assertEqual(stored.confirmation_id, first.value.confirmation_id)
         self.assertEqual(stored.decision, "adopt")
@@ -297,7 +360,7 @@ class ConfirmRulesTest(unittest.TestCase):
         assert isinstance(replay, Err)
         self.assertEqual(replay.code, "unauthorized")
         self.assertEqual(self.practice.confirmation_count(), 1)
-        stored = self.practice.get_confirmation(OperationKey("key-1"))
+        stored = self.practice.get_confirmation(self._scope(paper.paper_id))
         assert stored is not None
         self.assertEqual(stored.confirmation_id, first.value.confirmation_id)
 
@@ -381,6 +444,9 @@ class ConfirmRulesTest(unittest.TestCase):
         self.assertEqual(logger.events[0].outcome, "log_degraded")
         self.assertNotIn("student", "".join(logger.events[0].fields().keys()))
 
+    def _scope(self, paper_id: str, key: str = "key-1", teacher: str = "teacher-synth", sub: str = "sq-1") -> ConfirmationScope:
+        return ConfirmationScope(paper_id, sub, teacher, OperationKey(key))
+
     def _issue(self):
         paper = self._issue_without_answer()
         raw = json.loads((ROOT / "docs" / "fixtures" / "rational-number-min.json").read_text(encoding="utf-8"))
@@ -393,6 +459,20 @@ class ConfirmRulesTest(unittest.TestCase):
                 review_version_id=answer["review_version_id"],
                 student_id=answer["student_id"],
                 status=answer["status"],
+            )
+        )
+        return paper
+
+    def _issue_answer(self, answer_id: str, sub_question_id: str = "sq-1"):
+        paper = self._issue_without_answer()
+        self.practice.put_answer(
+            PendingAnswer(
+                fixture_answer_id=answer_id,
+                paper_id=paper.paper_id,
+                sub_question_id=sub_question_id,
+                review_version_id="rev-1",
+                student_id="student-synth",
+                status="pending",
             )
         )
         return paper

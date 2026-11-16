@@ -1,9 +1,9 @@
-"""R3 and R5: only a teacher confirmation is official. The same key does not write twice.
+"""R3 and R5: only a teacher confirmation is official.
 
-Same operation_key and the same content returns the original confirmation.
-Same operation_key and different content is refused.
-The review version is not part of the key. It is checked separately.
-The key's content scope is the student paper, the sub-question, and the teacher.
+Idempotency is the student paper, the sub-question, the server teacher, and the key.
+The same scope and the same content returns the original confirmation.
+The same scope and different content is refused.
+The review version is checked separately. One review slot still holds one official record.
 """
 
 from __future__ import annotations
@@ -25,6 +25,29 @@ def parse_operation_key(raw: str) -> OperationKey | Err:
     if not raw.strip():
         return Err("empty_operation_key", "the operation key is required")
     return OperationKey(raw)
+
+
+@dataclass(frozen=True)
+class ConfirmationScope:
+    """Where one operation key is idempotent.
+
+    The same key string on another paper, sub-question, or server teacher is a
+    different confirmation. The review version stays outside this scope.
+    """
+
+    paper_id: str
+    sub_question_id: str
+    teacher_id: str
+    operation_key: OperationKey
+
+
+def scope_of(record: Confirmation) -> ConfirmationScope:
+    return ConfirmationScope(
+        record.paper_id,
+        record.sub_question_id,
+        record.teacher_id,
+        record.operation_key,
+    )
 
 
 @dataclass(frozen=True)

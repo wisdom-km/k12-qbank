@@ -8,9 +8,10 @@ from dataclasses import replace
 from backend.kernel.result import Err
 from backend.practice.domain.confirm import (
     Confirmation,
-    OperationKey,
+    ConfirmationScope,
     PendingAnswer,
     decide_commit,
+    scope_of,
 )
 from backend.practice.domain.paper import Paper
 
@@ -29,8 +30,8 @@ class MemoryAuth:
 class MemoryPractice:
     def __init__(self) -> None:
         self._papers: dict[str, Paper] = {}
-        self._by_key: dict[OperationKey, Confirmation] = {}
-        self._slots: dict[tuple[str, str, str], OperationKey] = {}
+        self._by_scope: dict[ConfirmationScope, Confirmation] = {}
+        self._slots: dict[tuple[str, str, str], ConfirmationScope] = {}
         self._answers: dict[str, PendingAnswer] = {}
         self._commit_lock = threading.Lock()
 
@@ -51,11 +52,11 @@ class MemoryPractice:
             current = self._papers[paper_id]
             self._papers[paper_id] = replace(current, review_version_id=review_version_id)
 
-    def get_confirmation(self, operation_key: OperationKey) -> Confirmation | None:
+    def get_confirmation(self, scope: ConfirmationScope) -> Confirmation | None:
         with self._commit_lock:
-            return self._by_key.get(operation_key)
+            return self._by_scope.get(scope)
 
-    def find_slot(self, paper_id: str, sub_question_id: str, review_version_id: str) -> OperationKey | None:
+    def find_slot(self, paper_id: str, sub_question_id: str, review_version_id: str) -> ConfirmationScope | None:
         with self._commit_lock:
             return self._slots.get((paper_id, sub_question_id, review_version_id))
 
@@ -67,11 +68,12 @@ class MemoryPractice:
         """One lock covers the replay, the answer, the review version, the slot, and the insert."""
         with self._commit_lock:
             paper = self._papers.get(record.paper_id)
-            existing = self._by_key.get(record.operation_key)
+            scope = scope_of(record)
+            existing = self._by_scope.get(scope)
             answer = self._answers.get(record.fixture_answer_id)
             slot = (record.paper_id, record.sub_question_id, record.review_version_id)
             held = self._slots.get(slot)
-            slot_taken = held is not None and held != record.operation_key
+            slot_taken = held is not None and held != scope
             placed = decide_commit(
                 paper=paper,
                 existing=existing,
@@ -81,11 +83,12 @@ class MemoryPractice:
             )
             if isinstance(placed, Err):
                 return placed
-            if placed.operation_key not in self._by_key:
-                self._by_key[placed.operation_key] = placed
-                self._slots[slot] = placed.operation_key
+            placed_scope = scope_of(placed)
+            if placed_scope not in self._by_scope:
+                self._by_scope[placed_scope] = placed
+                self._slots[slot] = placed_scope
             return placed
 
     def confirmation_count(self) -> int:
         with self._commit_lock:
-            return len(self._by_key)
+            return len(self._by_scope)

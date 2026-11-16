@@ -1,12 +1,16 @@
 """Start one process, wait until it is ready, run one smoke call, then stop it.
 
 A resident process is not waited on until it exits. SERVICE_CMD stays empty
-until an HTTP process exists. Tests drive this with a short synthetic process.
+until an HTTP process exists. The probe stops the process tree it started,
+including a shell wrapper and the service behind it. cleaned is true only
+after those processes have exited.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
+import signal
 import subprocess
 import sys
 import threading
@@ -23,6 +27,12 @@ class ProbeResult:
     returncode: int | None
 
 
+class SmokeTimedOut(Exception):
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
+        self.detail = detail
+
+
 def supervise(
     command: list[str] | str,
     *,
@@ -31,30 +41,33 @@ def supervise(
     smoke: Callable[[], int],
     shell: bool = False,
 ) -> ProbeResult:
-    proc = subprocess.Popen(
-        command,
-        shell=shell,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    proc = _spawn(command, shell=shell, pipe=True)
     try:
         ready = _wait_ready(proc, ready_token, timeout_s)
         if ready == "exited":
-            _stop(proc)
-            code = proc.returncode
-            return ProbeResult("startup_failed", f"exited {code} before ready", _dead(proc), code)
+            return _finish(proc, "startup_failed", f"exited {proc.returncode} before ready", proc.returncode)
         if ready == "timeout":
-            _stop(proc)
-            return ProbeResult("ready_timeout", "ready wait elapsed", _dead(proc), proc.returncode)
-        smoke_code = smoke()
+            return _finish(proc, "ready_timeout", "ready wait elapsed", proc.returncode)
+        try:
+            smoke_code = smoke()
+        except SmokeTimedOut as exc:
+            return _finish(proc, "smoke_timeout", exc.detail, None)
         if smoke_code != 0:
-            _stop(proc)
-            return ProbeResult("smoke_failed", f"smoke exit {smoke_code}", _dead(proc), smoke_code)
-        _stop(proc)
-        return ProbeResult("ok", "ready, smoke passed, process stopped", _dead(proc), 0)
+            return _finish(proc, "smoke_failed", f"smoke exit {smoke_code}", smoke_code)
+        return _finish(proc, "ok", "ready, smoke passed, process stopped", 0)
     finally:
         _stop(proc)
+
+
+def _finish(proc: subprocess.Popen[str], status: str, detail: str, code: int | None) -> ProbeResult:
+    cleaned = _stop(proc)
+    leftovers = getattr(proc, "_probe_leftovers", [])
+    if leftovers:
+        detail = f"{detail}; still running: {','.join(str(pid) for pid in leftovers)}"
+    failed = getattr(proc, "_probe_wait_failed", "")
+    if failed:
+        detail = f"{detail}; wait failed: {failed}"
+    return ProbeResult(status, detail, cleaned, code)
 
 
 def _wait_ready(proc: subprocess.Popen[str], token: str, timeout_s: float) -> str:
@@ -87,21 +100,197 @@ def _wait_ready(proc: subprocess.Popen[str], token: str, timeout_s: float) -> st
     return "timeout"
 
 
-def _stop(proc: subprocess.Popen[str]) -> None:
-    if proc.poll() is None:
-        proc.kill()
+def _spawn(command: list[str] | str, *, shell: bool, pipe: bool) -> subprocess.Popen[str]:
+    kwargs: dict[str, object] = {"shell": shell, "text": True}
+    if pipe:
+        kwargs["stdout"] = subprocess.PIPE
+        kwargs["stderr"] = subprocess.STDOUT
+    else:
+        kwargs["stdout"] = subprocess.DEVNULL
+        kwargs["stderr"] = subprocess.DEVNULL
+    if sys.platform == "win32":
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        if flags:
+            kwargs["creationflags"] = flags
+    else:
+        kwargs["start_new_session"] = True
+    return subprocess.Popen(command, **kwargs)  # type: ignore[arg-type]
+
+
+def _stop(proc: subprocess.Popen[str]) -> bool:
+    tracked = getattr(proc, "_probe_pids", None)
+    if tracked is None:
+        tracked = [proc.pid, *_descendants(proc.pid)]
+        proc._probe_pids = tracked  # type: ignore[attr-defined]
+    if not getattr(proc, "_probe_kill_sent", False):
+        _kill_tree(proc)
+        proc._probe_kill_sent = True  # type: ignore[attr-defined]
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _kill_tree(proc)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired as stuck:
+                proc._probe_wait_failed = str(stuck)  # type: ignore[attr-defined]
+        stdout = proc.stdout
+        if stdout is not None and hasattr(stdout, "closed") and not stdout.closed:
+            stdout.close()
+    deadline = time.monotonic() + 2
+    leftovers: list[int] = []
+    while time.monotonic() < deadline:
+        leftovers = [pid for pid in tracked if _alive(pid)]
+        if not leftovers:
+            break
+        time.sleep(0.05)
+    proc._probe_leftovers = leftovers  # type: ignore[attr-defined]
+    return not leftovers
+
+
+def _kill_tree(proc: subprocess.Popen[str]) -> None:
+    if sys.platform == "win32":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+            capture_output=True,
+            check=False,
+        )
+        return
     try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait(timeout=5)
-    stdout = proc.stdout
-    if stdout is not None and not stdout.closed:
-        stdout.close()
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        try:
+            proc.kill()
+        except OSError:
+            return
 
 
-def _dead(proc: subprocess.Popen[str]) -> bool:
-    return proc.poll() is not None
+def _descendants(pid: int) -> list[int]:
+    found: list[int] = []
+    for child in _children(pid):
+        found.append(child)
+        found.extend(_descendants(child))
+    return found
+
+
+def _children(parent: int) -> list[int]:
+    if parent <= 0:
+        return []
+    if sys.platform == "win32":
+        return _windows_children(parent)
+    return _posix_children(parent)
+
+
+def _alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        return _windows_alive(pid)
+    return _posix_alive(pid)
+
+
+def _windows_children(parent: int) -> list[int]:
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    snapshot_flag = 0x00000002
+    entry_type = _process_entry()
+    snap = kernel32.CreateToolhelp32Snapshot(snapshot_flag, 0)
+    if snap in (0, None) or int(snap) == -1:
+        return []
+    entry = entry_type()
+    entry.dwSize = ctypes.sizeof(entry_type)
+    found: list[int] = []
+    try:
+        ok = kernel32.Process32First(snap, ctypes.byref(entry))
+        while ok:
+            if int(entry.th32ParentProcessID) == parent:
+                found.append(int(entry.th32ProcessID))
+            ok = kernel32.Process32Next(snap, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(snap)
+    return found
+
+
+def _process_entry() -> type:
+    import ctypes
+    from ctypes import wintypes
+
+    class PROCESSENTRY32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_char * 260),
+        ]
+
+    return PROCESSENTRY32
+
+
+def _windows_alive(pid: int) -> bool:
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle = kernel32.OpenProcess(0x1000, False, pid)
+    if not handle:
+        return False
+    code = wintypes.DWORD()
+    try:
+        ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+    finally:
+        kernel32.CloseHandle(handle)
+    return bool(ok) and code.value == 259
+
+
+def _posix_children(parent: int) -> list[int]:
+    found: list[int] = []
+    try:
+        names = os.listdir("/proc")
+    except OSError:
+        return found
+    for name in names:
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/stat", encoding="utf-8") as handle:
+                stat = handle.read()
+        except OSError:
+            continue
+        end = stat.rfind(")")
+        parts = stat[end + 2 :].split()
+        if len(parts) > 1 and parts[1] == str(parent):
+            found.append(int(name))
+    return found
+
+
+def _posix_alive(pid: int) -> bool:
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as handle:
+            stat = handle.read()
+    except OSError:
+        return False
+    end = stat.rfind(")")
+    parts = stat[end + 2 :].split()
+    return bool(parts) and parts[0] != "Z"
+
+
+def _smoke_command(command: str, timeout_s: float) -> Callable[[], int]:
+    def smoke() -> int:
+        proc = _spawn(command, shell=True, pipe=False)
+        try:
+            return int(proc.wait(timeout=timeout_s))
+        except subprocess.TimeoutExpired:
+            _stop(proc)
+            raise SmokeTimedOut(f"smoke exceeded {timeout_s}s") from None
+
+    return smoke
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -110,15 +299,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=float, default=5)
     parser.add_argument("--ready-token", default="READY")
     parser.add_argument("--smoke", default="")
+    parser.add_argument("--smoke-timeout", type=float, default=5)
     args = parser.parse_args(argv)
     if args.smoke:
-        def smoke() -> int:
-            completed = subprocess.run(args.smoke, shell=True, check=False)
-            return int(completed.returncode)
+        smoke = _smoke_command(args.smoke, args.smoke_timeout)
     else:
         def smoke() -> int:
             print("smoke command is empty")
             return 2
+
     result = supervise(
         args.command,
         ready_token=args.ready_token,

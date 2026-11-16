@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from backend.kernel.result import Err
-from backend.practice.domain.confirm import Confirmation, OperationKey, PendingAnswer
+from backend.practice.domain.confirm import Confirmation, ConfirmationScope, PendingAnswer
 from backend.practice.domain.paper import Paper
 
 
@@ -21,11 +21,11 @@ class PracticeStore(Protocol):
     def get_paper(self, paper_id: str) -> Paper | None:
         """Return the paper, or None when it does not exist."""
 
-    def get_confirmation(self, operation_key: OperationKey) -> Confirmation | None:
-        """Return the confirmation stored for this key, or None."""
+    def get_confirmation(self, scope: ConfirmationScope) -> Confirmation | None:
+        """Return the confirmation for this paper, sub-question, teacher, and key."""
 
-    def find_slot(self, paper_id: str, sub_question_id: str, review_version_id: str) -> OperationKey | None:
-        """Return the operation key that already holds this review, or None."""
+    def find_slot(self, paper_id: str, sub_question_id: str, review_version_id: str) -> ConfirmationScope | None:
+        """Return the scope that already holds this review slot, or None."""
 
     def put_answer(self, answer: PendingAnswer) -> None:
         """Store one server-loaded pending answer."""

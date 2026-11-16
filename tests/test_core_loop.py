@@ -18,7 +18,7 @@ from backend.practice.adapters.memory import MemoryAuth, MemoryPractice
 from backend.practice.api import ConfirmCommand, IssuePaperCommand
 from backend.practice.application.confirm_attempt import confirm_attempt
 from backend.practice.application.issue_paper import issue_paper
-from backend.practice.domain.confirm import OperationKey, PendingAnswer
+from backend.practice.domain.confirm import ConfirmationScope, OperationKey, PendingAnswer
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -145,7 +145,9 @@ class CoreLoopTest(unittest.TestCase):
         assert isinstance(again, Err)
         self.assertEqual(again.code, "key_content_mismatch")
         self.assertEqual(self.practice.confirmation_count(), 1)
-        stored = self.practice.get_confirmation(OperationKey("key-1"))
+        stored = self.practice.get_confirmation(
+            ConfirmationScope(paper.paper_id, "sq-1", "teacher-synth", OperationKey("key-1"))
+        )
         assert stored is not None
         self.assertEqual(stored.decision, "adopt")
 
