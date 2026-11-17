@@ -25,3 +25,4 @@
 | [0017](0017-contract-schema.md) | 草稿形状用 JSON Schema 校验 | accepted | catalog |
 | [0018](0018-schema-version.md) | 按契约版本分发草稿 | accepted | catalog |
 | [0019](0019-sqlite-second-adapter.md) | SQLite 能不能当第二个适配器 | accepted | catalog, practice |
+| [0020](0020-learning-data-retention.md) | 学情保留和删除 | accepted | practice, analysis |
