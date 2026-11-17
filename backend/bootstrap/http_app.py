@@ -288,6 +288,7 @@ def _request_id(header: str | None) -> str:
 
 
 def _error(request_id: str, err: Err, status: int = 409) -> JSONResponse:
+    """Import and issue failures use code, message, and request_id. The review page does too."""
     return JSONResponse(
         status_code=status,
         content={"code": err.code, "message": err.message, "request_id": request_id},
