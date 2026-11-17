@@ -49,7 +49,7 @@
 
 | 做什么 | 命令 |
 | --- | --- |
-| 安装 | 无依赖清单，不必安装 |
+| 安装 | `python -m pip install -r requirements.txt`，然后 `npm ci --prefix apps/web` 和 `npm run build --prefix apps/web` |
 | 类型检查 | 未落地 |
 | 查看骨架状态 | `python scripts/status.py` |
 | 文档冒烟 | `python scripts/smoke_docs.py` |
@@ -59,7 +59,7 @@
 | 文件备份演练 | `python scripts/drill_backup.py`。夹具记录在 `docs/evidence/backup-drill-2026-11-14.md`，不是正式数据 |
 | 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
 | 干净环境检查 | `bash scripts/check`。GitHub Actions 的 job 名是 `check` |
-| 看日志 | 教学服务未落地，没有运行日志。落地后在该次运行的标准输出里搜 `request_id` |
+| 看日志 | 在该次 HTTP 进程的标准输出里搜 `request_id` |
 
 `python scripts/status.py` 不启动教学服务。
 
@@ -77,6 +77,6 @@
 
 ## 容易误导
 
-`catalog` 和 `practice` 有合成数据上的最小出卷和确认。服务端与网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。这一段还没导入这些框架。安卓界面仍未选定，见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md)。
+`catalog` 和 `practice` 在合成数据上出卷并确认。本机 HTTP 使用 FastAPI，页面使用 React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。PostgreSQL 还没连接。安卓界面仍未选定，见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md)。
 
 第一段只做浏览器里的核验、出卷和确认，只建 `catalog` 和 `practice`。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。

@@ -31,4 +31,19 @@ def copy_issue_snapshot(snapshot: ApprovalSnapshot) -> IssueSnapshot | Err:
         answer_version_id=snapshot.answer_version_id,
         asset_ids=tuple(snapshot.asset_ids),
         layout_template_id=snapshot.layout_template_id,
+        subject_id=snapshot.subject_id,
+        item_order=tuple(snapshot.item_order),
     )
+
+
+def issuable_snapshot(snapshot: ApprovalSnapshot | None) -> IssueSnapshot | Err:
+    """One catalog decision: a versioned snapshot practice may freeze, or a refusal.
+
+    The subject on the snapshot is the bank record's subject.
+    """
+    blocked = issue_block(snapshot)
+    if blocked is not None:
+        return blocked
+    if snapshot is None or not snapshot.subject_id.strip():
+        return Err("subject_mismatch", "the catalog record has no subject")
+    return copy_issue_snapshot(snapshot)

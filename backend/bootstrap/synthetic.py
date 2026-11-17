@@ -1,0 +1,8 @@
+"""Server-side synthetic identity. The HTTP body does not choose the actor."""
+
+from __future__ import annotations
+
+ACTOR_TEACHER_ID = "teacher-synth"
+QUESTION_VERSION_ID = "q-v1"
+REVIEW_VERSION_ID = "rev-1"
+STUDENT_IDS = ("student-synth", "student-synth-2")

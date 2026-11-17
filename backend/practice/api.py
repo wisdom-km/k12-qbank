@@ -13,9 +13,11 @@ from backend.practice.domain.confirm import Confirmation, OperationKey
 from backend.practice.domain.paper import Paper
 
 __all__ = [
+    "AttemptView",
     "ConfirmCommand",
     "Confirmation",
     "IssuePaperCommand",
+    "OpenedPaper",
     "OperationKey",
     "Paper",
 ]
@@ -28,6 +30,28 @@ class IssuePaperCommand:
     subject_id: str
     question_version_id: str
     review_version_id: str
+
+
+@dataclass(frozen=True)
+class AttemptView:
+    """The pending row the page may show. The student number stays on the paper."""
+
+    fixture_answer_id: str
+    paper_id: str
+    sub_question_id: str
+    review_version_id: str
+    status: str
+    answer_text: str = ""
+
+
+@dataclass(frozen=True)
+class OpenedPaper:
+    """One issued paper. render_code is set when the PDF was not stored."""
+
+    paper: Paper
+    fixture_answer_id: str
+    render_code: str | None
+    render_message: str = ""
 
 
 @dataclass(frozen=True)

@@ -24,6 +24,10 @@ jobs:
         with:
           python-version-file: .python-version
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install gitleaks (secret scan, M-03 / R-1)
         env:
           GITLEAKS_VERSION: 8.30.1

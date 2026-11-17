@@ -5,9 +5,9 @@ from __future__ import annotations
 
 def main() -> int:
     print(
-        "k12-qbank skeleton. tier=long. real student data=yes. "
-        "reachable by teachers=yes. teaching service is not implemented. "
-        "catalog and practice skeleton is in memory only."
+        "k12-qbank local synthetic HTTP. tier=long. real student data=yes. "
+        "reachable by teachers=yes. PostgreSQL is not connected. "
+        "This command does not start the site."
     )
     return 0
 

@@ -6,7 +6,7 @@ A math question bank and teaching loop for teachers at one institution. The base
 
 A teacher in Heilongjiang uses a small set of checked questions from the PEP grade-7 first-volume chapter on rational-number operations. On a computer web page and an installable Android app, the teacher checks questions, prints a paper for each student, collects it, confirms the AI suggestion, and assigns the next practice. The scene is one teacher and about 100 students, later perhaps about three teachers and 300 students. Those numbers are a scene, not a capacity guarantee.
 
-This is a long-lived project. It will store real learning records, and teachers will use it. The docs and the checks are in the repository. `catalog` and `practice` now have a minimal in-memory skeleton. There is no web page and no database yet. `python scripts/status.py` only prints that status. It does not build a paper and it does not start a site.
+This is a long-lived project. It will store real learning records, and teachers will use it. The docs and the checks are in the repository. `catalog` and `practice` can check, issue, open a PDF, and confirm on synthetic data on this machine. There is no database. `python scripts/status.py` only prints that status. It does not start the site.
 
 ## The loop the teacher completes
 
@@ -31,20 +31,38 @@ The trial still needs both the web page and Android to finish the loop. The code
 3. Android photo, upload, and missing-page handling come after that slice.
 4. A desktop install shell comes later, after the web page can check a question and open a formula PDF on the teacher's computer. The candidate is stable Tauri 2. Electron is not the fallback.
 
-The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). This slice does not import those frameworks yet. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
+The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). The local synthetic path uses FastAPI and React. PostgreSQL is not connected. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
 
 ## Current implementation
 
 | Part | State |
 | --- | --- |
 | Docs (PRD, architecture, rules, ADRs, gates) | Done |
-| Business code `catalog` / `practice` | Minimal skeleton started. On synthetic questions it refuses an unapproved issue and confirms one answer by operation key |
-| Teaching service | No HTTP process and no web page yet |
-| Stack | Python 3.12, FastAPI, PostgreSQL, and React (web first) are adopted. The framework packages are not installed yet |
+| Business code `catalog` / `practice` | On synthetic questions it refuses an unapproved issue, writes a one-page PDF, and confirms one answer by operation key |
+| Teaching service | Local synthetic HTTP and web page are wired. No database, and no public release |
+| Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL is adopted and not connected |
 
 ## Commands
 
-Install: there is no dependency manifest yet. Python is in `.python-version` (3.12). The secret scan also needs gitleaks on `PATH`. Config is in `.env.example`. Copy it to `.env` and keep that file on the machine. The teaching service has no runtime log yet.
+Install: Python is in `.python-version` (3.12). Run `python -m pip install -r requirements.txt`, then `npm ci --prefix apps/web` and `npm run build --prefix apps/web`. The secret scan also needs gitleaks on `PATH`. Config is in `.env.example`. Copy it to `.env` and keep that file on the machine. The synthetic HTTP log goes to that process's stdout.
+
+Start the local synthetic site (this does not start a database):
+
+```text
+python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --no-access-log
+```
+
+The default access log is off. Structured logs that include `request_id` still go to stdout.
+
+Open `http://127.0.0.1:8765/`. The server actor is `teacher-synth`. The process reads `docs/fixtures/rational-number-min.json` and clears both approval flags. There is no separate load command. The second synthetic student, `student-synth-2`, is only in the server grant. It does not add a seventh fixture block.
+
+When the site is already listening on port 8765, run `python scripts/smoke_http.py` in another window. To re-check:
+
+```text
+python -W error::ResourceWarning -m unittest discover -s tests -v
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
+git diff --check
+```
 
 `RECORD` in the check output means the command is written here. `DOCS` means the document smoke. Neither means the teaching service started, and neither means AC-01 through AC-09 pass.
 
@@ -66,7 +84,7 @@ Remote checks are the [Actions job named check](https://github.com/wisdom-km/k12
 | [PRD.md](PRD.md) | What to build, and what is explicitly out of scope |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, invariants, logging, and gates |
 | [RULES.md](RULES.md) | Commits, tests, and the forbidden list |
-| [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | The first loop: the skeleton has started, the web page has not |
+| [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | The first loop: local synthetic web. PostgreSQL and Android are not in yet |
 
 ## License
 

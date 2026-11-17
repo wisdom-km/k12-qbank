@@ -73,12 +73,13 @@ flowchart LR
 
 ```text
 backend/kernel/                 LogEvent、Logger、Ok、Err
-backend/bootstrap/compose.py    唯一组合根。只装配内存适配器和健康检查占位
-backend/bootstrap/health.py     将来的 GET /health 正文。现在固定为 status=ok
+backend/bootstrap/compose.py    组合根。装配内存适配器、合成 PDF 和健康正文
+backend/bootstrap/http_app.py   HTTP 入口。老师身份来自服务端合成上下文
+backend/bootstrap/health.py     GET /health 正文。只有 status，不表示数据库就绪
 backend/catalog/                核准快照。内存适配器
-backend/practice/               出卷和确认。内存适配器
+backend/practice/               出卷、确认和合成 PDF。内存适配器
 backend/<slice>/api.py          其他切片唯一可以导入的入口
-apps/web/                       尚未创建。选定 React，见 ADR 0012
+apps/web/                       React 页面。只调用 HTTP，不导入 backend
 apps/android/                   尚未创建
 ```
 
@@ -149,6 +150,8 @@ apps/android/                   尚未创建
 
 题目正文可以有结构化 JSON。来源、审核、知识点和作答仍然是独立关系，不把整库塞进一个 JSON。
 
+学生卷的合成 PDF 只画面向学生的内容：冻结的公式、学号、页码、总页数和这一份卷的标识。答案和解析不进入这份渲染输入。老师核验页仍按授权显示答案。修改题干或答案会另建一个未核准版本，原来的版本和核准记录留着。渲染读发卷时冻结的公式，不读后来的题干。样张字体是标准库 Helvetica，编码是 WinAnsi，所以乘号这类受支持的字符能画出来。这个字体画不出的字符不生成 PDF。
+
 状态词：
 
 | 对象 | 状态 |
@@ -161,7 +164,7 @@ apps/android/                   尚未创建
 
 确认的事实和状态在同一次数据库事务里提交。不要在这个事务里等待模型。文件先落盘并核对，再写引用。
 
-操作键：同键同内容返回原结果。同键不同内容拒绝。确认绑在当时的复核版本上，版本变了就拒绝。
+操作键：幂等范围是学生卷、小问、服务端确认的老师和操作键字符串。同一范围同内容返回原结果，同一范围不同内容拒绝。复核版本另核；版本变了，第一次确认就拒绝。同一卷、同一小问、同一复核版本只留一条正式记录。
 
 配置只来自环境变量。示例键在 `.env.example`。真实值只在本机 `.env`，该文件被忽略。
 
@@ -175,7 +178,7 @@ apps/android/                   尚未创建
 
 core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEvent`。不 import `logging`、`structlog`、`loguru`。不用 `print`。
 
-级别：ERROR 是操作失败。WARN 是没失败但不正常，例如重试、降级、拒绝访问。INFO 是该留下的业务事件。DEBUG 是诊断细节，默认关。字段表和取舍见 ADR 0008。命令：在该次运行的标准输出中搜索 `request_id` 的值。教学服务还没有运行日志。
+级别：ERROR 是操作失败。WARN 是没失败但不正常，例如重试、降级、拒绝访问。INFO 是该留下的业务事件。DEBUG 是诊断细节，默认关。字段表和取舍见 ADR 0008。命令：在该次运行的标准输出中搜索 `request_id` 的值。合成 HTTP 进程把 JSON 日志打到标准输出。
 
 请求 ID：HTTP 入口和工作进程入口生成。作为参数穿过用例和适配器。每条日志都带。不使用模块级可变的「当前请求」。
 
@@ -193,6 +196,7 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 | page_stored | INFO | 文件适配器 | 文件标识 |
 | analysis_finished | INFO | analysis | 任务标识、结果类别 |
 | attempt_confirmed | INFO | practice | 确认记录标识 |
+| log_failed | ERROR | 日志适配器 | 原来的 request_id。输出失败时留下这一条，不撤销已经完成的写入 |
 | auth_denied | WARN | identity | 操作者标识、学生标识 |
 | app_started / app_stopped | INFO | 组合根 | 无个人数据 |
 
@@ -206,7 +210,7 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 
 ## 健康检查与错误上报
 
-有服务端之后提供 `GET /health`。现在没有 HTTP 进程。`health_report()` 返回固定的 `status=ok`，组合根把它装配进去。返回里没有密钥、连接串、姓名、学号或学生照片。错误上报的最小字段和样例在 [docs/observability.md](docs/observability.md)。M-14 要到发布前、真实接口存在时才算通过。这一段的占位不代替那次检查。
+`GET /health` 由 HTTP 入口返回 `health_report()`。正文只有 `status`。`ok` 只说明进程应答了，不说明数据库或模型已经就绪。这一段没有数据库。进程还在和依赖就绪是两件事。返回里没有密钥、连接串、姓名、学号或学生照片。错误上报的最小字段和样例在 [docs/observability.md](docs/observability.md)。对外发布前的关口见下面的 G3。本机合成进程上的一次请求不代替对外可访问，也不代替错误上报接收接口。
 
 ## 测试
 
@@ -254,16 +258,17 @@ ASVS L1 自查是 SHOULD，还没做。
 | G0 开工 | 写第一条本地路径。题目、学生和模型结果都是合成的，适配器标明是假的 | 架构文档在。密钥扫描和分支保护保持。不要求已经有运行中的服务 | 不接真实学生数据。不把学生卷发给真实模型。不把服务无控制地公开到公网 |
 | G1 完成 | 说这一段已经做完 | 只验证这段已经实现的授权、写入和重试。这段若写了持久化，还要有可回退的迁移，以及该阶段约定的恢复证据。只有文档冒烟不能当成 core 单测、契约或端到端 | 不能说完成 |
 | G2 合入 | 合入 main | `scripts/check` 的退出码。涉及密钥、权限、真实学生数据或门禁脚本的改动，由人复核，并在该 PR 的说明和 review 记录里留痕 | 不合入 |
+| G3 发布 | 对外提供可访问的教学服务 | 真实 `GET /health` 在限时内就绪，并且把进程还在和依赖就绪分开。M-14 才算通过 | 不能发布 |
 | 真实学生试用前 | 老师要用真实学情，或真实模型要处理学生卷 | M-10 里已经适用的运行时安全验证。数据库和文件在同一个恢复点上的联合恢复演练 | 不开始试用，不把真实卷发给模型 |
 
-现在该做、但还没有证据的项：没有运行中的服务，所以 M-10 的 8 条运行时都还不能证明。没有数据库，所以 M-11 的联合恢复还不能做。文件夹具演练的原始记录仍在 `docs/evidence/backup-drill-2026-11-14.md`。这两项现在不挡住合成数据上的第一条路径。真实学生试用前仍然挡住试用。
+现在该做、但还没有证据的项：本机合成 HTTP 能在限时内就绪并被探针停掉，但没有公开到公网，错误上报接收接口也还没有，所以 M-10 的 8 条运行时都还不能证明。没有数据库，所以 M-11 的联合恢复还不能做。文件夹具演练的原始记录仍在 `docs/evidence/backup-drill-2026-11-14.md`。这两项现在不挡住合成数据上的第一条路径。真实学生试用前仍然挡住试用。M-14 的发布条件还没满足，不能对外发布。
 
 ## 门禁现状
 
 | 编号 | 工具 | 状态 |
 | --- | --- | --- |
 | M-03 密钥形态 | `scripts/check` | 已接，并在 CI 里跑。远端 push protection 的原始记录见 `docs/evidence/G0-2026-11-14.md` |
-| M-04 日志 | `scripts/check_logging.py` | 已接。查 print、具体日志库、log 调用上的明显敏感字段和 f-string。运行中的失败日志演练未落地 |
+| M-04 日志 | `scripts/check_logging.py` | 已接。查 print、具体日志库、log 调用上的明显敏感字段和 f-string。内存路径上，日志输出失败不撤销已完成的写入，并留下只含允许字段的降级记录。合成 HTTP 的存储失败演练用同一个 `request_id` 对上 `use_case_failed` 和 `http_completed`。错误上报接收接口还没有 |
 | M-05 空 catch | `scripts/check` 与 `scripts/check.ps1` 同一项 | 已接 |
 | F-02、F-03、F-04、F-10、F-11 的 import、F-13、F-14 | `scripts/check_boundaries.py` | 已接进全量检查，含相对导入夹具。F-13 的业务切片来自 `PHASE_SLICES`，默认 catalog practice。pre-commit 的 `--fast` 不跑这项 |
 | F-01、F-05、F-06、F-11 的业务分支、F-12 | 无 | 未落地，标 review |
@@ -271,7 +276,7 @@ ASVS L1 自查是 SHOULD，还没做。
 | main 分支保护 | GitHub 设置 | 规则已写上。当前设置以仓库的分支保护页为准，不在这里抄一份会过期的截图说明 |
 | 本机提交前钩子 | `.pre-commit-config.yaml` | 配置在仓库里。这台电脑没有 bash 时钩子装不上，未落地。绕过钩子也挡不住 CI |
 
-CI 全绿也不等于上表里「未落地」的项目已经在拦。`M-02 RECORD` 只表示 README 写了命令。`M-06 DOCS` 只表示文档冒烟。教学服务落地后，才在 `scripts/check.conf` 填上 `SERVICE_CMD` 和 `BUSINESS_TEST_CMD`，CI 才会执行真实启动和最小业务冒烟。
+CI 全绿也不等于上表里「未落地」的项目已经在拦。`M-02 RECORD` 只表示 README 写了状态命令和文档冒烟，不表示教学服务已经对外发布。`SERVICE_CMD` 已是本机合成 HTTP。非 `--fast` 的检查会限时等待就绪、在单独超时里跑业务冒烟，然后停掉这次拉起的进程树；探针通过时另有一条 `M-02 PASS`。`M-06 DOCS` 只表示文档冒烟。`BUSINESS_TEST_CMD` 已是 core 单测，不是契约测试或端到端。进程还在不等于依赖已就绪。`GET /health` 的 `status=ok` 也不是数据库检查。
 
 ## 教训
 
@@ -279,7 +284,7 @@ CI 全绿也不等于上表里「未落地」的项目已经在拦。`M-02 RECOR
 
 ## 开发环境
 
-命令见 [AGENTS.md](AGENTS.md)。Python 只用于当前的检查脚本，不表示后端已经选定 Python。`.python-version` 是给这些脚本和 CI 用的。
+命令见 [AGENTS.md](AGENTS.md)。ADR 0012 已采纳 Python 3.12、FastAPI、PostgreSQL 和 React。core 测试和检查脚本用 Python 3.12。FastAPI 和 React 已锁在 `requirements.txt` 和 `apps/web/package-lock.json`。PostgreSQL 还没连接，也没有迁移。`.python-version` 是 3.12。
 
 第一条业务代码按 [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) 做。本地可以用合成题目、合成学生和假适配器。运行时安全验证，以及数据库和文件的联合恢复，按上面的「关口」留到真实学生试用前。
 

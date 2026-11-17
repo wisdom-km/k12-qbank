@@ -40,6 +40,8 @@ if ($Tier -notin @('demo', 'tracer', 'long')) { $TierNote = "tier not confirmed 
 $RealData = Conf 'REAL_DATA' 'no'; $Public = Conf 'PUBLIC' 'no'
 $RunCmd = Conf 'RUN_CMD' ''; $TestCmd = Conf 'TEST_CMD' ''; $InstallCmd = Conf 'INSTALL_CMD' ''
 $TestKind = Conf 'TEST_KIND' 'docs'; $ServiceCmd = Conf 'SERVICE_CMD' ''; $BusinessTestCmd = Conf 'BUSINESS_TEST_CMD' ''
+$ServiceSmoke = Conf 'SERVICE_SMOKE_CMD' ''; $ServiceSmokeTimeout = Conf 'SERVICE_SMOKE_TIMEOUT' '5'; $ServiceTimeout = Conf 'SERVICE_READY_TIMEOUT' '5'; $ServiceReady = Conf 'SERVICE_READY_TOKEN' 'READY'; $ServiceHealth = Conf 'SERVICE_HEALTH_URL' ''
+$script:StartService = $false
 $AppDirs = (Conf 'APP_DIRS' '.') -split '\s+' | Where-Object { $_ }
 $LintCmd = Conf 'LINT_CMD' ''; $LogCheckCmd = Conf 'LOG_CHECK_CMD' ''
 $CoreDirs = (Conf 'CORE_DIRS' '') -split '\s+' | Where-Object { $_ }
@@ -57,6 +59,8 @@ function Get-Fingerprint {
   $parts += ((Invoke-Git diff HEAD --binary) -join "`n")
   foreach ($f in (Invoke-Git ls-files -o --exclude-standard)) { if (Test-Path -LiteralPath $f -PathType Leaf) { $parts += "$f $(Invoke-Git hash-object -- $f)" } }
   if (Test-Path $Conf) { $parts += (Read-Text $Conf) }
+  $phase = & python -c "import sys; sys.path.insert(0, 'scripts'); import check_boundaries as b; print(b.effective_phase_token())"
+  if ($phase) { $parts += $phase }
   $bytes = $Utf8.GetBytes(($parts -join "`n"))
   $sha = [System.Security.Cryptography.SHA256]::Create()
   ([System.BitConverter]::ToString($sha.ComputeHash($bytes))) -replace '-', ''
@@ -131,8 +135,7 @@ else {
     Report 'M-02' 'MUST' 'RECORD' "README.md records $shown. Recording the command does not start the teaching service."
     if ($ServiceCmd) {
       if ($Fast) { Report 'M-02' 'MUST' 'MANUAL' 'SERVICE_CMD is set. --fast did not start it.' }
-      elseif (Invoke-Configured $ServiceCmd) { Report 'M-02' 'MUST' 'PASS' "teaching service start '$ServiceCmd' exit 0" }
-      else { Report 'M-02' 'MUST' 'FAIL' "teaching service start '$ServiceCmd' failed: $script:LastOut" }
+      else { $script:StartService = $true }
     }
   }
 }
@@ -242,6 +245,19 @@ if ($script:SawManifest -and $Tier -ne 'demo') {
 if ($Ci -and -not $Fast -and $InstallCmd) {
   if (Invoke-Configured $InstallCmd) { Report 'M-09' (ByTier 'SHOULD' 'MUST' 'MUST') 'PASS' "CI install from lockfile: '$InstallCmd' exit 0" }
   else { Report 'M-09' (ByTier 'SHOULD' 'MUST' 'MUST') 'FAIL' "'$InstallCmd' failed: $script:LastOut" }
+}
+
+# Install runs before the process. A resident process is stopped after a bounded ready wait.
+if ($script:StartService) {
+  if ($ServiceHealth) {
+    & python scripts/service_probe.py --command "$ServiceCmd" --timeout "$ServiceTimeout" --ready-token "$ServiceReady" --smoke "$ServiceSmoke" --smoke-timeout "$ServiceSmokeTimeout" --health-url "$ServiceHealth"
+  } else {
+    & python scripts/service_probe.py --command "$ServiceCmd" --timeout "$ServiceTimeout" --ready-token "$ServiceReady" --smoke "$ServiceSmoke" --smoke-timeout "$ServiceSmokeTimeout"
+  }
+  if ($LASTEXITCODE -eq 0) { Report 'M-02' 'MUST' 'PASS' 'service probe after install: ready, smoke, then the process is stopped' }
+  else { Report 'M-02' 'MUST' 'FAIL' 'service probe failed after install. The process is stopped on timeout or smoke failure.' }
+} elseif (-not $ServiceCmd) {
+  Report 'M-02' 'MUST' 'RECORD' 'SERVICE_CMD is empty. No process was started. HTTP health evidence waits until a service exists.'
 }
 
 # ---------- M-05 no swallowed errors ----------

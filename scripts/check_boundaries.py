@@ -198,6 +198,31 @@ def check_file(path: Path, backend: Path = BACKEND) -> None:
                     "Adapters do not reach into another slice. Import that slice's api only. "
                     "See ARCHITECTURE.md 禁止 F-03.",
                 )
+        if layer in {"domain", "application"} and other == "bootstrap":
+            fail(
+                "F-03",
+                f"{rel} imports {module}.",
+                "Domain and application do not import the composition root. "
+                "See ARCHITECTURE.md 禁止 F-03.",
+            )
+        at_slice_api = (
+            here is not None
+            and layer is None
+            and path.name == "api.py"
+            and path.parent.name == here
+        )
+        if (
+            at_slice_api
+            and other in SLICES
+            and other != here
+            and not (module == f"backend.{other}.api" or module.startswith(f"backend.{other}.api."))
+        ):
+            fail(
+                "F-03",
+                f"{rel} imports {module}.",
+                "A slice api imports another slice only through that slice's api. "
+                "See ARCHITECTURE.md 禁止 F-03.",
+            )
 
 
 def resolve_phase_slices(
@@ -239,6 +264,18 @@ def conf_value(key: str) -> str:
         if len(found) >= 2 and found[0] == found[-1] and found[0] in {'"', "'"}:
             found = found[1:-1]
     return found
+
+
+def effective_phase_token() -> str:
+    """Token mixed into the --if-changed fingerprint. A phase change must miss the cache."""
+    allowed, error, source = resolve_phase_slices(
+        conf_value("PHASE_SLICES"),
+        os.environ.get("PHASE_SLICES"),
+    )
+    if allowed is None:
+        return f"PHASE_SLICES invalid {error} from {source}"
+    names = " ".join(name for name in SLICES if name in allowed)
+    return f"PHASE_SLICES {names} from {source}"
 
 
 def current_phase() -> tuple[frozenset[str], str]:
@@ -348,24 +385,58 @@ def check_apps_do_not_import_backend() -> None:
 
 
 def run_fixtures() -> None:
-    """Isolated copies of the four import cases. They never touch backend/."""
+    """Isolated import cases. They never touch backend/."""
     global QUIET
     cases = (
-        ("public api", "from ...catalog.api import published\n", None),
-        ("absolute internal", "from backend.catalog.domain.item import Item\n", "F-03"),
-        ("relative internal", "from ...catalog.domain.item import Item\n", "F-03"),
-        ("same-slice relative", "from ..domain.item import Item\n", None),
+        ("practice/application/case.py", "public api", "from ...catalog.api import published\n", None),
+        (
+            "practice/application/case.py",
+            "absolute internal",
+            "from backend.catalog.domain.item import Item\n",
+            "F-03",
+        ),
+        (
+            "practice/application/case.py",
+            "relative internal",
+            "from ...catalog.domain.item import Item\n",
+            "F-03",
+        ),
+        ("practice/application/case.py", "same-slice relative", "from ..domain.item import Item\n", None),
+        (
+            "practice/application/case.py",
+            "package member",
+            "from backend.catalog.domain import item\n",
+            "F-03",
+        ),
+        (
+            "practice/application/case.py",
+            "application bootstrap",
+            "from backend.bootstrap.health import health_report\n",
+            "F-03",
+        ),
+        (
+            "catalog/api.py",
+            "slice api internal",
+            "from backend.practice.domain.paper import Paper\n",
+            "F-03",
+        ),
+        (
+            "catalog/api.py",
+            "same-slice api",
+            "from backend.catalog.domain.snapshot import ApprovalSnapshot\n",
+            None,
+        ),
     )
     QUIET = True
     try:
         with tempfile.TemporaryDirectory() as tmp:
             backend = Path(tmp) / "backend"
-            app = backend / "practice" / "application"
-            app.mkdir(parents=True)
-            (backend / "catalog").mkdir()
+            (backend / "catalog").mkdir(parents=True)
+            (backend / "practice" / "application").mkdir(parents=True)
             (backend / "practice" / "domain").mkdir(parents=True)
-            for name, text, expected in cases:
-                path = app / "case.py"
+            for relative, name, text, expected in cases:
+                path = backend / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(text, encoding="utf-8")
                 caught: str | None = None
                 try:
@@ -378,12 +449,14 @@ def run_fixtures() -> None:
                         "F-03",
                         f"fixture {name} returned {caught}, expected {expected}.",
                         "Resolve relative imports to the same absolute module as the written-out import. "
+                        "A slice api and an application file do not reach into another slice or bootstrap. "
                         "See ARCHITECTURE.md 禁止 F-03.",
                     )
     finally:
         QUIET = False
     print(
-        "F-03 FIXTURE PASS: public api, absolute cross-slice, relative cross-slice, same-slice relative."
+        "F-03 FIXTURE PASS: public api, absolute cross-slice, relative cross-slice, "
+        "same-slice relative, package member, application bootstrap, slice api internal, same-slice api."
     )
 
 

@@ -25,17 +25,31 @@ def emit(
 ) -> None:
     elapsed = int((time.perf_counter() - started) * 1000)
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    logger.log(
-        LogEvent(
+    event_row = LogEvent(
+        time=now,
+        level=level,
+        event=event,
+        request_id=request_id,
+        module=module,
+        outcome=outcome,
+        duration_ms=elapsed,
+    )
+    try:
+        logger.log(event_row)
+    except Exception:
+        degraded = LogEvent(
             time=now,
-            level=level,
-            event=event,
+            level="ERROR",
+            event="log_failed",
             request_id=request_id,
             module=module,
-            outcome=outcome,
+            outcome="log_degraded",
             duration_ms=elapsed,
         )
-    )
+        try:
+            logger.log(degraded)
+        except Exception:
+            return
 
 
 def read_store(

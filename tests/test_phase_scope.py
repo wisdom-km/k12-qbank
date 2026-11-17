@@ -45,6 +45,33 @@ class PhaseScopeTest(unittest.TestCase):
         self.assertEqual(source, "env")
         self.assertEqual(allowed, frozenset({"catalog"}))
 
+    def test_phase_token_changes_when_the_env_changes(self) -> None:
+        old = os.environ.get("PHASE_SLICES")
+        try:
+            os.environ["PHASE_SLICES"] = "catalog"
+            narrow = self.bounds.effective_phase_token()
+            os.environ["PHASE_SLICES"] = "catalog practice"
+            wide = self.bounds.effective_phase_token()
+        finally:
+            if old is None:
+                os.environ.pop("PHASE_SLICES", None)
+            else:
+                os.environ["PHASE_SLICES"] = old
+        self.assertNotEqual(narrow, wide)
+        self.assertIn("from env", narrow)
+        self.assertNotIn("practice", narrow)
+        check = (ROOT / "scripts" / "check").read_text(encoding="utf-8")
+        ps1 = (ROOT / "scripts" / "check.ps1").read_text(encoding="utf-8")
+        self.assertIn("effective_phase_token", check)
+        self.assertIn("effective_phase_token", ps1)
+        self.assertGreater(check.find("service_probe.py"), check.find("INSTALL_CMD"))
+        self.assertGreater(ps1.find("service_probe.py"), ps1.find("INSTALL_CMD"))
+        self.assertNotIn('run_cmd "$SERVICE_CMD"', check)
+        self.assertIn('--command "$SERVICE_CMD"', check)
+        self.assertIn('--command "$ServiceCmd"', ps1)
+        self.assertIn('--smoke-timeout "$SERVICE_SMOKE_TIMEOUT"', check)
+        self.assertIn('--smoke-timeout "$ServiceSmokeTimeout"', ps1)
+
     def test_unknown_slice_is_refused(self) -> None:
         allowed, error, source = self.bounds.resolve_phase_slices("", "catalog nosuch")
         self.assertIsNone(allowed)
@@ -69,13 +96,17 @@ class PhaseScopeTest(unittest.TestCase):
         self.assertEqual(set(report.__dataclass_fields__), {"status"})
         self.assertEqual(compose().health, report)
 
-    def test_fixture_has_five_blocks_and_no_image(self) -> None:
+    def test_fixture_has_six_blocks_and_no_image(self) -> None:
         path = ROOT / "docs" / "fixtures" / "rational-number-min.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(
             set(data),
-            {"question", "answer", "student", "paper", "photo_version"},
+            {"question", "answer", "student", "paper", "pending_answer", "photo_version"},
         )
+        self.assertEqual(data["pending_answer"]["fixture_answer_id"], "fixture-answer-1")
+        self.assertEqual(data["pending_answer"]["paper_id"], "paper-1")
+        self.assertEqual(data["pending_answer"]["status"], "pending")
+        self.assertNotEqual(data["pending_answer"]["text"], data["answer"]["text"])
         self.assertEqual(data["question"]["question_version_id"], "q-v1")
         self.assertEqual(data["answer"]["answer_version_id"], "a-v1")
         self.assertEqual(data["student"], {"student_id": "student-synth"})
