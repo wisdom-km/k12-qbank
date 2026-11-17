@@ -125,56 +125,11 @@ apps/android/                   尚未创建
 
 ## 端口
 
-| 端口 | 谁用 | 成功时返回 | 失败时返回 |
-| --- | --- | --- | --- |
-| 核准快照读取 | practice | 已核准题干、答案引用、素材标识 | 不存在、未核准、已停用、版本不符 |
-| 作答分析 | analysis | 结构化建议、证据、不确定项 | 超时、不可用、格式不合法、看不清。不是答错 |
-| 题目草稿 | catalog | 待核验的结构草稿 | 识别失败。草稿不能当发布记录 |
-| 练习推荐 | analysis | 候选题和理由 | 没有已确认记录时返回空候选，不编造掌握度 |
-| 文件存储 | practice、catalog | 稳定文件标识 | 中断、读失败、无权限。要能清理临时文件 |
-| 任务 | analysis | 任务标识和状态 | 用业务任务标识去重。重试不重复确认，不串学生 |
-| 授权 | 所有用例 | 允许，以及范围内的基础资料 | 拒绝 |
-| 日志 | 所有层 | 写出一条事件 | 日志失败不改业务结果，但要在进程错误流留下一次 |
-
-一个端口至少两个适配器才算真接缝：内存假实现，和以后的真实实现。现在有内存假实现和日志的标准输出适配器。PostgreSQL、文件和真实模型适配器还没有，所以这些端口还不算真接缝。
-
-可替换点：模型供应商、文件存储、关系数据库产品、网页框架、App 框架。前三个走端口。后两个是独立的 `apps/`，只访问 HTTPS API。
-
-网页和 Windows 桌面的建议见 ADR 0011：先做浏览器。同一套网页以后可以加安装壳。安卓拍照排在网页的核验、出卷和确认之后。该条是提议，还没有取代 ADR 0010。Electron 不作为低配电脑上的退路。
+端口表、返回值和可替换点见 [docs/arch/ports.md](docs/arch/ports.md)。
 
 ## 数据
 
-关系数据和文件分开，见 ADR 0009。数据库产品定为 PostgreSQL（ADR 0012）。这一段还没有连接，也没有迁移。
-
-核心对象：来源与页、题目版本、答案版本、发布记录、知识点、题目和知识点的关系、学生、老师、负责关系、学生卷、页、照片版本、作答、建议、确认。
-
-题目草稿契约是 `k12-question-draft` 第 1 版，见 ADR 0013。形状文件在 `backend/catalog/contracts/`，见 ADR 0017。核对页的 `.questions.json` 由 `import_question_draft` 解析一次后保存。题干、选项、小问和裁图不再转换成第二套 JSON。第一次写入题目时，迁移按 ADR 0013 的表插入同一次解析结果。这一段仍不建表，也不连接 PostgreSQL。裁图只保存坐标。可编辑几何图预留为以后的 `figure_geometry` 表。新题型先映射到已有的 `structure`。只有现有子行放不下时才加子表。综合题是 `composite`，小问各自带题型。
-
-参考答案契约是 `k12-answer-draft` 第 1 版，见 ADR 0014。扫描件、模型候选和老师修改共用 `answer_version`，`origin` 分别是 `ocr`、`model`、`teacher`。核对页把 OCR 答案写成一份文件一条答案。`import_answer_draft` 解析一次后按 `key` 放进内存。同一题最多一条 `applicable` 为 true。模型候选不能标成可出卷。确认过的答案草稿仍不是发布，`answer_version_id` 要等核准。第一次写入答案时才建 `answer_version`、`answer_part`、`answer_asset` 和 `answer_decision`。没有要写入的行时不建空表。学生作答不进这些表。
-
-发布记录、知识点、练习册和多题练习的列见 ADR 0015。解题方法是另一张目录，见 ADR 0016。知识点回答要懂什么，解题方法回答怎么做。某一次做错只生成建议，建议指向已有标识。老师确认后才成为这次错因。错因不写入题目行或参考答案。模型不得因此往目录里插入新行。这些表也是有行要写时才建。现在的学生卷仍只冻结一个题目版本。数据库仍是这一个 PostgreSQL。
-
-题目正文可以有结构化 JSON。来源、审核、知识点和作答仍然是独立关系，不把整库塞进一个 JSON。
-
-学生卷的合成 PDF 只画面向学生的内容：冻结的公式、学号、页码、总页数和这一份卷的标识。答案和解析不进入这份渲染输入。老师核验页仍按授权显示答案。修改题干或答案会另建一个未核准版本，原来的版本和核准记录留着。渲染读发卷时冻结的公式，不读后来的题干。样张字体是标准库 Helvetica，编码是 WinAnsi，所以乘号这类受支持的字符能画出来。这个字体画不出的字符不生成 PDF。
-
-状态词：
-
-| 对象 | 状态 |
-| --- | --- |
-| 学生卷 | 待渲染、可打印、已发放、作废 |
-| 卷页 | 缺页、待核对、可用 |
-| 分析任务 | 待执行、执行中、已完成、失败 |
-| 建议 | 待复核、已采纳或修改、驳回、已过期 |
-| 老师记录 | 待处理、已确认、已更正 |
-
-确认的事实和状态在同一次数据库事务里提交。不要在这个事务里等待模型。文件先落盘并核对，再写引用。
-
-操作键：幂等范围是学生卷、小问、服务端确认的老师和操作键字符串。同一范围同内容返回原结果，同一范围不同内容拒绝。复核版本另核；版本变了，第一次确认就拒绝。同一卷、同一小问、同一复核版本只留一条正式记录。
-
-配置只来自环境变量。示例键在 `.env.example`。真实值只在本机 `.env`，该文件被忽略。
-
-迁移：第一条持久化落地时添加可回退的迁移文件。在此之前没有迁移。
+数据模型和状态词见 [docs/arch/data.md](docs/arch/data.md)。
 
 ## 运行日志
 
@@ -188,25 +143,7 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 
 请求 ID：HTTP 入口和工作进程入口生成。作为参数穿过用例和适配器。每条日志都带。不使用模块级可变的「当前请求」。
 
-要记的事件：
-
-| 事件 | 级别 | 哪一层 | 额外字段用标识，不用正文 |
-| --- | --- | --- | --- |
-| http_completed | INFO | HTTP 入口 | 路径模板、状态码、duration_ms |
-| use_case_refused | WARN | 用例 | 错误码 |
-| use_case_failed | ERROR | 用例 | 错误码 |
-| adapter_completed | INFO | 适配器 | 端口名、结果、duration_ms |
-| adapter_failed | ERROR | 适配器 | 端口名、错误码、duration_ms |
-| question_published | INFO | catalog | 发布记录标识 |
-| draft_imported | INFO | catalog | 导入的题目数。不记题干 |
-| answer_imported | INFO | catalog | 导入的答案数。不记答案正文 |
-| paper_created | INFO | practice | 学生卷标识 |
-| page_stored | INFO | 文件适配器 | 文件标识 |
-| analysis_finished | INFO | analysis | 任务标识、结果类别 |
-| attempt_confirmed | INFO | practice | 确认记录标识 |
-| log_failed | ERROR | 日志适配器 | 原来的 request_id。输出失败时留下这一条，不撤销已经完成的写入 |
-| auth_denied | WARN | identity | 操作者标识、学生标识 |
-| app_started / app_stopped | INFO | 组合根 | 无个人数据 |
+要记的事件见 [docs/arch/logging.md](docs/arch/logging.md)。
 
 排查顺序：先按 request_id 过滤，再找第一条 ERROR，然后看它前面的 adapter_failed 或 adapter_completed。
 
