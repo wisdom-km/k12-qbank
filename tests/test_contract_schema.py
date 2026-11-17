@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from backend.catalog.domain.answer import parse_answer_draft
-from backend.catalog.domain.draft import parse_question_draft
+from backend.catalog.domain.parse import parse_question_draft
 from backend.catalog.domain.schema_check import (
     load_contract_schema,
     schema_problems,

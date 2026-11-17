@@ -42,6 +42,16 @@ def draft_file(**changes: object) -> dict:
 
 
 class QuestionDraftTest(unittest.TestCase):
+    def test_k12_question_draft_api_exports_parse_and_validate(self) -> None:
+        from backend.catalog import api
+        from backend.catalog.domain.parse import parse_question_draft as parsed
+        from backend.catalog.domain.validate import publication_blocked as blocked
+
+        self.assertIs(api.parse_question_draft, parsed)
+        self.assertIs(api.publication_blocked, blocked)
+        self.assertEqual(api.QuestionDraft.__module__, "backend.catalog.domain.validate")
+        self.assertEqual(api.DraftFile.__module__, "backend.catalog.domain.validate")
+
     def test_crop_is_kept_and_geometry_stays_empty(self) -> None:
         parsed = parse_question_draft(draft_file())
         self.assertIsInstance(parsed, Ok)

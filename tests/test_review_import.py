@@ -12,7 +12,7 @@ from backend.catalog.adapters.memory import MemoryApprovals
 from backend.catalog.application.import_answer import import_answer_draft
 from backend.catalog.application.import_draft import import_question_draft
 from backend.catalog.domain.answer import answer_not_publication
-from backend.catalog.domain.draft import publication_blocked
+from backend.catalog.domain.validate import publication_blocked
 from backend.kernel.log_event import LogEvent
 from backend.kernel.result import Err, Ok
 from backend.practice.adapters.memory import MemoryAuth, MemoryPractice
