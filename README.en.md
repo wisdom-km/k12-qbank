@@ -47,6 +47,7 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL is adopted and not connected |
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
 | Answer versions | Tables and origins are in ADR 0014. No parser and no database yet |
+| Publication, knowledge, multi-item papers | Columns are in ADR 0015. Tables are not created. A paper still holds one question |
 
 ## Commands
 

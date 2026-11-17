@@ -42,7 +42,7 @@
 | 改门禁或 `scripts/check*` | 停下问人。读 [docs/gates/HOW-TO-FIX.md](docs/gates/HOW-TO-FIX.md) |
 | 补测试 | ARCHITECTURE 的测试策略；对应 AC |
 | 第一条功能 | [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) |
-| 第一次连接 PostgreSQL | ADR 0012 的迁移规则；题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)；答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。有真实行要写时才建表 |
+| 第一次连接 PostgreSQL | ADR 0012 的迁移规则。题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。发布、知识点和多题练习见 [docs/adr/0015-publication-and-practice.md](docs/adr/0015-publication-and-practice.md)。有真实行要写时才建对应的表 |
 
 ## 命令
 
