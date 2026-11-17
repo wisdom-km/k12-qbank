@@ -24,3 +24,4 @@
 | [0016](0016-knowledge-and-methods.md) | 知识点和解题方法入库，错因只作建议 | accepted | knowledge, analysis |
 | [0017](0017-contract-schema.md) | 草稿形状用 JSON Schema 校验 | accepted | catalog |
 | [0018](0018-schema-version.md) | 按契约版本分发草稿 | accepted | catalog |
+| [0019](0019-sqlite-second-adapter.md) | SQLite 能不能当第二个适配器 | accepted | catalog, practice |
