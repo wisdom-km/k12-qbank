@@ -59,7 +59,7 @@
 | 日志规则 | `python scripts/check_logging.py` |
 | 文件备份演练 | `python scripts/drill_backup.py`。夹具记录在 `docs/evidence/backup-drill-2026-11-14.md`，不是正式数据 |
 | 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
-| 干净环境检查 | `bash scripts/check`。GitHub Actions 的 job 名是 `check` |
+| 干净环境检查 | `bash scripts/check`。GitHub Actions 的 job 名是 `check`。另一个 job `review-import` 安装核对页 main，用合成页导入两份草稿 |
 | 看日志 | 在该次 HTTP 进程的标准输出里搜 `request_id` |
 
 `python scripts/status.py` 不启动教学服务。
