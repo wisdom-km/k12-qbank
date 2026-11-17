@@ -23,6 +23,7 @@ def draft_file() -> dict:
     return {
         "contract": "k12-question-draft",
         "contract_version": 1,
+        "schema_version": 1,
         "ok": True,
         "reason": "",
         "preface": "",

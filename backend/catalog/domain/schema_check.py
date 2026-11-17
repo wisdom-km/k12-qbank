@@ -11,7 +11,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-_IGNORED = {"$schema", "$id", "$defs", "title", "description"}
+_IGNORED = {"$schema", "$id", "$defs", "title", "description", "version"}
 _IMPLEMENTED = _IGNORED | {
     "$ref",
     "type",
@@ -33,6 +33,16 @@ _IMPLEMENTED = _IGNORED | {
     "else",
 }
 _CONTRACTS = Path(__file__).resolve().parents[1] / "contracts"
+QUESTION_SCHEMA_ID = (
+    "https://github.com/wisdom-km/k12-qbank/contracts/k12-question-draft.v1.schema.json"
+)
+ANSWER_SCHEMA_ID = (
+    "https://github.com/wisdom-km/k12-qbank/contracts/k12-answer-draft.v1.schema.json"
+)
+_VERSIONS = {
+    (QUESTION_SCHEMA_ID, 1): "k12-question-draft.v1.schema.json",
+    (ANSWER_SCHEMA_ID, 1): "k12-answer-draft.v1.schema.json",
+}
 
 
 def schema_problems(schema: dict, instance: object) -> list[str]:
@@ -73,6 +83,32 @@ def unknown_schema_keywords(schema: object) -> list[str]:
 def load_contract_schema(file_name: str) -> dict:
     """Read one schema shipped in backend/catalog/contracts. This is not a user file."""
     return json.loads((_CONTRACTS / file_name).read_text(encoding="utf-8"))
+
+
+def dispatched_schema(schema_id: str, payload: object) -> dict | str:
+    """Pick a shipped schema by its $id and the draft's schema_version.
+
+    A string result is a not_draft message and names the version that arrived.
+    A value that is not an object keeps version 1, so the shape check can name
+    the type. A page block list still fails as a shape error.
+    """
+    if not isinstance(payload, dict):
+        fallback = _VERSIONS.get((schema_id, 1))
+        if fallback is None:
+            return "收到的版本是（没有 schema_version）。"
+        return load_contract_schema(fallback)
+    if "schema_version" not in payload:
+        return "收到的版本是（没有 schema_version）。"
+    received = payload["schema_version"]
+    if type(received) is not int:
+        return f"收到的版本是 {received}。"
+    file_name = _VERSIONS.get((schema_id, received))
+    if file_name is None:
+        return f"收到的版本是 {received}。"
+    schema = load_contract_schema(file_name)
+    if schema.get("$id") != schema_id or schema.get("version") != received:
+        return f"收到的版本是 {received}。"
+    return schema
 
 
 def _check(schema: dict, instance: object, path: str, root: dict) -> list[str]:

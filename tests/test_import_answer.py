@@ -23,6 +23,7 @@ def answer_file(**overrides: object) -> dict:
     payload = {
         "contract": "k12-answer-draft",
         "contract_version": 1,
+        "schema_version": 1,
         "ok": True,
         "reason": "",
         "question_key": "1:1",
