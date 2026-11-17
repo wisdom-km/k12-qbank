@@ -148,6 +148,8 @@ apps/android/                   尚未创建
 
 核心对象：来源与页、题目版本、答案版本、发布记录、知识点、题目和知识点的关系、学生、老师、负责关系、学生卷、页、照片版本、作答、建议、确认。
 
+题目草稿契约是 `k12-question-draft` 第 1 版，见 ADR 0013。核对页的 `.questions.json` 由 `import_question_draft` 解析一次后保存。题干、选项、小问和裁图不再转换成第二套 JSON。第一次连接 PostgreSQL 时，迁移按 ADR 0013 的表插入同一次解析结果。这一段仍不建表，也不连接 PostgreSQL。裁图只保存坐标。可编辑几何图预留为以后的 `figure_geometry` 表。新题型先映射到已有的 `structure`。只有现有子行放不下时才加子表。综合题是 `composite`，小问各自带题型。
+
 题目正文可以有结构化 JSON。来源、审核、知识点和作答仍然是独立关系，不把整库塞进一个 JSON。
 
 学生卷的合成 PDF 只画面向学生的内容：冻结的公式、学号、页码、总页数和这一份卷的标识。答案和解析不进入这份渲染输入。老师核验页仍按授权显示答案。修改题干或答案会另建一个未核准版本，原来的版本和核准记录留着。渲染读发卷时冻结的公式，不读后来的题干。样张字体是标准库 Helvetica，编码是 WinAnsi，所以乘号这类受支持的字符能画出来。这个字体画不出的字符不生成 PDF。
@@ -192,6 +194,7 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 | adapter_completed | INFO | 适配器 | 端口名、结果、duration_ms |
 | adapter_failed | ERROR | 适配器 | 端口名、错误码、duration_ms |
 | question_published | INFO | catalog | 发布记录标识 |
+| draft_imported | INFO | catalog | 导入的题目数。不记题干 |
 | paper_created | INFO | practice | 学生卷标识 |
 | page_stored | INFO | 文件适配器 | 文件标识 |
 | analysis_finished | INFO | analysis | 任务标识、结果类别 |

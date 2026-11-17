@@ -79,4 +79,6 @@
 
 `catalog` 和 `practice` 在合成数据上出卷并确认。本机 HTTP 使用 FastAPI，页面使用 React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。PostgreSQL 还没连接。安卓界面仍未选定，见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md)。
 
+核对页写出的 `.questions.json` 用 `import_question_draft` 直接保存。不要再设计一套题目 JSON。表的列见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。第一次连接 PostgreSQL 时才建这些表。
+
 第一段只做浏览器里的核验、出卷和确认，只建 `catalog` 和 `practice`。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。

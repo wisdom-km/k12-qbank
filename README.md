@@ -31,7 +31,9 @@
 3. 安卓拍照、上传和缺页排在这段之后。
 4. 桌面安装壳更后。等老师这台电脑上，网页已经能核验、能打开带公式的 PDF。优先试 Tauri 2 的稳定版。Electron 不是退路。
 
-服务端和网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。本机合成路径使用 FastAPI 和 React。PostgreSQL 还没连接。安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据。机构决定 DEC-01 到 DEC-06 还没填。安卓界面仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
+核对后的题目来自 [md-json-review](https://github.com/wisdom-km/md-json-review) 的 `.questions.json`。契约是 `k12-question-draft` 第 1 版。题库解析一次就保存，不再转成另一套题目 JSON。见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。
+
+服务端和网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。本机合成路径使用 FastAPI 和 React。PostgreSQL 还没连接。第一次连接时按 ADR 0013 建表。安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据。机构决定 DEC-01 到 DEC-06 还没填。安卓界面仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
 
 ## 当前实现状态
 
@@ -41,6 +43,7 @@
 | 业务代码 `catalog` / `practice` | 合成题目上可以拒绝未核准出卷，生成单页 PDF，并按操作键确认一条作答 |
 | 教学服务 | 本机合成 HTTP 和网页已接上。没有数据库，也还没有对外发布 |
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 已采纳但还没连接 |
+| 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
 
 ## 命令
 
