@@ -37,6 +37,19 @@ An OCR answer is one file in `{stem}.answers/` from the review tool. The contrac
 
 Each schema file has `$id` and `version`. Each draft file has `schema_version`. An unknown version stays `not_draft` and the message names the version that arrived. See [docs/adr/0018-schema-version.md](docs/adr/0018-schema-version.md).
 
+## Compatibility
+
+This main and [md-json-review](https://github.com/wisdom-km/md-json-review) main share the two contracts below. The annotated tag `draft-contract-1` points at the main commit that contains this table. An earlier commit does not represent this contract.
+
+| Contract | File version | Draft schema_version | $id |
+| --- | --- | --- | --- |
+| k12-question-draft | 1 | 1 | https://github.com/wisdom-km/k12-qbank/contracts/k12-question-draft.v1.schema.json |
+| k12-answer-draft | 1 | 1 | https://github.com/wisdom-km/k12-qbank/contracts/k12-answer-draft.v1.schema.json |
+
+The review tool is the producer. It copies the two JSON Schema files from `backend/catalog/contracts/` and writes an integer `schema_version`. This repository is the consumer. `import_question_draft` and `import_answer_draft` dispatch on `$id` and `schema_version`.
+
+Job `review-import` installs the review tool's main and imports both drafts from a synthetic page. The fixture is not a textbook page.
+
 The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). The local synthetic path uses FastAPI and React. PostgreSQL is not connected. The first question insert creates the ADR 0013 tables. The first answer insert creates the ADR 0014 tables. Empty tables are not created early. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
 
 ## Current implementation

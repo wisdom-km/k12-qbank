@@ -37,6 +37,19 @@ OCR 参考答案来自核对页的 `{题干文件名}.answers/`。一份文件�
 
 两份契约的形状在 `backend/catalog/contracts/`，核对页 `contracts/` 是同一份副本。契约文件有 `$id` 和 `version`，草稿文件有 `schema_version`。未知版本的 `code` 仍是 `not_draft`，说明里写出收到的版本。其他导入失败的 `code` 是 `not_draft` 或 `answer_conflict`，说明里带字段，并有 `request_id`。核对页写入前的同一类失败是 `CONTRACT`。草稿不能出卷。
 
+## 兼容矩阵
+
+这一版 main 和核对页 [md-json-review](https://github.com/wisdom-km/md-json-review) 的 main 使用下面两份契约。带注释的标记 `draft-contract-1` 打在包含这张表的 main 上。更早的提交没有这张表，也不代表这一版契约。
+
+| 契约 | 文件 version | 草稿 schema_version | $id |
+| --- | --- | --- | --- |
+| k12-question-draft | 1 | 1 | https://github.com/wisdom-km/k12-qbank/contracts/k12-question-draft.v1.schema.json |
+| k12-answer-draft | 1 | 1 | https://github.com/wisdom-km/k12-qbank/contracts/k12-answer-draft.v1.schema.json |
+
+生产者是核对页。它复制 `backend/catalog/contracts/` 的两份 JSON Schema，写出的草稿带整数 `schema_version`。消费者是本仓库。`import_question_draft` 和 `import_answer_draft` 按 `$id` 和 `schema_version` 分发。
+
+job `review-import` 安装核对页 main，用合成页生成这两份草稿再导入。夹具不是教材页。
+
 服务端和网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。本机合成路径使用 FastAPI 和 React。PostgreSQL 还没连接。第一次写入题目时按 ADR 0013 建表，第一次写入答案时按 ADR 0014 建表。没有要写入的行时不建空表。安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据。机构决定 DEC-01 到 DEC-06 还没填。安卓界面仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
 
 ## 当前实现状态
