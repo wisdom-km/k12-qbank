@@ -26,7 +26,7 @@
 
 ## 一步导入
 
-核对页写完的 `.questions.json` 就是导入文件。catalog 的 `import_question_draft` 解析一次并保存。不再把题干、选项或小问转换成另一套 JSON。
+核对页写完的 `.questions.json` 就是导入文件。catalog 的 `import_question_draft` 解析一次并保存。不再把题干、选项或小问转换成另一套 JSON。文件形状先按 ADR 0017 的 JSON Schema 校验。
 
 整页 OCR 块列表在这一步被拒绝，不会入库。草稿保存之后仍不是发布记录。老师还要另有核准的题目版本和答案版本，才能出卷。参考答案不在这份题目文件里。扫描件和模型生成的答案见 ADR 0014。
 

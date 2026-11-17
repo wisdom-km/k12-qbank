@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wisdom-km/k12-qbank/contracts/k12-answer-draft.v1.schema.json",
+  "title": "k12-answer-draft v1",
+  "description": "一份文件是一条参考答案，不是整页 OCR 块列表。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "contract_version", "ok", "reason", "question_key", "key", "origin", "status", "applicable", "source", "content", "parts", "assets"],
+  "properties": {
+    "contract": {"const": "k12-answer-draft"},
+    "contract_version": {"type": "integer", "const": 1},
+    "ok": {"type": "boolean"},
+    "reason": {"type": "string"},
+    "question_key": {"type": "string", "minLength": 1},
+    "key": {"type": "string", "pattern": "^.+:(ocr|model|teacher):[1-9][0-9]*$"},
+    "origin": {"enum": ["ocr", "model", "teacher"]},
+    "status": {"enum": ["candidate", "needs_confirm", "confirmed", "disputed"]},
+    "applicable": {"type": "boolean"},
+    "source": {"type": "object"},
+    "content": {"type": "array", "items": {"$ref": "#/$defs/fragment"}},
+    "parts": {"type": "array", "items": {"$ref": "#/$defs/part"}},
+    "assets": {"type": "array", "items": {"$ref": "#/$defs/crop"}}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"origin": {"const": "ocr"}}, "required": ["origin"]},
+      "then": {
+        "properties": {
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["pdf_page"],
+            "properties": {"pdf_page": {"type": ["integer", "null"]}}
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"origin": {"const": "model"}}, "required": ["origin"]},
+      "then": {
+        "properties": {
+          "applicable": {"const": false},
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["model_task_id"],
+            "properties": {"model_task_id": {"type": "string", "minLength": 1}}
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"origin": {"const": "teacher"}}, "required": ["origin"]},
+      "then": {
+        "properties": {
+          "source": {"type": "object", "additionalProperties": false, "properties": {}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"applicable": {"const": true}}, "required": ["applicable"]},
+      "then": {"properties": {"status": {"const": "confirmed"}, "ok": {"const": true}}}
+    }
+  ],
+  "$defs": {
+    "fragment": {
+      "oneOf": [
+        {
+          "description": "文字片段",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {"type": {"const": "text"}, "value": {"type": "string"}}
+        },
+        {
+          "description": "公式片段",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "latex"],
+          "properties": {"type": {"const": "math"}, "latex": {"type": "string"}}
+        }
+      ]
+    },
+    "part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sub_key", "role", "order", "content"],
+      "properties": {
+        "sub_key": {"type": "string"},
+        "role": {"enum": ["result", "step"]},
+        "order": {"type": "integer", "minimum": 1},
+        "content": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/fragment"}}
+      }
+    },
+    "crop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "bbox"],
+      "properties": {
+        "role": {"const": "crop"},
+        "bbox": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number"}}
+      }
+    }
+  }
+}
