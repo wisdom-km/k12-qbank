@@ -33,7 +33,7 @@ The trial still needs both the web page and Android to finish the loop. The code
 
 A reviewed question file is `.questions.json` from [md-json-review](https://github.com/wisdom-km/md-json-review). The contract is `k12-question-draft` version 1. The bank parses that file once and stores it. It does not convert the stem into a second JSON shape. See [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md).
 
-There is no answer import file yet. A scanned key, a model candidate, and a teacher edit will share `k12-answer-draft` version 1. The source is `origin`. See [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md).
+An OCR answer is one file in `{stem}.answers/` from the review tool. The contract is `k12-answer-draft` version 1. `import_answer_draft` parses that file once and stores it. It does not convert the answer into a second JSON shape. A scanned key, a model candidate, and a teacher edit share this contract. The source is `origin`. See [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md).
 
 The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). The local synthetic path uses FastAPI and React. PostgreSQL is not connected. The first question insert creates the ADR 0013 tables. The first answer insert creates the ADR 0014 tables. Empty tables are not created early. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
 
@@ -46,7 +46,7 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | Teaching service | Local synthetic HTTP and web page are wired. No database, and no public release |
 | Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL is adopted and not connected |
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
-| Answer versions | Tables and origins are in ADR 0014. No parser and no database yet |
+| Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. No database yet |
 | Publication, knowledge, multi-item papers | Columns are in ADR 0015. Tables are not created. A paper still holds one question |
 
 ## Commands

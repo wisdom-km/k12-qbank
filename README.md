@@ -33,7 +33,7 @@
 
 核对后的题目来自 [md-json-review](https://github.com/wisdom-km/md-json-review) 的 `.questions.json`。契约是 `k12-question-draft` 第 1 版。题库解析一次就保存，不再转成另一套题目 JSON。见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。
 
-参考答案还没有导入文件。扫描件、模型候选和老师修改将来共用 `k12-answer-draft` 第 1 版，来源写在 `origin`。见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。
+OCR 参考答案来自核对页的 `{题干文件名}.answers/`。一份文件是一条 `k12-answer-draft` 第 1 版。题库用 `import_answer_draft` 解析一次就保存，不再转成另一套答案 JSON。扫描件、模型候选和老师修改共用这一个契约，来源写在 `origin`。见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。
 
 服务端和网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。本机合成路径使用 FastAPI 和 React。PostgreSQL 还没连接。第一次写入题目时按 ADR 0013 建表，第一次写入答案时按 ADR 0014 建表。没有要写入的行时不建空表。安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据。机构决定 DEC-01 到 DEC-06 还没填。安卓界面仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
 
@@ -46,7 +46,7 @@
 | 教学服务 | 本机合成 HTTP 和网页已接上。没有数据库，也还没有对外发布 |
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 已采纳但还没连接 |
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
-| 答案版本 | 表和来源写在 ADR 0014。解析器和数据库都还没有 |
+| 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。内存保存。还不能出卷。数据库还没有 |
 | 发布、知识点和多题练习 | 列写在 ADR 0015。表未建。现在一卷一题 |
 
 ## 命令

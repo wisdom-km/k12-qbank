@@ -9,6 +9,8 @@
 
 仓库有约束文档、kernel、门禁脚本，以及 `catalog` 和 `practice`。步骤 1–7 的代码已在 main `aa629cd7db6f34d878d55f48dc08d17f13cc0743`，也就是 PR #10 的合并提交。PR #9 的提交 `93ffb4733a56408ecdc1f0ca0e27430bfe21e4a7` 已是这个 main 的祖先。本机 HTTP 和 React 页面使用合成数据。没有数据库，没有安卓工程。PostgreSQL 仍按本计划留到后面的事务和唯一约束，这一步不写迁移。老师自己的电脑和打印机仍未做。M-10、M-11、M-14、AC-03、AC-06、AC-08、AC-09 仍未完成。名单外许可证仍待决定，本计划不代批。
 
+2026-11-17 参考答案：核对页可以把一页 OCR 答案写成多份 `k12-answer-draft`。`import_answer_draft` 解析一次后放进内存。老师勾选的扫描答案仍不是发布，也没有 `answer_version_id`。PostgreSQL 仍不连接，不建表。
+
 骨架在合成数据上已经能做到：
 
 | 能力 | 观察到的结果 | 测试 |
