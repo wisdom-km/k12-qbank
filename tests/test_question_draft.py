@@ -30,6 +30,7 @@ def draft_file(**changes: object) -> dict:
     payload = {
         "contract": "k12-question-draft",
         "contract_version": 1,
+        "schema_version": 1,
         "ok": True,
         "reason": "",
         "preface": "",

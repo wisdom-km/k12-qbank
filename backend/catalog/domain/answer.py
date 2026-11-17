@@ -9,7 +9,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from backend.catalog.domain.schema_check import load_contract_schema, schema_problems
+from backend.catalog.domain.schema_check import (
+    ANSWER_SCHEMA_ID,
+    dispatched_schema,
+    schema_problems,
+)
 from backend.kernel.result import Err, Ok
 
 CONTRACT = "k12-answer-draft"
@@ -19,6 +23,7 @@ STATUSES = {"candidate", "needs_confirm", "confirmed", "disputed"}
 FILE_KEYS = {
     "contract",
     "contract_version",
+    "schema_version",
     "ok",
     "reason",
     "question_key",
@@ -76,7 +81,10 @@ class AnswerDraft:
 
 def parse_answer_draft(payload: object) -> Ok[AnswerDraft] | Err:
     """Accept one answer file. A page block list is refused."""
-    shape = schema_problems(load_contract_schema("k12-answer-draft.v1.schema.json"), payload)
+    schema = dispatched_schema(ANSWER_SCHEMA_ID, payload)
+    if isinstance(schema, str):
+        return Err("not_draft", schema)
+    shape = schema_problems(schema, payload)
     if shape:
         return Err("not_draft", shape[0])
     if isinstance(payload, list):

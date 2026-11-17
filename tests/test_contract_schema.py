@@ -36,6 +36,7 @@ def draft_file(**changes: object) -> dict:
     payload = {
         "contract": "k12-question-draft",
         "contract_version": 1,
+        "schema_version": 1,
         "ok": True,
         "reason": "",
         "preface": "",
@@ -50,6 +51,7 @@ def answer_file(**overrides: object) -> dict:
     payload = {
         "contract": "k12-answer-draft",
         "contract_version": 1,
+        "schema_version": 1,
         "ok": True,
         "reason": "",
         "question_key": "1:1",
@@ -125,6 +127,29 @@ class ContractSchemaTest(unittest.TestCase):
         self.assertIsInstance(model, Err)
         assert isinstance(model, Err)
         self.assertIn("applicable", model.message)
+
+    def test_k12_question_draft_unknown_schema_version_is_not_draft(self) -> None:
+        unknown = parse_question_draft(draft_file(schema_version=2))
+        self.assertIsInstance(unknown, Err)
+        assert isinstance(unknown, Err)
+        self.assertEqual(unknown.code, "not_draft")
+        self.assertIn("收到的版本是 2", unknown.message)
+        missing = draft_file()
+        del missing["schema_version"]
+        refused = parse_question_draft(missing)
+        self.assertIsInstance(refused, Err)
+        assert isinstance(refused, Err)
+        self.assertIn("没有 schema_version", refused.message)
+
+    def test_k12_answer_draft_dispatches_on_schema_id_and_version(self) -> None:
+        schema = load_contract_schema("k12-answer-draft.v1.schema.json")
+        self.assertEqual(schema["version"], 1)
+        self.assertIn("k12-answer-draft.v1.schema.json", schema["$id"])
+        unknown = parse_answer_draft(answer_file(schema_version=True))
+        self.assertIsInstance(unknown, Err)
+        assert isinstance(unknown, Err)
+        self.assertEqual(unknown.code, "not_draft")
+        self.assertIn("收到的版本是 True", unknown.message)
 
 
 if __name__ == "__main__":

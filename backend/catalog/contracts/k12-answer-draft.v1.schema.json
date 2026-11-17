@@ -1,14 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/wisdom-km/k12-qbank/contracts/k12-answer-draft.v1.schema.json",
+  "version": 1,
   "title": "k12-answer-draft v1",
   "description": "一份文件是一条参考答案，不是整页 OCR 块列表。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contract", "contract_version", "ok", "reason", "question_key", "key", "origin", "status", "applicable", "source", "content", "parts", "assets"],
+  "required": ["contract", "contract_version", "schema_version", "ok", "reason", "question_key", "key", "origin", "status", "applicable", "source", "content", "parts", "assets"],
   "properties": {
     "contract": {"const": "k12-answer-draft"},
     "contract_version": {"type": "integer", "const": 1},
+    "schema_version": {"type": "integer", "const": 1},
     "ok": {"type": "boolean"},
     "reason": {"type": "string"},
     "question_key": {"type": "string", "minLength": 1},

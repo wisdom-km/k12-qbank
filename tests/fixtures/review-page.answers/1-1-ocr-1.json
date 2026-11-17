@@ -1,6 +1,7 @@
 {
   "contract": "k12-answer-draft",
   "contract_version": 1,
+  "schema_version": 1,
   "ok": true,
   "reason": "",
   "question_key": "1:1",

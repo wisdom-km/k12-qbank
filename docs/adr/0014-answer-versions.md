@@ -16,7 +16,7 @@
 选 2。来源是行上的代码，不是一张来源一张表。这和题目不按题型拆表相同。
 
 - 契约名是 `k12-answer-draft`，版本是 1。一份文件是一条答案，不是整页 OCR 块列表。整页块列表拒绝。
-- 文件键只有这些：`contract`、`contract_version`、`ok`、`reason`、`question_key`、`key`、`origin`、`status`、`applicable`、`source`、`content`、`parts`、`assets`。
+- 文件键只有这些：`contract`、`contract_version`、`schema_version`、`ok`、`reason`、`question_key`、`key`、`origin`、`status`、`applicable`、`source`、`content`、`parts`、`assets`。`schema_version` 的分发见 ADR 0018。
 - `question_key` 对上题目草稿的 `key`。`key` 在同一题内唯一，形状是 `题键:来源:序号`，例如 `1:1:ocr:1`。
 - `origin` 只接受 `ocr`、`model`、`teacher`。未知代码拒绝。
 - `ocr` 的 `source` 只有 `pdf_page`。扫描件本体按 ADR 0009 放文件存储，行里不放图片字节。

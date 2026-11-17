@@ -35,6 +35,8 @@ A reviewed question file is `.questions.json` from [md-json-review](https://gith
 
 An OCR answer is one file in `{stem}.answers/` from the review tool. The contract is `k12-answer-draft` version 1. `import_answer_draft` parses that file once and stores it. It does not convert the answer into a second JSON shape. A scanned key, a model candidate, and a teacher edit share this contract. The source is `origin`. See [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md).
 
+Each schema file has `$id` and `version`. Each draft file has `schema_version`. An unknown version stays `not_draft` and the message names the version that arrived. See [docs/adr/0018-schema-version.md](docs/adr/0018-schema-version.md).
+
 The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). The local synthetic path uses FastAPI and React. PostgreSQL is not connected. The first question insert creates the ADR 0013 tables. The first answer insert creates the ADR 0014 tables. Empty tables are not created early. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
 
 ## Current implementation
