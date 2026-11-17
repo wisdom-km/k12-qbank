@@ -106,7 +106,7 @@ git diff --check
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | 给实现用的短索引和强制项 |
 | [PRD.md](PRD.md) | 做什么，以及明确不做的事 |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | 分层、不变量、日志、门禁 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 分层、不变量、日志、门禁。端口、数据和日志事件表在 [docs/arch/](docs/arch/) |
 | [RULES.md](RULES.md) | 提交、测试和禁止事项 |
 | [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | 第一条闭环：本机合成网页。PostgreSQL 和安卓还没有 |
 
