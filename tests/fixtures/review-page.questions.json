@@ -1,0 +1,26 @@
+{
+  "contract": "k12-question-draft",
+  "contract_version": 1,
+  "ok": true,
+  "reason": "",
+  "preface": "知识导读",
+  "source": {"pdf_page": 1},
+  "questions": [
+    {
+      "key": "1:1",
+      "section": "一. 选择题",
+      "number": "1",
+      "type": "single_choice",
+      "structure": "choice",
+      "status": "needs_confirm",
+      "stem": [{"type": "text", "value": "计算："}, {"type": "math", "latex": "(-3)+5"}],
+      "options": [
+        {"key": "A", "content": [{"type": "text", "value": "2"}]},
+        {"key": "B", "content": [{"type": "text", "value": "-2"}]}
+      ],
+      "subquestions": [],
+      "assets": [],
+      "geometry": null
+    }
+  ]
+}
