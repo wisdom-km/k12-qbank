@@ -506,6 +506,25 @@ class ReviewLoopTest(unittest.TestCase):
         self.assertIn("LIST RACE late-error paper=B attempt=fixture-answer-B error=", completed.stdout)
         self.assertIn("LIST RACE PASS", completed.stdout)
 
+    def test_ac02_ac04_issue_then_turn_then_confirm(self) -> None:
+        node = shutil.which("node")
+        self.assertIsNotNone(node, "node is required for the issue, turn, and confirm path")
+        assert node is not None
+        page = (ROOT / "apps/web/src/App.jsx").read_text(encoding="utf-8")
+        self.assertIn('from "./paper_state.js"', page)
+        self.assertIn("useReducer", page)
+        self.assertNotIn("live.current", page)
+        completed = subprocess.run(
+            [node, str(ROOT / "tests" / "paper_happy.mjs")],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("HAPPY issue=A turn=B confirm=conf-b", completed.stdout)
+        self.assertIn("HAPPY PASS", completed.stdout)
+
     def test_parallel_revisions_keep_distinct_versions_and_the_old_pdf(self) -> None:
         loop = compose()
         load_fixture(loop)

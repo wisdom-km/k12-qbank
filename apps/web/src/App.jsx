@@ -1,61 +1,45 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import { call } from "./api.js";
 import { attemptBlock, canHandOut, confirmReady, showConflictReload } from "./confirm_gate.js";
 import { createPaperActions } from "./paper_loop.js";
+import { initialPaperState, paperReducer } from "./paper_state.js";
 
 const REVIEW_VERSION_ID = "rev-1";
 
 export default function App() {
-  const [session, setSession] = useState(null);
-  const [item, setItem] = useState(null);
-  const [studentId, setStudentId] = useState("student-synth");
-  const [paper, setPaper] = useState(null);
-  const [papers, setPapers] = useState([]);
-  const [attempt, setAttempt] = useState(null);
-  const [decision, setDecision] = useState("adopt");
-  const [operationKey, setOperationKey] = useState("key-web-1");
-  const [confirmation, setConfirmation] = useState(null);
-  const [savedPayload, setSavedPayload] = useState(null);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [errorCode, setErrorCode] = useState("");
-  const [issuing, setIssuing] = useState(false);
-  const live = useRef({});
-  live.current = {
-    session,
-    item,
-    studentId,
-    paper,
-    attempt,
-    confirmation,
-    savedPayload,
-    message,
-    error,
-    errorCode,
-    decision,
-    operationKey,
-  };
+  const [state, dispatch] = useReducer(paperReducer, initialPaperState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const actions = useRef(null);
   if (actions.current === null) {
+    const set = (key) => (value) => dispatch({ type: "set", key, value });
     actions.current = createPaperActions({
       call,
       reviewVersionId: REVIEW_VERSION_ID,
-      get: () => live.current,
-      setSession,
-      setItem,
-      setStudentId,
-      setPaper,
-      setPapers,
-      setAttempt,
-      setConfirmation,
-      setSavedPayload,
-      setMessage,
-      setError,
-      setErrorCode,
-      setIssuing,
+      get: () => stateRef.current,
+      setSession: set("session"),
+      setItem: set("item"),
+      setStudentId: set("studentId"),
+      setPaper: set("paper"),
+      setPapers: set("papers"),
+      setAttempt: set("attempt"),
+      setConfirmation: set("confirmation"),
+      setSavedPayload: set("savedPayload"),
+      setMessage: set("message"),
+      setError: set("error"),
+      setErrorCode: set("errorCode"),
+      setIssuing: set("issuing"),
     });
   }
   const loop = actions.current;
+  const set = (key) => (value) => dispatch({ type: "set", key, value });
+  const setItem = set("item");
+  const setStudentId = set("studentId");
+  const setDecision = set("decision");
+  const setOperationKey = set("operationKey");
+  const setError = set("error");
+  const setErrorCode = set("errorCode");
+  const setMessage = set("message");
 
   useEffect(() => {
     loop.load().catch((reason) => setError(reason.message));
@@ -75,7 +59,7 @@ export default function App() {
 
   function publish() {
     return run(async () => {
-      const next = await call("/api/catalog/" + item.question_version_id + "/publish", {
+      const next = await call("/api/catalog/" + state.item.question_version_id + "/publish", {
         method: "POST",
         body: "{}",
       });
@@ -84,6 +68,8 @@ export default function App() {
     });
   }
 
+  const { session, item, studentId, paper, papers, attempt, decision, operationKey } = state;
+  const { confirmation, savedPayload, message, error, errorCode, issuing } = state;
   const approved = Boolean(item && item.question_approved && item.answer_approved && !item.retired);
   const waitingReason = paper && paper.status === "待渲染" && (paper.render_code || paper.render_message);
   const blocked = attemptBlock(errorCode);
