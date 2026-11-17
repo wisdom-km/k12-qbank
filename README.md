@@ -47,6 +47,7 @@ OCR 参考答案来自核对页的 `{题干文件名}.answers/`。一份文件�
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 已采纳但还没连接 |
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
 | 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。内存保存。还不能出卷。数据库还没有 |
+| 契约校验 | JSON Schema 在 `backend/catalog/contracts/`。不新增包。见 [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
 | 发布、知识点和多题练习 | 列写在 ADR 0015。表未建。现在一卷一题 |
 | 解题方法与错因 | 列写在 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。目录入库。错因是建议。表未建 |
 

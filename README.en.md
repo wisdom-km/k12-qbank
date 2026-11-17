@@ -47,6 +47,7 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL is adopted and not connected |
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
 | Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. No database yet |
+| Contract check | JSON Schema in `backend/catalog/contracts/`. No new package. See [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
 | Publication, knowledge, multi-item papers | Columns are in ADR 0015. Tables are not created. A paper still holds one question |
 | Methods and error causes | Columns are in [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md). The catalog is stored. An error cause is a suggestion. Tables are not created |
 

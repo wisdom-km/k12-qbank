@@ -31,7 +31,7 @@
 - 老师记下 OCR 和模型不一致时，另写 `answer_decision`。它不在导入文件里。列是 `question_key`、两个候选 `key`、选定的 `key`、短原因。两条候选都保留。
 - 答案草稿不是发布记录。`answer_version_id` 在核准时才分配，是新标识，不改内容。题目版本和这条答案都核准之后才能出卷，见 ADR 0006。
 - 学生写在卷上的内容留在 practice 的作答。不写入 `answer_version`。
-- 核对页把一页 OCR 答案写成多份文件，每份就是一条答案。文件名只是把 `key` 里的冒号换成连字符，例如 `1:1:ocr:1` 存成 `1-1-ocr-1.json`。JSON 里的 `key` 仍用冒号。`parse_answer_draft` 解析一次，`import_answer_draft` 按 `key` 保存。不再转成另一套 JSON。核对页只写 `origin` 为 `ocr` 的文件。模型候选仍由分析端口产生。这一步仍不连接 PostgreSQL，也不建表。
+- 核对页把一页 OCR 答案写成多份文件，每份就是一条答案。文件名只是把 `key` 里的冒号换成连字符，例如 `1:1:ocr:1` 存成 `1-1-ocr-1.json`。JSON 里的 `key` 仍用冒号。`parse_answer_draft` 解析一次，`import_answer_draft` 按 `key` 保存。不再转成另一套 JSON。写入和读入前先按 ADR 0017 的 JSON Schema 校验形状。核对页只写 `origin` 为 `ocr` 的文件。模型候选仍由分析端口产生。这一步仍不连接 PostgreSQL，也不建表。
 
 ## 连库
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from backend.catalog.domain.schema_check import load_contract_schema, schema_problems
 from backend.kernel.result import Err, Ok
 
 CONTRACT = "k12-answer-draft"
@@ -75,6 +76,9 @@ class AnswerDraft:
 
 def parse_answer_draft(payload: object) -> Ok[AnswerDraft] | Err:
     """Accept one answer file. A page block list is refused."""
+    shape = schema_problems(load_contract_schema("k12-answer-draft.v1.schema.json"), payload)
+    if shape:
+        return Err("not_draft", shape[0])
     if isinstance(payload, list):
         return Err("not_draft", "a page block list is not an answer draft")
     if not isinstance(payload, dict):
