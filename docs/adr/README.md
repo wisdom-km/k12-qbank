@@ -27,3 +27,4 @@
 | [0019](0019-sqlite-second-adapter.md) | SQLite 能不能当第二个适配器 | accepted | catalog, practice |
 | [0020](0020-learning-data-retention.md) | 学情保留和删除 | accepted | practice, analysis |
 | [0021](0021-integration-proof.md) | 真实阶段前要有一次集成验证 | accepted | catalog, practice |
+| [0022](0022-cjk-font-license.md) | 中文字体许可证 | proposed | practice |
