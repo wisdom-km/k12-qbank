@@ -150,7 +150,7 @@ apps/android/                   尚未创建
 
 题目草稿契约是 `k12-question-draft` 第 1 版，见 ADR 0013。核对页的 `.questions.json` 由 `import_question_draft` 解析一次后保存。题干、选项、小问和裁图不再转换成第二套 JSON。第一次写入题目时，迁移按 ADR 0013 的表插入同一次解析结果。这一段仍不建表，也不连接 PostgreSQL。裁图只保存坐标。可编辑几何图预留为以后的 `figure_geometry` 表。新题型先映射到已有的 `structure`。只有现有子行放不下时才加子表。综合题是 `composite`，小问各自带题型。
 
-参考答案契约是 `k12-answer-draft` 第 1 版，见 ADR 0014。扫描件、模型候选和老师修改共用 `answer_version`，`origin` 分别是 `ocr`、`model`、`teacher`。第一次写入答案时才建 `answer_version`、`answer_part`、`answer_asset` 和 `answer_decision`。没有要写入的行时不建空表。学生作答不进这些表。核对页现在还不写答案文件，解析函数也还没有。
+参考答案契约是 `k12-answer-draft` 第 1 版，见 ADR 0014。扫描件、模型候选和老师修改共用 `answer_version`，`origin` 分别是 `ocr`、`model`、`teacher`。核对页把 OCR 答案写成一份文件一条答案。`import_answer_draft` 解析一次后按 `key` 放进内存。同一题最多一条 `applicable` 为 true。模型候选不能标成可出卷。确认过的答案草稿仍不是发布，`answer_version_id` 要等核准。第一次写入答案时才建 `answer_version`、`answer_part`、`answer_asset` 和 `answer_decision`。没有要写入的行时不建空表。学生作答不进这些表。
 
 发布记录、知识点、练习册和多题练习的列见 ADR 0015。现在的学生卷仍只冻结一个题目版本。这些表也是有行要写时才建。
 
@@ -199,6 +199,7 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 | adapter_failed | ERROR | 适配器 | 端口名、错误码、duration_ms |
 | question_published | INFO | catalog | 发布记录标识 |
 | draft_imported | INFO | catalog | 导入的题目数。不记题干 |
+| answer_imported | INFO | catalog | 导入的答案数。不记答案正文 |
 | paper_created | INFO | practice | 学生卷标识 |
 | page_stored | INFO | 文件适配器 | 文件标识 |
 | analysis_finished | INFO | analysis | 任务标识、结果类别 |

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from backend.catalog.domain.answer import AnswerDraft, parse_answer_draft, answer_not_publication
 from backend.catalog.domain.approval import copy_issue_snapshot, issuable_snapshot, issue_block
 from backend.catalog.domain.draft import (
     DraftFile,
@@ -14,14 +15,17 @@ from backend.catalog.domain.draft import (
 from backend.catalog.domain.snapshot import ApprovalSnapshot, IssueSnapshot
 
 __all__ = [
+    "AnswerDraft",
     "ApprovalPort",
     "ApprovalSnapshot",
     "DraftFile",
     "IssueSnapshot",
     "QuestionDraft",
+    "answer_not_publication",
     "copy_issue_snapshot",
     "issuable_snapshot",
     "issue_block",
+    "parse_answer_draft",
     "parse_question_draft",
     "publication_blocked",
 ]
