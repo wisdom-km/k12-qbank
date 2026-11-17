@@ -42,6 +42,7 @@
 | 改门禁或 `scripts/check*` | 停下问人。读 [docs/gates/HOW-TO-FIX.md](docs/gates/HOW-TO-FIX.md) |
 | 补测试 | ARCHITECTURE 的测试策略；对应 AC |
 | 查一条 ADR 的状态 | [docs/adr/README.md](docs/adr/README.md)。状态是 proposed、accepted 或 superseded |
+| 看六个切片做到哪 | [docs/implementation-matrix.md](docs/implementation-matrix.md)。改了实现程度就更新这一张表 |
 | 第一条功能 | 同上。第一段合成闭环的计划停在 `aa629cd`。题目草稿、答案草稿和 ADR 0016 已在其后的 main |
 | 第一次连接 PostgreSQL | ADR 0012 的迁移规则。题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。发布、知识点和多题练习见 [docs/adr/0015-publication-and-practice.md](docs/adr/0015-publication-and-practice.md)。解题方法和错因见 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。有真实行要写时才建对应的表 |
 

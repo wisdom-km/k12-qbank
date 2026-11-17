@@ -6,7 +6,7 @@ import unittest
 
 from backend.catalog.adapters.draft_memory import MemoryDrafts
 from backend.catalog.application.import_draft import import_question_draft
-from backend.catalog.domain.draft import publication_blocked
+from backend.catalog.domain.validate import publication_blocked
 from backend.kernel.log_event import LogEvent
 from backend.kernel.result import Err, Ok
 

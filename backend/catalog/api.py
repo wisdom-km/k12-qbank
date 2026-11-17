@@ -6,12 +6,8 @@ from typing import Protocol
 
 from backend.catalog.domain.answer import AnswerDraft, parse_answer_draft, answer_not_publication
 from backend.catalog.domain.approval import copy_issue_snapshot, issuable_snapshot, issue_block
-from backend.catalog.domain.draft import (
-    DraftFile,
-    QuestionDraft,
-    parse_question_draft,
-    publication_blocked,
-)
+from backend.catalog.domain.parse import parse_question_draft
+from backend.catalog.domain.validate import DraftFile, QuestionDraft, publication_blocked
 from backend.catalog.domain.snapshot import ApprovalSnapshot, IssueSnapshot
 
 __all__ = [

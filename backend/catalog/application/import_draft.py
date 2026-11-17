@@ -5,7 +5,8 @@ from __future__ import annotations
 import time
 from typing import Protocol
 
-from backend.catalog.domain.draft import DraftFile, parse_question_draft
+from backend.catalog.domain.parse import parse_question_draft
+from backend.catalog.domain.validate import DraftFile
 from backend.kernel.logger import Logger
 from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store

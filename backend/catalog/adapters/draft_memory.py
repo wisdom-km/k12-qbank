@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 
-from backend.catalog.domain.draft import DraftFile, QuestionDraft
+from backend.catalog.domain.validate import DraftFile, QuestionDraft
 
 
 class MemoryDrafts:
