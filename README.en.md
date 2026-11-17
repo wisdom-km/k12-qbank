@@ -109,6 +109,7 @@ Remote checks are the [Actions job named check](https://github.com/wisdom-km/k12
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, invariants, logging, and gates |
 | [RULES.md](RULES.md) | Commits, tests, and the forbidden list |
 | [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | The first loop: local synthetic web. PostgreSQL and Android are not in yet |
+| [docs/implementation-matrix.md](docs/implementation-matrix.md) | Where each of the six slices stands: ports, adapters, and tests |
 
 ## License
 
