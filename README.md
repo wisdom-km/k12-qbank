@@ -60,7 +60,7 @@ OCR 参考答案来自核对页的 `{题干文件名}.answers/`。一份文件�
 python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --no-access-log
 ```
 
-默认访问日志已关闭。带 `request_id` 的结构化日志仍打在标准输出。
+默认访问日志已关闭。带 `request_id` 的结构化日志仍打在标准输出。这个端口和核对页 md-json-review 相同。核对页开着时不要启动本服务。两个进程不要同时听 `127.0.0.1:8765`。
 
 浏览器打开 `http://127.0.0.1:8765/`。老师身份固定为服务端的 `teacher-synth`。启动进程会读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
 
