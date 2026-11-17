@@ -245,6 +245,8 @@ if ($script:SawManifest -and $Tier -ne 'demo') {
 if ($Ci -and -not $Fast -and $InstallCmd) {
   if (Invoke-Configured $InstallCmd) { Report 'M-09' (ByTier 'SHOULD' 'MUST' 'MUST') 'PASS' "CI install from lockfile: '$InstallCmd' exit 0" }
   else { Report 'M-09' (ByTier 'SHOULD' 'MUST' 'MUST') 'FAIL' "'$InstallCmd' failed: $script:LastOut" }
+  if (Invoke-Configured 'python scripts/check_api_types.py') { Report 'TYPES' 'MUST' 'PASS' 'apps/web/src/api.types.ts matches the OpenAPI export' }
+  else { Report 'TYPES' 'MUST' 'FAIL' "apps/web/src/api.types.ts is stale: $script:LastOut" }
 }
 
 # Install runs before the process. A resident process is stopped after a bounded ready wait.

@@ -307,6 +307,11 @@ if [ "$MODE_CI" = yes ] && [ "$MODE_FAST" = no ] && [ -n "$INSTALL_CMD" ]; then
   else
     report M-09 "$(by_tier SHOULD MUST MUST)" FAIL "'$INSTALL_CMD' failed: $LAST_OUT"
   fi
+  if run_cmd "python scripts/check_api_types.py"; then
+    report TYPES MUST PASS "apps/web/src/api.types.ts matches the OpenAPI export"
+  else
+    report TYPES MUST FAIL "apps/web/src/api.types.ts is stale: $LAST_OUT"
+  fi
 fi
 
 # Install runs before the process. A resident process is stopped after a bounded ready wait.

@@ -53,11 +53,14 @@ class ReviseBody(BaseModel):
     answer_text: str
 
 
-def create_app(loop: Loop | None = None, *, seed: bool = True) -> FastAPI:
+def create_app(loop: Loop | None = None, *, seed: bool = True, openapi: bool = False) -> FastAPI:
     wired = loop if loop is not None else compose()
     if seed:
         load_fixture(wired)
-    app = FastAPI(title="k12-qbank", docs_url=None, redoc_url=None, openapi_url=None)
+    if openapi:
+        app = FastAPI(title="k12-qbank")
+    else:
+        app = FastAPI(title="k12-qbank", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.loop = wired
 
     @app.middleware("http")

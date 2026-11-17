@@ -1,6 +1,8 @@
 # 锁定依赖
 
-日期：2026-11-16。这一页记录已经锁进仓库的依赖，不新增包。运行依赖在仓库根的 `requirements.txt`，用 `==` 钉死。构建依赖在 `apps/web/package.json`，锁文件是 `apps/web/package-lock.json`。
+日期：2026-11-16。这一页记录已经锁进仓库的依赖。运行依赖在仓库根的 `requirements.txt`，用 `==` 钉死。构建依赖在 `apps/web/package.json`，锁文件是 `apps/web/package-lock.json`。
+
+2026-11-18 增加构建期的 `openapi-typescript`。再加包时，同一改动里要有 ADR，许可证要在 MIT、BSD、Apache-2.0 里。见 ADR 0023。
 
 名单以外的许可证标为待人审。这项决定不挡住其余合成路径上的修复。
 
@@ -36,6 +38,7 @@
 | react-dom | 19.3.1 | 页面 | MIT |
 | vite | 6.4.6 | 构建 | MIT |
 | @vitejs/plugin-react | 4.7.0 | 构建 | MIT |
+| openapi-typescript | 7.13.0 | 生成 `apps/web/src/api.types.ts`。只在检查时用，不进页面运行 | MIT |
 
 没有加入 reportlab 或 WeasyPrint。合成 PDF 仍由标准库写成一页 Helvetica，字体编码是 WinAnsi。
 
