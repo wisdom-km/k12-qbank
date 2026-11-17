@@ -42,6 +42,7 @@
 | 改门禁或 `scripts/check*` | 停下问人。读 [docs/gates/HOW-TO-FIX.md](docs/gates/HOW-TO-FIX.md) |
 | 补测试 | ARCHITECTURE 的测试策略；对应 AC |
 | 第一条功能 | [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) |
+| 第一次连接 PostgreSQL | ADR 0012 的迁移规则；题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)；答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。有真实行要写时才建表 |
 
 ## 命令
 
@@ -79,6 +80,6 @@
 
 `catalog` 和 `practice` 在合成数据上出卷并确认。本机 HTTP 使用 FastAPI，页面使用 React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。PostgreSQL 还没连接。安卓界面仍未选定，见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md)。
 
-核对页写出的 `.questions.json` 用 `import_question_draft` 直接保存。不要再设计一套题目 JSON。表的列见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。第一次连接 PostgreSQL 时才建这些表。
+核对页写出的 `.questions.json` 用 `import_question_draft` 直接保存。不要再设计一套题目 JSON。题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。扫描件和模型候选不要拆成两套表。第一次有真实行写入 PostgreSQL 时才建表。
 
 第一段只做浏览器里的核验、出卷和确认，只建 `catalog` 和 `practice`。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。

@@ -148,7 +148,9 @@ apps/android/                   尚未创建
 
 核心对象：来源与页、题目版本、答案版本、发布记录、知识点、题目和知识点的关系、学生、老师、负责关系、学生卷、页、照片版本、作答、建议、确认。
 
-题目草稿契约是 `k12-question-draft` 第 1 版，见 ADR 0013。核对页的 `.questions.json` 由 `import_question_draft` 解析一次后保存。题干、选项、小问和裁图不再转换成第二套 JSON。第一次连接 PostgreSQL 时，迁移按 ADR 0013 的表插入同一次解析结果。这一段仍不建表，也不连接 PostgreSQL。裁图只保存坐标。可编辑几何图预留为以后的 `figure_geometry` 表。新题型先映射到已有的 `structure`。只有现有子行放不下时才加子表。综合题是 `composite`，小问各自带题型。
+题目草稿契约是 `k12-question-draft` 第 1 版，见 ADR 0013。核对页的 `.questions.json` 由 `import_question_draft` 解析一次后保存。题干、选项、小问和裁图不再转换成第二套 JSON。第一次写入题目时，迁移按 ADR 0013 的表插入同一次解析结果。这一段仍不建表，也不连接 PostgreSQL。裁图只保存坐标。可编辑几何图预留为以后的 `figure_geometry` 表。新题型先映射到已有的 `structure`。只有现有子行放不下时才加子表。综合题是 `composite`，小问各自带题型。
+
+参考答案契约是 `k12-answer-draft` 第 1 版，见 ADR 0014。扫描件、模型候选和老师修改共用 `answer_version`，`origin` 分别是 `ocr`、`model`、`teacher`。第一次写入答案时才建 `answer_version`、`answer_part`、`answer_asset` 和 `answer_decision`。没有要写入的行时不建空表。学生作答不进这些表。核对页现在还不写答案文件，解析函数也还没有。
 
 题目正文可以有结构化 JSON。来源、审核、知识点和作答仍然是独立关系，不把整库塞进一个 JSON。
 
