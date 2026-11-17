@@ -60,7 +60,7 @@ Start the local synthetic site (this does not start a database):
 python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --no-access-log
 ```
 
-The default access log is off. Structured logs that include `request_id` still go to stdout.
+The default access log is off. Structured logs that include `request_id` still go to stdout. This port is the same as the md-json-review check page. Do not start this server while that page is running. The two processes must not both listen on `127.0.0.1:8765`.
 
 Open `http://127.0.0.1:8765/`. The server actor is `teacher-synth`. The process reads `docs/fixtures/rational-number-min.json` and clears both approval flags. There is no separate load command. The second synthetic student, `student-synth-2`, is only in the server grant. It does not add a seventh fixture block.
 

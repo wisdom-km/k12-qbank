@@ -36,12 +36,12 @@
 | 改业务规则 | PRD 里对应的 US 和 AC；ARCHITECTURE 的不变量 R1–R6 |
 | 加适配器或换模型 | ARCHITECTURE 的端口；[docs/adr/0005-analysis-ports.md](docs/adr/0005-analysis-ports.md) |
 | 排查 bug | 先按 request_id 看日志，命令见下；再读 ARCHITECTURE 的运行日志 |
-| 第一段：网页核验、出卷、确认 | [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md)。只建 `catalog` 和 `practice` |
+| 第一段：网页核验、出卷、确认 | [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md)。该计划停在 main `aa629cd`。其后的草稿导入和 ADR 0016 已在 main。产品顺序见 [docs/adr/0015-publication-and-practice.md](docs/adr/0015-publication-and-practice.md)。只建 `catalog` 和 `practice` |
 | 拍卷、安卓 | 排在第一段网页之后。PRD 的 US-03、AC-03、AC-06 |
 | 桌面壳 | [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。网页在老师电脑上能核验并打开 PDF 之前不做 |
 | 改门禁或 `scripts/check*` | 停下问人。读 [docs/gates/HOW-TO-FIX.md](docs/gates/HOW-TO-FIX.md) |
 | 补测试 | ARCHITECTURE 的测试策略；对应 AC |
-| 第一条功能 | [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) |
+| 第一条功能 | 同上。第一段合成闭环的计划停在 `aa629cd`。题目草稿、答案草稿和 ADR 0016 已在其后的 main |
 | 第一次连接 PostgreSQL | ADR 0012 的迁移规则。题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。发布、知识点和多题练习见 [docs/adr/0015-publication-and-practice.md](docs/adr/0015-publication-and-practice.md)。解题方法和错因见 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。有真实行要写时才建对应的表 |
 
 ## 命令
@@ -82,4 +82,4 @@
 
 核对页写出的 `.questions.json` 用 `import_question_draft` 直接保存。不要再设计一套题目 JSON。题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。OCR 答案在 `{题干文件名}.answers/` 里，一份文件一条答案，用 `import_answer_draft` 直接保存。不要再设计一套答案 JSON。答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。扫描件和模型候选不要拆成两套表。知识点和解题方法是目录，错因只作建议，见 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。不要把错因写进题目行，也不要让分析用例新建目录行。第一次有真实行写入 PostgreSQL 时才建表。
 
-第一段只做浏览器里的核验、出卷和确认，只建 `catalog` 和 `practice`。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。
+第一段合成闭环停在 `aa629cd`。题目草稿、OCR 答案导入和 ADR 0016 已在其后的 main。仍只建 `catalog` 和 `practice`。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。
