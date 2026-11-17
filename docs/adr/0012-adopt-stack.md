@@ -1,5 +1,7 @@
 # ADR 0012 采纳第一段的服务端和网页技术栈
 
+状态：accepted
+
 ## 背景
 
 ADR 0010 把 FastAPI、PostgreSQL、React、Flutter 留作候选，并写明选定其中一项时要另写 ADR，取代对应句子。第一段要在 `catalog` 和 `practice` 里用合成数据验证出卷和确认。检查脚本已经是 Python。
