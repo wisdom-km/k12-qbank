@@ -80,6 +80,8 @@
 
 `catalog` 和 `practice` 在合成数据上出卷并确认。本机 HTTP 使用 FastAPI，页面使用 React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。PostgreSQL 还没连接。安卓界面仍未选定，见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md)。
 
+契约是 `k12-question-draft` 第 1 版和 `k12-answer-draft` 第 1 版。核对页 `contracts/` 复制的是这里的同一份 JSON Schema。导入失败的 `code` 是 `not_draft` 或 `answer_conflict`，说明里带字段。核对页写入前的同一类失败是 `CONTRACT`。两边的失败都有 `code`、`message`、`request_id`。草稿不能出卷。
+
 核对页写出的 `.questions.json` 用 `import_question_draft` 直接保存。形状先过 `backend/catalog/contracts/` 的 JSON Schema，见 [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md)。不要再设计一套题目 JSON。题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。OCR 答案在 `{题干文件名}.answers/` 里，一份文件一条答案，用 `import_answer_draft` 直接保存。不要再设计一套答案 JSON。答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。扫描件和模型候选不要拆成两套表。知识点和解题方法是目录，错因只作建议，见 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。不要把错因写进题目行，也不要让分析用例新建目录行。第一次有真实行写入 PostgreSQL 时才建表。
 
 第一段合成闭环停在 `aa629cd`。题目草稿、OCR 答案导入和 ADR 0016 已在其后的 main。仍只建 `catalog` 和 `practice`。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。
