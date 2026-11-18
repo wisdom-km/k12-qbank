@@ -6,7 +6,7 @@ A math question bank and teaching loop for teachers at one institution. The base
 
 A teacher in Heilongjiang uses a small set of checked questions from the PEP grade-7 first-volume chapter on rational-number operations. On a computer web page and an installable Android app, the teacher checks questions, prints a paper for each student, collects it, confirms the AI suggestion, and assigns the next practice. The scene is one teacher and about 100 students, later perhaps about three teachers and 300 students. Those numbers are a scene, not a capacity guarantee.
 
-This is a long-lived project. It will store real learning records, and teachers will use it. The docs and the checks are in the repository. `catalog` and `practice` can check, issue, open a PDF, and confirm on synthetic data on this machine. There is no database. `python scripts/status.py` only prints that status. It does not start the site.
+This is a long-lived project. It will store real learning records, and teachers will use it. The docs and the checks are in the repository. `catalog` and `practice` can check, issue, open a PDF, and confirm on synthetic data on this machine. Identity and audit are already on PostgreSQL. Catalog and practice land in batch C (see [ADR 0039](docs/adr/0039-catalog-persistence.md)). `python scripts/status.py` only prints that status. It does not start the site.
 
 ## The loop the teacher completes
 
@@ -64,7 +64,7 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | PostgreSQL connected | The process connects and migrates identity and audit only when `K12_PG_DSN` is set. The default process and the unit tests do not connect. The CI `postgres` job has run migrate up, down, and up |
 | Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL connects and migrates when `K12_PG_DSN` is set |
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
-| Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. No database yet |
+| Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. Identity and audit are already on PostgreSQL. Catalog and practice land in batch C (see [ADR 0039](docs/adr/0039-catalog-persistence.md)) |
 | Contract check | JSON Schema in `backend/catalog/contracts/`. No new package. See [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
 | Publication, knowledge, multi-item papers | Columns are in ADR 0015. Tables are not created. A paper still holds one question |
 | Methods and error causes | Columns are in [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md). The catalog is stored. An error cause is a suggestion. Tables are not created |
