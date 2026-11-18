@@ -32,4 +32,4 @@
 
 配置只来自环境变量。示例键在 `.env.example`。真实值只在本机 `.env`，该文件被忽略。
 
-迁移：identity 与审计的可回退迁移是 `backend/identity/migrations/V001__init.sql`。题目和答案仍没有迁移。进程只在 `K12_PG_DSN` 有值时连接并执行迁移。
+迁移：identity 与审计的可回退迁移是 `backend/identity/migrations/V001__init.sql`。题目和答案的可回退迁移是 `backend/catalog/migrations/V004__questions_answers.sql`。进程只在 `K12_PG_DSN` 有值时连接并执行迁移。

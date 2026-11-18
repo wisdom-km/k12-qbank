@@ -146,7 +146,7 @@ AC-01 到 AC-08 是试用能否开始给老师用的条件。出现未核验出�
 | --- | --- |
 | 题目草稿解析一次后放进内存，且不能出卷 | 已做 |
 | OCR 参考答案解析一次后放进内存，且不能出卷 | 已做。核对页写文件，题库不从网页接收。契约见 ADR 0014 |
-| PostgreSQL 和迁移 | identity 与审计已有 V001。catalog 与 practice 的运行表已接上。规范化题目表仍不建。默认进程仍不连接 |
+| PostgreSQL 和迁移 | identity 与审计已有 V001。catalog 与 practice 的运行表已接上。V004 已建 `questions` 和 `answers`。子表仍未建。默认进程仍不连接 |
 | 运行模式 `K12_ENV` | 已做。默认 development。production 没有连接串就退出。决定见 ADR 0032 |
 | 会话与登录尝试的清理 | 已做。过期会话先标吊销，满 K12_SESSION_RETAIN_DAYS（默认 30）再删。登录尝试按 K12_LOGIN_ATTEMPT_RETAIN_DAYS（默认 30）删除。停用、启用、重置口令的成功路径吊销尚未过期的会话。学情天数仍不写 |
 | 迁移咨询锁 | 已做。一次 up 或 down 是一个事务。决定见 ADR 0034 |
