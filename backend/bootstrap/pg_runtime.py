@@ -30,6 +30,7 @@ def open_postgres() -> Loop:
 
     attempts = PgAttempts(pool)
     deps = make_deps(attempts, logger)
+    approvals, practice, files = _catalog_stores(pool)
     return _loop(
         auth=GrantAuthorizer(PoolGrantReader(pool)),  # type: ignore[arg-type]
         logger=logger,
@@ -37,7 +38,34 @@ def open_postgres() -> Loop:
         identity=pool,
         deps=deps,
         opener=lambda: _scope(pool),
+        approvals=approvals,
+        practice=practice,
+        files=files,
     )
+
+
+def _catalog_stores(pool: object) -> tuple[object, object, object]:
+    """DSN path stores approvals and papers in PostgreSQL. Empty K12_FILE_DIR keeps bytes in memory."""
+    from backend.catalog.adapters.pg_approvals import PgApprovals
+    from backend.practice.adapters.files import MemoryFiles
+    from backend.practice.adapters.pg_files import PgFiles
+    from backend.practice.adapters.pg_practice import PgPractice
+
+    directory = os.environ.get("K12_FILE_DIR", "").strip()
+    if directory:
+        files: object = PgFiles(pool, Path(directory))
+    else:
+        emit(
+            StdoutLogger(),
+            level="WARN",
+            event="startup_degraded",
+            request_id="boot",
+            module="bootstrap",
+            outcome="memory_files",
+            started=time.perf_counter(),
+        )
+        files = MemoryFiles()
+    return PgApprovals(pool), PgPractice(pool), files
 
 
 @contextmanager

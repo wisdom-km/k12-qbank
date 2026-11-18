@@ -8,7 +8,7 @@ from typing import TypeVar
 
 from backend.kernel.log_event import LogEvent
 from backend.kernel.logger import Logger
-from backend.kernel.result import Err, Ok
+from backend.kernel.result import Err, Ok, StoreFault
 
 T = TypeVar("T")
 
@@ -69,6 +69,8 @@ def read_store(
 ) -> Ok[T] | Err:
     try:
         return Ok(action())
+    except StoreFault as fault:
+        return Err(fault.code, fault.code)
     except Exception:
         emit(
             logger,

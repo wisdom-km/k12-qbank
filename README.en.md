@@ -6,7 +6,7 @@ A math question bank and teaching loop for teachers at one institution. The base
 
 A teacher in Heilongjiang uses a small set of checked questions from the PEP grade-7 first-volume chapter on rational-number operations. On a computer web page and an installable Android app, the teacher checks questions, prints a paper for each student, collects it, confirms the AI suggestion, and assigns the next practice. The scene is one teacher and about 100 students, later perhaps about three teachers and 300 students. Those numbers are a scene, not a capacity guarantee.
 
-This is a long-lived project. It will store real learning records, and teachers will use it. The docs and the checks are in the repository. `catalog` and `practice` can check, issue, open a PDF, and confirm on synthetic data on this machine. Identity and audit are already on PostgreSQL. Catalog and practice land in batch C (see [ADR 0039](docs/adr/0039-catalog-persistence.md)). `python scripts/status.py` only prints that status. It does not start the site.
+This is a long-lived project. It will store real learning records, and teachers will use it. The docs and the checks are in the repository. `catalog` and `practice` can check, issue, open a PDF, and confirm on synthetic data on this machine. Identity and audit are already on PostgreSQL. With `K12_PG_DSN` set, the catalog and practice runtime tables are written there too (see [ADR 0039](docs/adr/0039-catalog-persistence.md)). Normalized question tables are still not created. `python scripts/status.py` only prints that status. It does not start the site.
 
 ## The loop the teacher completes
 
@@ -50,7 +50,7 @@ The review tool is the producer. It copies the two JSON Schema files from `backe
 
 Job `review-import` installs the review tool's main and imports both drafts from a synthetic page. The fixture is not a textbook page.
 
-The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). The local synthetic path uses FastAPI and React. An empty `K12_PG_DSN` does not connect. A set value connects and migrates the identity and audit tables. The first question insert creates the ADR 0013 tables. The first answer insert creates the ADR 0014 tables. Empty tables are not created early. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
+The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). The local synthetic path uses FastAPI and React. An empty `K12_PG_DSN` does not connect. A set value connects and migrates identity, audit, catalog, and practice. Page bytes use `K12_FILE_DIR`. Normalized question tables still wait for ADR 0013, and normalized answer tables still wait for ADR 0014. Empty tables are not created early. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
 
 ## Current implementation
 
@@ -61,10 +61,10 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | Teaching service | Local synthetic HTTP now has a session. The default process does not connect. There is no public release. The pages are `/login`, `/`, and `/admin` |
 | Login | Page `/login`. A signed-out visit to `/` or `/admin` goes to the login page. The session cookie is `k12_sid`. Writes send `X-K12-CSRF` |
 | Admin | Page `/admin`. An admin creates teachers and students, grants and revokes, and reads audit and errors. A teacher sees permission_denied |
-| PostgreSQL connected | The process connects and migrates identity and audit only when `K12_PG_DSN` is set. The default process and the unit tests do not connect. The CI `postgres` job has run migrate up, down, and up |
+| PostgreSQL connected | The process connects and migrates identity, audit, catalog, and practice only when `K12_PG_DSN` is set. Page bytes use `K12_FILE_DIR`. The default process and the unit tests do not connect. The CI `postgres` job runs migrate up, down, and up, plus the identity and catalog/practice contracts |
 | Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL connects and migrates when `K12_PG_DSN` is set |
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
-| Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. Identity and audit are already on PostgreSQL. Catalog and practice land in batch C (see [ADR 0039](docs/adr/0039-catalog-persistence.md)) |
+| Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. A running approval, paper, and confirmation can be written to PostgreSQL. Normalized answer tables are still not created |
 | Contract check | JSON Schema in `backend/catalog/contracts/`. No new package. See [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
 | Publication, knowledge, multi-item papers | Columns are in ADR 0015. Tables are not created. A paper still holds one question |
 | Methods and error causes | Columns are in [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md). The catalog is stored. An error cause is a suggestion. Tables are not created |

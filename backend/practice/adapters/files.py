@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import threading
 
+from backend.kernel.result import StoreFault
+
 
 class MemoryFiles:
     def __init__(self) -> None:
@@ -27,3 +29,9 @@ class MemoryFiles:
     def checksum(self, file_id: str) -> str | None:
         with self._lock:
             return self._sums.get(file_id)
+
+    def require(self, file_id: str) -> bytes:
+        found = self.read(file_id)
+        if found is None:
+            raise StoreFault("file_missing")
+        return found

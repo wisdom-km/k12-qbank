@@ -19,3 +19,11 @@ class Err:
     message: str
 
 
+class StoreFault(Exception):
+    """A mapped store refusal. Callers turn it into Err. It is not a crash."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+

@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 
 from backend.catalog.domain.snapshot import ApprovalSnapshot
+from backend.kernel.result import StoreFault
 
 
 class MemoryApprovals:
@@ -19,6 +20,12 @@ class MemoryApprovals:
     def read_snapshot(self, question_version_id: str) -> ApprovalSnapshot | None:
         with self._lock:
             return self._items.get(question_version_id)
+
+    def require_snapshot(self, question_version_id: str) -> ApprovalSnapshot:
+        found = self.read_snapshot(question_version_id)
+        if found is None:
+            raise StoreFault("snapshot_not_found")
+        return found
 
     def has_version_id(self, version_id: str) -> bool:
         with self._lock:

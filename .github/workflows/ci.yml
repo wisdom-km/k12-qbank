@@ -102,3 +102,8 @@ jobs:
         env:
           K12_PG_DSN: postgresql://k12:changeme@localhost:5432/k12
         run: python -m unittest discover -s tests/identity -v
+
+      - name: Catalog and practice contract tests
+        env:
+          K12_PG_DSN: postgresql://k12:changeme@localhost:5432/k12
+        run: python -m unittest tests.test_catalog_practice_contract -v
