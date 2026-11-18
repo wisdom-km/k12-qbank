@@ -307,6 +307,15 @@ if [ "$MODE_CI" = yes ] && [ "$MODE_FAST" = no ] && [ -n "$INSTALL_CMD" ]; then
   else
     report M-09 "$(by_tier SHOULD MUST MUST)" FAIL "'$INSTALL_CMD' failed: $LAST_OUT"
   fi
+  if run_cmd "python scripts/export_openapi.py"; then
+    if run_cmd "git diff --exit-code -- apps/web/src/api.openapi.json"; then
+      report OPENAPI MUST PASS "apps/web/src/api.openapi.json matches the export"
+    else
+      report OPENAPI MUST FAIL "apps/web/src/api.openapi.json is stale: $LAST_OUT"
+    fi
+  else
+    report OPENAPI MUST FAIL "python scripts/export_openapi.py failed: $LAST_OUT"
+  fi
   if run_cmd "python scripts/check_api_types.py"; then
     report TYPES MUST PASS "apps/web/src/api.types.ts matches the OpenAPI export"
   else

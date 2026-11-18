@@ -33,8 +33,10 @@ def load_fixture(loop: Loop) -> None:
 
     The JSON file still records the checked stem and answer. A second synthetic
     student is granted here so two papers can be issued. That student is not a
-    seventh fixture block.
+    seventh fixture block. production does not load this synthetic fixture.
     """
+    if os.environ.get("K12_ENV", "").strip() == "production":
+        return
     data = json.loads(FIXTURE.read_text(encoding="utf-8"))
     question = data["question"]
     answer = data["answer"]

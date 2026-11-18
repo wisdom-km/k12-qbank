@@ -30,13 +30,19 @@ _REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _WEB = Path(__file__).resolve().parents[2] / "apps" / "web" / "dist"
 
 
-def create_app(loop: Loop | None = None, *, seed: bool = True, openapi: bool = False, persist: bool = False) -> FastAPI:
+def create_app(
+    loop: Loop | None = None,
+    *,
+    seed: bool = True,
+    openapi: bool | None = None,
+    persist: bool = False,
+) -> FastAPI:
     """Build the HTTP app. persist=True connects and migrates. A passed loop never does."""
     wired = _wire(loop, persist)
     if seed:
         load_fixture(wired)
     bootstrap_from_env(wired)
-    app = _fastapi(openapi)
+    app = _fastapi(_openapi_on(openapi))
     app.state.loop = wired
     app.state.opener = wired.opener
     app.state.deps = wired.deps
@@ -86,6 +92,13 @@ def _ready_probe(wired: Loop, persist: bool) -> Callable[[], bool]:
     pool = wired.identity
     root = repo_root()
     return lambda: database_ready(pool, root)
+
+
+def _openapi_on(openapi: bool | None) -> bool:
+    """None follows K12_OPENAPI. Only the value 1 opens the document."""
+    if openapi is not None:
+        return openapi
+    return os.environ.get("K12_OPENAPI", "0") == "1"
 
 
 def _fastapi(openapi: bool) -> FastAPI:

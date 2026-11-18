@@ -62,6 +62,9 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | Login | Page `/login`. A signed-out visit to `/` or `/admin` goes to the login page. The session cookie is `k12_sid`. Writes send `X-K12-CSRF` |
 | Admin | Page `/admin`. An admin creates teachers and students, grants and revokes, and reads audit and errors. A teacher sees permission_denied |
 | PostgreSQL connected | The process connects and migrates identity, audit, catalog, and practice only when `K12_PG_DSN` is set. Page bytes use `K12_FILE_DIR`. `K12_ENV` defaults to development; production exits when the DSN or the page-byte directory is empty. The default process and the unit tests do not connect. The CI `postgres` job runs migrate up, down, and up, plus the identity and catalog/practice contracts and the migration lock |
+| Run mode | `K12_ENV` defaults to development. production exits when the DSN or `K12_FILE_DIR` is empty. development with an empty DSN stays in memory |
+| Catalog PG | A set `K12_PG_DSN` writes the V002 runtime tables. Normalized question tables are still not built |
+| Practice PG | A set `K12_PG_DSN` writes papers, attempts, and confirmations. Page bytes use `K12_FILE_DIR` |
 | Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL connects and migrates when `K12_PG_DSN` is set |
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
 | Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. A running approval, paper, and confirmation can be written to PostgreSQL. Normalized answer tables are still not created |
@@ -81,7 +84,7 @@ python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --
 
 The default access log is off. Structured logs that include `request_id` still go to stdout. This port is the same as the md-json-review check page. Do not start this server while that page is running. The two processes must not both listen on `127.0.0.1:8765`.
 
-Open `http://127.0.0.1:8765/login`. A signed-out visit lands on the login page. After login, a teacher is at `/` and an admin is at `/admin`. The issue actor comes from the session cookie. The synthetic account is still `teacher-synth`. The process reads `docs/fixtures/rational-number-min.json` and clears both approval flags. There is no separate load command. The second synthetic student, `student-synth-2`, is only in the server grant. It does not add a seventh fixture block.
+Open `http://127.0.0.1:8765/login`. A signed-out visit lands on the login page. After login, a teacher is at `/` and an admin is at `/admin`. The issue actor comes from the session cookie. The synthetic account is still `teacher-synth`. development reads `docs/fixtures/rational-number-min.json` and clears both approval flags. There is no separate load command. `K12_ENV=production` does not load this synthetic fixture and does not create the synthetic account. The second synthetic student, `student-synth-2`, is only in the server grant. It does not add a seventh fixture block.
 
 When the site is already listening on port 8765, run `python scripts/smoke_http.py` in another window. To re-check:
 
