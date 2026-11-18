@@ -17,12 +17,13 @@ FORBIDDEN_IMPORT = re.compile(
 BARE_PRINT = re.compile(r"(^|[^.\w])print\s*\(")
 SECRET_FIELD = re.compile(
     r"(?i)(?<![A-Za-z0-9])("
-    r"password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|"
-    r"authorization|cookie|session|connection[_-]?string|"
+    r"password|password_hash|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|"
+    r"authorization|cookie|session|session_id|csrf_token|connection[_-]?string|"
     r"student[_-]?(?:name|id|no)|photo|request[_-]?body|prompt|card[_-]?number|"
     r"学号|姓名"
     r")(?![A-Za-z0-9])"
 )
+AUDIT_ALLOWED = ("actor_user_id", "target_kind", "target_id")
 LOG_CALL = re.compile(r"(?<!def )(?<!\w)log\s*\(")
 FORMATTED = re.compile(r"""f["']|\.format\s*\(""")
 
@@ -35,6 +36,21 @@ REQUIRED_IN_ARCH = (
     "DEBUG",
     "stdout",
 )
+
+
+def line_is_secret(line: str) -> bool:
+    """True when a log call line carries a forbidden field.
+
+    An audit=True call may name actor_user_id, target_kind, and target_id.
+    Those three names are removed before the secret scan. Other secrets stay banned.
+    """
+    if not LOG_CALL.search(line):
+        return False
+    scanned = line
+    if "audit=True" in line or "audit=true" in line:
+        for name in AUDIT_ALLOWED:
+            scanned = scanned.replace(name, "")
+    return SECRET_FIELD.search(scanned) is not None
 
 
 def fail(code: str, message: str, fix: str) -> None:
@@ -87,7 +103,7 @@ def main() -> int:
         for index, line in enumerate(body.splitlines(), start=1):
             if not LOG_CALL.search(line):
                 continue
-            if SECRET_FIELD.search(line):
+            if line_is_secret(line):
                 fail(
                     "L-05",
                     f"{rel}:{index} looks like a secret or student field in a log call.",

@@ -1,4 +1,4 @@
-"""Logger port. The composition root injects a stdout adapter later."""
+"""Logger port. Runtime sinks and the audit sink are separate."""
 
 from __future__ import annotations
 
@@ -10,3 +10,23 @@ from backend.kernel.log_event import LogEvent
 class Logger(Protocol):
     def log(self, event: LogEvent) -> None:
         """Record one structured event. Implementations must not raise into core."""
+
+
+class AuditSink(Protocol):
+    def write_audit(self, event: LogEvent) -> None:
+        """Persist one audit event. A failure is reported on the runtime stream."""
+
+
+class CompositeLogger:
+    """Send audit events to the audit sink and everything else to runtime sinks."""
+
+    def __init__(self, runtime: list[Logger], audit: AuditSink) -> None:
+        self._runtime = list(runtime)
+        self._audit = audit
+
+    def log(self, event: LogEvent) -> None:
+        if event.audit:
+            self._audit.write_audit(event)
+            return
+        for sink in self._runtime:
+            sink.log(event)

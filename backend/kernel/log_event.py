@@ -14,6 +14,10 @@ class LogEvent:
     module: str
     outcome: str
     duration_ms: int
+    actor_user_id: str = ""
+    target_kind: str = ""
+    target_id: str = ""
+    audit: bool = False
 
-    def fields(self) -> dict[str, str | int]:
+    def fields(self) -> dict[str, str | int | bool]:
         return asdict(self)
