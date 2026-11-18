@@ -8,6 +8,13 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from backend.bootstrap.synthetic import ACTOR_TEACHER_ID, SYNTH_SECRET  # noqa: E402
 
 
 def main() -> int:
@@ -56,7 +63,7 @@ def main() -> int:
 
 
 def _login(base: str) -> str:
-    body = _json(_open(base + "/api/login", {"username": "teacher-synth", "secret": "synth-pass1"}))
+    body = _json(_open(base + "/api/login", {"username": ACTOR_TEACHER_ID, "secret": SYNTH_SECRET}))
     token = body.get("csrf_token")
     if not isinstance(token, str) or not token:
         print("SMOKE HTTP FAIL: login did not return a csrf token")
