@@ -12,7 +12,9 @@ INVALID_CREDENTIALS = "invalid_credentials"
 ACCOUNT_LOCKED = "account_locked"
 IP_THROTTLED = "ip_throttled"
 USERNAME_TAKEN = "username_taken"
-WEAK_PASSWORD = "weak_password"
+WEAK_PASSWORD = (
+    "weak_password"
+)
 NOT_FOUND = "not_found"
 PERMISSION_DENIED = "permission_denied"
 VALIDATION_FAILED = "validation_failed"
