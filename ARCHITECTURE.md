@@ -28,6 +28,8 @@
 | R5 | 确认和更正留痕。相同确认不写两份 | 并发冲突要提示。更正是新记录，不抹掉原建议 |
 | R6 | 学习记录按老师负责的学科和学生授权 | 未授权的请求拒绝。链接和二维码不授权 |
 
+实现点：HTTP 依赖 `require_actor`。practice 的 `Authorizer` 不变。未登录不是授权，先 401。已登录但没有该学生和学科的授权，用例仍拒绝。
+
 ## 进程
 
 ```mermaid
@@ -65,19 +67,20 @@ flowchart LR
 
 ## 依据
 
-方案 1.1 第 7 节已经选择模块化单体、端口和 R1–R6。本文件把那些选择写成可以检查的规则。Clean Architecture 的依赖方向用来约束 import。深模块用来决定切片，不按步骤切。日志字段按要能用请求 ID 排障来定，保留期限仍待定标。
+方案 1.1 第 7 节已经选择模块化单体、端口和 R1–R6。本文件把那些选择写成可以检查的规则。Clean Architecture 的依赖方向用来约束 import。深模块用来决定切片，不按步骤切。日志字段按要能用请求 ID 排障来定。运行日志和审计日志的保留天数见 ADR 0030。
 
 ## 目录
 
-第一段代码只创建 `catalog` 和 `practice`。这个名单写在 `scripts/check.conf` 的 `PHASE_SLICES`，默认就是这两项。非空环境变量 `PHASE_SLICES` 覆盖该行。放宽时先改本文件和执行计划，再改配置。其余切片等有代码再加目录，不预先铺空包。桌面壳不在第一段。`kernel` 和 `bootstrap` 始终允许，不写进这个名单。
+第一段代码创建了 `catalog` 和 `practice`。2026-11-18 起，`scripts/check.conf` 的 `PHASE_SLICES` 是 `catalog practice identity`。空白配置仍回落到 `catalog` 和 `practice`。非空环境变量 `PHASE_SLICES` 覆盖该行。放宽时先改本文件和执行计划，再改配置。`knowledge`、`analysis`、`delivery` 等有代码再加目录，不预先铺空包。桌面壳不在第一段。`kernel` 和 `bootstrap` 始终允许，不写进这个名单。登录和审计的计划见 [docs/exec-plans/active/identity-and-audit.md](docs/exec-plans/active/identity-and-audit.md)。
 
 ```text
 backend/kernel/                 LogEvent、Logger、Ok、Err
-backend/bootstrap/compose.py    组合根。装配内存适配器、合成 PDF 和健康正文
-backend/bootstrap/http_app.py   HTTP 入口。老师身份来自服务端合成上下文
+backend/bootstrap/compose.py    组合根。装配适配器、合成 PDF 和健康正文
+backend/bootstrap/http_app.py   HTTP 入口。操作者来自服务端会话
 backend/bootstrap/health.py     GET /health 正文。只有 status，不表示数据库就绪
 backend/catalog/                核准快照。内存适配器
-backend/practice/               出卷、确认和合成 PDF。内存适配器
+backend/identity/               登录、老师、学生和授权。内存适配器与 PostgreSQL
+backend/practice/               出卷、确认和合成 PDF。授权结果来自 Authorizer
 backend/<slice>/api.py          其他切片唯一可以导入的入口
 apps/web/                       React 页面。只调用 HTTP，不导入 backend
 apps/android/                   尚未创建
@@ -116,7 +119,7 @@ apps/android/                   尚未创建
 | F-10 | 单个 Python 文件超过 800 行 | 模块变浅 | `scripts/check_boundaries.py` |
 | F-11 | 组合根里写业务分支，或导入 domain | 规则出现第二份 | 导入 domain 由 `scripts/check_boundaries.py` 拒绝。业务分支仍是 review |
 | F-12 | 未确认 DEC-03 就调用真实模型处理学生卷 | 数据处理条件未知 | review。开发用假适配器。未落地 |
-| F-13 | 创建 `PHASE_SLICES` 以外的切片，或建立安卓工程、桌面壳、Electron。默认仍是 catalog 和 practice | 实现会摊开，低配电脑再带一个浏览器 | `scripts/check_boundaries.py` 读 `scripts/check.conf`。非空环境变量 `PHASE_SLICES` 覆盖该行 |
+| F-13 | 创建 `PHASE_SLICES` 以外的切片，或建立安卓工程、桌面壳、Electron。当前是 catalog、practice 和 identity | 实现会摊开，低配电脑再带一个浏览器 | `scripts/check_boundaries.py` 读 `scripts/check.conf`。非空环境变量 `PHASE_SLICES` 覆盖该行 |
 | F-14 | 网页或 App 的源码导入 backend | 规则会抄进界面 | `scripts/check_boundaries.py`。`apps/` 还不存在时这项空过，目录一出现就查 |
 
 ## 文件大小
@@ -135,7 +138,7 @@ apps/android/                   尚未创建
 
 谁看：开发者，以及机构指定的运行负责人。老师不使用原始日志来批改。
 
-在哪看：进程的标准输出。本地开发直接看终端。收集和存档由运行环境做，保留多久待定标（DEC-03）。
+在哪看：进程的标准输出。本地开发直接看终端。文件副本见下面的「日志双流」。审计不放在这条运行流里。
 
 core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEvent`。不 import `logging`、`structlog`、`loguru`。不用 `print`。
 
@@ -143,19 +146,31 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 
 请求 ID：HTTP 入口和工作进程入口生成。作为参数穿过用例和适配器。每条日志都带。不使用模块级可变的「当前请求」。
 
-要记的事件见 [docs/arch/logging.md](docs/arch/logging.md)。
+要记的事件见 [docs/arch/logging.md](docs/arch/logging.md)。其中包含 `login_succeeded`、`login_failed`、`session_revoked`、`admin_action_committed`、`audit_write_failed`、`log_rotation`。
 
 排查顺序：先按 request_id 过滤，再找第一条 ERROR，然后看它前面的 adapter_failed 或 adapter_completed。
 
-绝不记：密码、token、API key、session、连接串、密钥、银行卡、姓名、学号、整页或裁切后的学生照片、整段请求体、完整提示词。写入日志的外部文本先去掉换行。
+绝不记：密码、password_hash、token、API key、session、完整 session id、csrf_token、authorization、cookie、连接串、密钥、银行卡、姓名、学号、整页或裁切后的学生照片、整段请求体、完整提示词。写入日志的外部文本先去掉换行。审计流可以记 actor_user_id、target_kind、target_id、action 和 outcome，仍不记明文口令或完整会话标识。
 
 指标和链路追踪：未落地。
 
-机器检查：`python scripts/check_logging.py`。它要求本文包含 request_id、绝不记、四个级别和 stdout。kernel、domain、application 里禁止 print 和具体日志库。全部 backend 的 log 调用禁止明显敏感字段和 f-string。故意违规的样例不留在仓库里。证据见 `docs/evidence/G0-2026-11-14.md` 和 `docs/evidence/guardrails-2026-11-14.md`。
+机器检查：`python scripts/check_logging.py`。它要求本文包含 request_id、绝不记、四个级别和 stdout。kernel、domain、application 里禁止 print 和具体日志库。全部 backend 的 log 调用禁止明显敏感字段和 f-string，范围包含 `backend/identity` 和 `backend/bootstrap`。`audit=True` 的调用可以带 actor_user_id、target_kind 和 target_id。故意违规的样例不留在仓库里。证据见 `docs/evidence/G0-2026-11-14.md` 和 `docs/evidence/guardrails-2026-11-14.md`。
+
+## 日志双流
+
+运行日志和审计日志是两条流。`LogEvent.audit` 为 false 时进入运行 sink：标准输出始终打开，`K12_LOG_FILE=1` 时再写 JSON Lines 文件。为 true 时只进入审计 sink，写入 `audit_events`。
+
+运行日志默认保留 14 天（`K12_LOG_RETAIN_DAYS`）。审计默认保留 1825 天（`K12_AUDIT_RETAIN_DAYS`）。文件按日切分，单文件超过 50MB 再切，成功后写 `log_rotation`。审计写入失败时，运行流写 `audit_write_failed`，原事件追加到 `./var/log/k12/audit-fallback.jsonl`。不吞掉这个错误。
+
+业务层不选择文件或数据库。组合根注入 `CompositeLogger`。细节见 ADR 0030。
+
+## 数据连接管理
+
+测试和合成使用内存适配器。真实数据使用 PostgreSQL。连接只在组合根创建。用例和 domain 不见 `psycopg`。池是 `psycopg_pool.ConnectionPool`，大小来自 `K12_PG_POOL_MIN` 和 `K12_PG_POOL_MAX`。一个用例一个事务。跨切片不共享事务。失败返回 `Err`，不把业务拒绝抛成异常。`K12_PG_DSN` 为空时不连接数据库。有值但连不上时，标准输出一条 ERROR，进程以非 0 退出。见 ADR 0028 和 ADR 0029。
 
 ## 健康检查与错误上报
 
-`GET /health` 由 HTTP 入口返回 `health_report()`。正文只有 `status`。`ok` 只说明进程应答了，不说明数据库或模型已经就绪。这一段没有数据库。进程还在和依赖就绪是两件事。返回里没有密钥、连接串、姓名、学号或学生照片。错误上报的最小字段和样例在 [docs/observability.md](docs/observability.md)。对外发布前的关口见下面的 G3。本机合成进程上的一次请求不代替对外可访问，也不代替错误上报接收接口。
+`GET /health` 由 HTTP 入口返回 `health_report()`。正文只有 `status`。`ok` 只说明进程应答了，不说明数据库或模型已经就绪。进程还在和依赖就绪是两件事。返回里没有密钥、连接串、姓名、学号或学生照片。错误上报的最小字段和样例在 [docs/observability.md](docs/observability.md)。管理员只读接口 `GET /api/admin/errors` 返回近 24 小时的 ERROR，分页。webhook 由 `K12_ERROR_WEBHOOK_URL` 打开，默认空。对外发布前的关口见下面的 G3。本机合成进程上的一次请求不代替对外可访问，也不代替外部错误上报接收方。
 
 ## 测试
 
@@ -175,7 +190,7 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 | 条 | 规则 | 落在哪 | 运行时 |
 | --- | --- | --- | --- |
 | 1 | 校验在服务端。页面提示不能当作放行 | R1–R6，F-01 | 未实现 |
-| 2 | 每个请求检查权限，默认拒绝 | R6 | 未实现 |
+| 2 | 每个请求检查权限，默认拒绝 | R6 | HTTP 依赖 require_actor。Authorizer 仍在用例里拒绝未授权的学生和学科 |
 | 3 | 数据库查询参数化，用户输入不拼进 SQL | 选定数据库之后的适配器 | 未实现 |
 | 4 | 密钥不进前端、不进仓库、不进日志 | R-1，L-05 | 仓库扫描见证据文件。前端未实现 |
 | 5 | 按次计费的模型调用要有重试上限和费用上限 | ADR 0010。额度待定标 | 未实现 |
@@ -215,7 +230,7 @@ ASVS L1 自查是 SHOULD，还没做。
 | M-03 密钥形态 | `scripts/check` | 已接，并在 CI 里跑。远端 push protection 的原始记录见 `docs/evidence/G0-2026-11-14.md` |
 | M-04 日志 | `scripts/check_logging.py` | 已接。查 print、具体日志库、log 调用上的明显敏感字段和 f-string。内存路径上，日志输出失败不撤销已完成的写入，并留下只含允许字段的降级记录。合成 HTTP 的存储失败演练用同一个 `request_id` 对上 `use_case_failed` 和 `http_completed`。错误上报接收接口还没有 |
 | M-05 空 catch | `scripts/check` 与 `scripts/check.ps1` 同一项 | 已接 |
-| F-02、F-03、F-04、F-10、F-11 的 import、F-13、F-14 | `scripts/check_boundaries.py` | 已接进全量检查，含相对导入夹具。F-13 的业务切片来自 `PHASE_SLICES`，默认 catalog practice。pre-commit 的 `--fast` 不跑这项 |
+| F-02、F-03、F-04、F-10、F-11 的 import、F-13、F-14 | `scripts/check_boundaries.py` | 已接进全量检查，含相对导入夹具。F-13 的业务切片来自 `PHASE_SLICES`，当前 catalog practice identity。空白配置仍回落 catalog practice。pre-commit 的 `--fast` 不跑这项 |
 | F-01、F-05、F-06、F-11 的业务分支、F-12 | 无 | 未落地，标 review |
 | CI 的 `check` | `.github/workflows/ci.yml` | 已接。成功与否看 [Actions 的 check](https://github.com/wisdom-km/k12-qbank/actions)。过期的运行号不写在这里，历史运行留在 `docs/evidence/` |
 | main 分支保护 | GitHub 设置 | 规则已写上。当前设置以仓库的分支保护页为准，不在这里抄一份会过期的截图说明 |
