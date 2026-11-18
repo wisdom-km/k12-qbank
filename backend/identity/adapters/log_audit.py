@@ -24,6 +24,7 @@ class LogAudit:
         target_id: str,
         outcome: str,
         reason_code: str,
+        detail: str = "",
     ) -> None:
         self._logger.log(
             LogEvent(
@@ -41,5 +42,6 @@ class LogAudit:
                 reason_code=reason_code,
                 action=action,
                 audit=True,
+                detail=detail,
             )
         )

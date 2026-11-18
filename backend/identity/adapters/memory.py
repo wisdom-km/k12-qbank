@@ -39,6 +39,17 @@ class MemoryUsers:
         current = self._rows[user_id]
         self._rows[user_id] = replace(current, status=status, updated_at=at, disabled_at=disabled_at)
 
+    def count_active(self, role: str) -> int:
+        return sum(1 for user in self._rows.values() if user.role == role and user.status == "active")
+
+    def set_role(self, user_id: str, role: str, at: datetime) -> None:
+        current = self._rows[user_id]
+        self._rows[user_id] = replace(current, role=role, updated_at=at)
+
+    def set_must_change(self, user_id: str, value: bool, at: datetime) -> None:
+        current = self._rows[user_id]
+        self._rows[user_id] = replace(current, must_change_password=value, updated_at=at)
+
     def list_role(self, role: str) -> tuple[User, ...]:
         return tuple(user for user in self._rows.values() if user.role == role)
 
@@ -197,6 +208,7 @@ def _record(event: LogEvent) -> AuditRecord:
         target_id=event.target_id,
         reason_code=event.reason_code,
         outcome=event.outcome if event.outcome in {"ok", "err"} else "err",
+        detail_json=event.detail,
     )
 
 

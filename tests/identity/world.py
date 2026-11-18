@@ -80,7 +80,7 @@ def memory_world(idle: timedelta | None = None, absolute: timedelta | None = Non
     def audit_text() -> str:
         names = " ".join(event.event for event in db.audits.events)
         body = " ".join(
-            " ".join((row.action, row.outcome, row.reason_code, row.target_kind, row.target_id))
+            " ".join((row.action, row.outcome, row.reason_code, row.target_kind, row.target_id, row.detail_json))
             for row in db.audits.rows
         )
         return names + " " + body

@@ -207,10 +207,20 @@ def _grants(request: Request) -> JSONResponse:
 
 def _audit(request: Request, limit: int, offset: int, action: str, actor_user_id: str) -> JSONResponse:
     actor = request.state.actor
+    deps = request.app.state.deps
     result = run_use(
         request,
         lambda db: list_audit_events(
-            db, actor, limit=limit, offset=offset, action=action, actor_user_id=actor_user_id, since=None, until=None
+            db,
+            actor,
+            deps,
+            request.state.request_id,
+            limit=limit,
+            offset=offset,
+            action=action,
+            actor_user_id=actor_user_id,
+            since=None,
+            until=None,
         ),
     )
     if isinstance(result, Err):

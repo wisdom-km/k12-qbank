@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class MigrationFilesTest(unittest.TestCase):
     def test_v001_has_up_and_down(self) -> None:
         found = discover(ROOT)
-        self.assertEqual([item.version for item in found], ["V001", "V002"])
+        self.assertEqual([item.version for item in found], ["V001", "V002", "V003"])
         self.assertTrue(found[0].down.is_file())
         up = "\n".join(sql_statements(found[0].up.read_text(encoding="utf-8")))
         down = "\n".join(sql_statements(found[0].down.read_text(encoding="utf-8")))
@@ -34,6 +34,11 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertNotIn("CREATE TABLE answer_version", up2)
         self.assertNotIn("knowledge_point", up2)
         self.assertNotIn("schema_migrations", up2)
+        self.assertTrue(found[2].down.is_file())
+        up3 = found[2].up.read_text(encoding="utf-8")
+        down3 = found[2].down.read_text(encoding="utf-8")
+        self.assertIn("must_change_password", up3)
+        self.assertIn("DROP COLUMN must_change_password", down3)
 
     def test_domain_and_application_do_not_import_the_driver(self) -> None:
         base = ROOT / "backend" / "identity"

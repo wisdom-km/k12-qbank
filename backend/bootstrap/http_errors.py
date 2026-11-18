@@ -12,6 +12,7 @@ _STATUS = {
     "unauthenticated": 401,
     "permission_denied": 403,
     "csrf": 403,
+    "password_change_required": 403,
     "account_locked": 429,
     "ip_throttled": 429,
     "validation_failed": 400,

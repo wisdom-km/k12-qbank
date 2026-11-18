@@ -42,6 +42,12 @@ def can_archive(status: str) -> bool:
     return status == "active"
 
 
+def ensure_last_admin(active_after: int) -> str | None:
+    if active_after < 1:
+        return "last_admin"
+    return None
+
+
 def session_usable(revoked_at: datetime | None, expires_at: datetime, last_seen_at: datetime, now: datetime, idle: timedelta) -> bool:
     if revoked_at is not None or now >= expires_at:
         return False

@@ -21,6 +21,10 @@ class LogEvent:
     actor_role: str = ""
     reason_code: str = ""
     action: str = ""
+    detail: str = ""
 
     def fields(self) -> dict[str, str | int | bool]:
-        return asdict(self)
+        data = asdict(self)
+        if not data.get("detail"):
+            data.pop("detail", None)
+        return data
