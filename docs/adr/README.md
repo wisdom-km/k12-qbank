@@ -6,6 +6,8 @@
 
 2026-11-18 核对：0001 到 0031 都在下表。状态词与各文件开头的 `状态：` 一致。0009 和 0010 的状态行后面还有被取代的说明，正文未改。
 
+2026-11-18：0032 到 0039 已采纳。它们不改 0012、0013、0014、0015、0020、0021、0026、0028、0029、0030 的正文。0039 是 catalog 与 practice 的落库决定，迁移还没写。
+
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
 | [0001](0001-long-lived-tier.md) | 按长期项目做 | accepted | 全库 |
@@ -39,3 +41,11 @@
 | [0029](0029-sql-migrations.md) | 迁移 | accepted | identity |
 | [0030](0030-log-streams.md) | 运行日志和审计日志 | accepted | kernel |
 | [0031](0031-react-router.md) | 网页路由 | accepted | identity |
+| [0032](0032-run-mode.md) | 运行模式 | accepted | kernel |
+| [0033](0033-session-retention.md) | 会话和登录数据的清理 | accepted | identity |
+| [0034](0034-migration-lock.md) | 迁移并发安全 | accepted | kernel |
+| [0035](0035-health-ready.md) | 存活和就绪 | accepted | kernel |
+| [0036](0036-must-change-password.md) | 首个管理员必须改口令 | accepted | identity |
+| [0037](0037-read-audit.md) | 读审计 | accepted | identity |
+| [0038](0038-last-admin.md) | 至少一个活跃管理员 | accepted | identity |
+| [0039](0039-catalog-persistence.md) | catalog 与 practice 的首个持久适配器 | accepted | catalog, practice |
