@@ -1,12 +1,12 @@
 import { useEffect, useReducer, useRef } from "react";
-import { call } from "./api.js";
+import { call } from "./auth.js";
 import { attemptBlock, canHandOut, confirmReady, showConflictReload } from "./confirm_gate.js";
 import { createPaperActions } from "./paper_loop.js";
 import { initialPaperState, paperReducer } from "./paper_state.js";
 
 const REVIEW_VERSION_ID = "rev-1";
 
-export default function App() {
+export function TeacherPage() {
   const [state, dispatch] = useReducer(paperReducer, initialPaperState);
   const stateRef = useRef(state);
   stateRef.current = state;

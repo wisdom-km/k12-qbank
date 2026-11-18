@@ -58,7 +58,7 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | --- | --- |
 | Docs (PRD, architecture, rules, ADRs, gates) | Done |
 | Business code `catalog` / `practice` | On synthetic questions it refuses an unapproved issue, writes a one-page PDF, and confirms one answer by operation key |
-| Teaching service | Local synthetic HTTP now has a session. The default process does not connect. There is no public release. The login page is not built yet |
+| Teaching service | Local synthetic HTTP now has a session. The default process does not connect. There is no public release. The pages are `/login`, `/`, and `/admin` |
 | Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL connects and migrates when `K12_PG_DSN` is set |
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
 | Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. No database yet |
@@ -78,12 +78,13 @@ python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --
 
 The default access log is off. Structured logs that include `request_id` still go to stdout. This port is the same as the md-json-review check page. Do not start this server while that page is running. The two processes must not both listen on `127.0.0.1:8765`.
 
-Open `http://127.0.0.1:8765/`. The issue actor comes from the session cookie. The synthetic account is still `teacher-synth`. The login page is not built yet. The process reads `docs/fixtures/rational-number-min.json` and clears both approval flags. There is no separate load command. The second synthetic student, `student-synth-2`, is only in the server grant. It does not add a seventh fixture block.
+Open `http://127.0.0.1:8765/login`. A signed-out visit lands on the login page. After login, a teacher is at `/` and an admin is at `/admin`. The issue actor comes from the session cookie. The synthetic account is still `teacher-synth`. The process reads `docs/fixtures/rational-number-min.json` and clears both approval flags. There is no separate load command. The second synthetic student, `student-synth-2`, is only in the server grant. It does not add a seventh fixture block.
 
 When the site is already listening on port 8765, run `python scripts/smoke_http.py` in another window. To re-check:
 
 ```text
 python -W error::ResourceWarning -m unittest discover -s tests -v
+npm test --prefix apps/web
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 git diff --check
 ```

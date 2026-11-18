@@ -58,7 +58,7 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | --- | --- |
 | 文档（PRD、架构、规则、ADR、门禁） | 已完成 |
 | 业务代码 `catalog` / `practice` | 合成题目上可以拒绝未核准出卷，生成单页 PDF，并按操作键确认一条作答 |
-| 教学服务 | 本机合成 HTTP 已接上会话。默认不连库。还没有对外发布。登录页还没做 |
+| 教学服务 | 本机合成 HTTP 已接上会话。默认不连库。还没有对外发布。页面是 `/login`、`/` 和 `/admin` |
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 在 `K12_PG_DSN` 有值时连接并迁移 |
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
 | 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。内存保存。还不能出卷。数据库还没有 |
@@ -86,12 +86,13 @@ python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --
 
 默认访问日志已关闭。带 `request_id` 的结构化日志仍打在标准输出。这个端口和核对页 md-json-review 相同。核对页开着时不要启动本服务。两个进程不要同时听 `127.0.0.1:8765`。
 
-浏览器打开 `http://127.0.0.1:8765/`。出卷老师来自会话 cookie。合成账号仍是 `teacher-synth`。登录页还没做。启动进程会读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
+浏览器打开 `http://127.0.0.1:8765/login`。未登录会到登录页。登录后老师在 `/`，管理员在 `/admin`。出卷老师来自会话 cookie。合成账号仍是 `teacher-synth`。启动进程会读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
 
 服务已经在 8765 端口时，另开一个窗口执行 `python scripts/smoke_http.py`。复验：
 
 ```text
 python -W error::ResourceWarning -m unittest discover -s tests -v
+npm test --prefix apps/web
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 git diff --check
 ```

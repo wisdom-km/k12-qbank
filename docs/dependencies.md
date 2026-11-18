@@ -4,6 +4,8 @@
 
 2026-11-18 增加构建期的 `openapi-typescript`。再加包时，同一改动里要有 ADR，许可证要在 MIT、BSD、Apache-2.0 里。见 ADR 0023。
 
+2026-11-18 增加页面路由 `react-router-dom`。四个页面测试使用 `vitest` 和 `jsdom`，二者不进页面运行，也不进 Python 进程。见 ADR 0031。
+
 名单以外的许可证标为待人审。这项决定不挡住其余合成路径上的修复。
 
 ## 运行依赖
@@ -47,6 +49,9 @@
 | vite | 6.4.6 | 构建 | MIT |
 | @vitejs/plugin-react | 4.7.0 | 构建 | MIT |
 | openapi-typescript | 7.13.0 | 生成 `apps/web/src/api.types.ts`。只在检查时用，不进页面运行 | MIT |
+| react-router-dom | 7.18.5 | 页面路由 `/login`、`/`、`/admin`。见 ADR 0031 | MIT |
+| vitest | 5.1.1 | 四个页面测试。不进页面运行 | MIT |
+| jsdom | 29.1.1 | 页面测试的浏览器环境。不进页面运行 | MIT |
 
 没有加入 reportlab 或 WeasyPrint。合成 PDF 仍由标准库写成一页 Helvetica，字体编码是 WinAnsi。中文用本机楷体、微软雅黑或黑体，见 ADR 0024。字体文件不进仓库。
 

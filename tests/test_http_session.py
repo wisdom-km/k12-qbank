@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import re
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from fastapi.testclient import TestClient
@@ -82,3 +84,23 @@ class HttpSessionTest(unittest.TestCase):
             with self.assertRaises(SystemExit) as caught:
                 create_app(persist=True, seed=False)
         self.assertEqual(caught.exception.code, 1)
+
+    def test_spa_paths_serve_index_and_stay_out_of_openapi(self) -> None:
+        index = Path(__file__).resolve().parents[1] / "apps" / "web" / "dist" / "index.html"
+        if not index.is_file():
+            self.skipTest("apps/web/dist is produced by npm run build")
+        app = create_app(seed=False, openapi=True)
+        with TestClient(app) as client:
+            for path in ("/", "/login", "/admin"):
+                page = client.get(path)
+                self.assertEqual(page.status_code, 200, path)
+                self.assertIn('id="root"', page.text)
+            script = re.search(r'src="([^"]+)"', client.get("/login").text)
+            self.assertIsNotNone(script)
+            asset = client.get(script.group(1))
+            self.assertEqual(asset.status_code, 200)
+            self.assertEqual(client.get("/api/session").status_code, 401)
+        paths = app.openapi()["paths"]
+        self.assertNotIn("/", paths)
+        self.assertNotIn("/login", paths)
+        self.assertNotIn("/admin", paths)

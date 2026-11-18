@@ -44,6 +44,9 @@ jobs:
       - name: scripts/check (installs from the lockfile, then runs every machine check)
         run: bash scripts/check --ci
 
+      - name: Page tests
+        run: npm test --prefix apps/web
+
   review-import:
     name: review-import
     runs-on: ubuntu-latest
