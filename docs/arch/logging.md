@@ -21,3 +21,9 @@
 | log_failed | ERROR | 日志适配器 | 原来的 request_id。输出失败时留下这一条，不撤销已经完成的写入 |
 | auth_denied | WARN | identity | 操作者标识、学生标识 |
 | app_started / app_stopped | INFO | 组合根 | 无个人数据 |
+| login_succeeded | INFO | identity | 操作者标识。不记口令，不记完整会话标识 |
+| login_failed | WARN | identity | 错误码。不记用户名原文，不记口令 |
+| session_revoked | INFO | identity | 操作者标识。不记完整会话标识 |
+| admin_action_committed | INFO | identity | audit=true 时进入审计流。action、target_kind、target_id、outcome |
+| audit_write_failed | ERROR | 审计 sink | 原来的 request_id。原事件另写入回退文件 |
+| log_rotation | INFO | 文件 sink | 新文件的日期分段。不记日志正文 |

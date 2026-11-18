@@ -81,7 +81,7 @@ class PhaseScopeTest(unittest.TestCase):
     def test_default_check_passes(self) -> None:
         result = self._run_check(None)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("phase scope (catalog practice, from check.conf)", result.stdout)
+        self.assertIn("phase scope (catalog identity practice, from check.conf)", result.stdout)
 
     def test_narrow_env_refuses_practice(self) -> None:
         result = self._run_check("catalog")

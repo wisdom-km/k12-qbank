@@ -20,14 +20,14 @@
 
 ## 首批不做
 
-学生在线作答，学生账号，家长账号，家长周报和月报，知识卡编辑与打印，可编辑 PPT，iOS，用手机浏览器代替安卓 App，跨机构，统一能力分，向量数据库，微服务，离线批改，以及平时绕过核验直接出卷。
+学生在线作答，学生账号，家长账号，家长周报和月报，知识卡编辑与打印，可编辑 PPT，iOS，用手机浏览器代替安卓 App，跨机构，统一能力分，向量数据库，微服务，离线批改，平时绕过核验直接出卷，JWT、SSO、密码找回、双因素认证、自助注册，以及 SQLite 过渡。
 
 ## 现在的开发顺序
 
 产品试用时，网页和安卓都要走完。写代码的顺序更窄：
 
 1. 服务端先守住出卷和老师确认。
-2. 第一段只做浏览器里的核验、出卷和确认。目录只建 `catalog` 和 `practice`。允许的切片写在 `scripts/check.conf` 的 `PHASE_SLICES`，默认就是这两项。
+2. 第一段先做浏览器里的核验、出卷和确认，目录有 `catalog` 和 `practice`。2026-11-18 起 `PHASE_SLICES` 加上 `identity`，见 [docs/exec-plans/active/identity-and-audit.md](docs/exec-plans/active/identity-and-audit.md)。空白配置仍回落前两项。
 3. 安卓拍照、上传和缺页排在这段之后。
 4. 桌面安装壳更后。等老师这台电脑上，网页已经能核验、能打开带公式的 PDF。优先试 Tauri 2 的稳定版。Electron 不是退路。
 
@@ -70,7 +70,15 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 
 安装：Python 见 `.python-version`（3.12）。先执行 `python -m pip install -r requirements.txt`，再执行 `npm ci --prefix apps/web` 和 `npm run build --prefix apps/web`。密钥扫描另需本机 PATH 里的 gitleaks。配置见 `.env.example`，复制成 `.env` 后只留在本机。合成 HTTP 的日志在该进程的标准输出里。
 
-启动本机合成站点（不启动数据库）：
+本地起库（只给本机。口令不是生产口令）：
+
+```text
+docker compose -f docker/compose.yml up -d
+```
+
+不设置 `K12_PG_DSN` 时，合成站点和测试仍用内存。设置后进程才会连接 PostgreSQL。变量见 `.env.example`。`K12_BOOTSTRAP_ADMIN_USERNAME` 和 `K12_BOOTSTRAP_ADMIN_PASSWORD` 首启后清空。
+
+启动本机合成站点（不设置 `K12_PG_DSN` 时不连接数据库）：
 
 ```text
 python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --no-access-log

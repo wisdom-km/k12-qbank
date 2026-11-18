@@ -2,7 +2,7 @@
 
 状态只用三个词：`proposed`、`accepted`、`superseded`。每条 ADR 开头有同样的状态行。正文里的日期和原句不改。
 
-没有整条被取代。ADR 0010 仍是 `proposed`，其中后端语言、网页框架和关系数据库产品已被 ADR 0012 取代。ADR 0009 仍是 `accepted`，其中数据库产品的候选已被 ADR 0012 取代。ADR 0022 仍是 `proposed`。其中「等人决定字体」已由 ADR 0024 采纳。不改 0022 正文。
+没有整条被取代。ADR 0010 仍是 `proposed`，其中后端语言、网页框架和关系数据库产品已被 ADR 0012 取代。ADR 0009 仍是 `accepted`，其中数据库产品的候选已被 ADR 0012 取代。ADR 0022 仍是 `proposed`。其中「等人决定字体」已由 ADR 0024 采纳。不改 0022 正文。ADR 0008 仍是 `accepted`，运行日志仍打到标准输出；文件和审计流由 ADR 0030 增加，不改 0008 正文。ADR 0019 仍是 `accepted`。ADR 0028 确认不做 SQLite，并把第一次真实写入定为 identity 和审计。不改 0019 正文。
 
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
@@ -30,3 +30,10 @@
 | [0022](0022-cjk-font-license.md) | 中文字体许可证 | proposed | practice |
 | [0023](0023-openapi-types.md) | 用 OpenAPI 生成网页类型 | accepted | practice |
 | [0024](0024-system-kaiti.md) | 中文用本机楷体 | accepted | practice |
+| [0025](0025-roles-and-session.md) | 角色和会话 | accepted | identity |
+| [0026](0026-bootstrap-admin.md) | 首个管理员 | accepted | identity |
+| [0027](0027-argon2id.md) | 口令哈希 | accepted | identity |
+| [0028](0028-postgres-and-memory.md) | 内存和 PostgreSQL | accepted | identity, kernel |
+| [0029](0029-sql-migrations.md) | 迁移 | accepted | identity |
+| [0030](0030-log-streams.md) | 运行日志和审计日志 | accepted | kernel |
+| [0031](0031-react-router.md) | 网页路由 | accepted | identity |
