@@ -18,9 +18,9 @@ from backend.identity.application.login import load_session, login, logout
 from backend.identity.application.passwords import change_own_password, reset_teacher_password
 from backend.identity.application.queries import list_audit_events, list_recent_errors
 from backend.identity.application.students import archive_student, create_student, list_students
-from backend.identity.application.teachers import create_teacher, disable_teacher, list_teachers
+from backend.identity.application.teachers import create_teacher, disable_teacher, enable_teacher, list_teachers
 from backend.identity.domain.digest import digest
-from backend.identity.domain.records import Grant
+from backend.identity.domain.records import Grant, Session
 from backend.kernel.result import Err, Ok
 _WORLD_PATH = Path(__file__).with_name("world.py")
 _SPEC = importlib.util.spec_from_file_location("k12_identity_world", _WORLD_PATH)
@@ -171,6 +171,92 @@ class IdentityCases:
         self.world.run(lambda db: reset_teacher_password(db, admin, teacher.user_id, TEACH_SECRET, self.world.deps, "reset"))  # type: ignore[attr-defined]
         self.assertIsInstance(self._login("teacher.one", TEACH_SECRET), Ok)
 
+    def test_revoke_skips_expired_and_already_revoked(self) -> None:
+        admin = self.boot()
+        teacher = self._teacher(admin, "teacher.one").value
+        now = self.world.clock.now()
+        user_id = teacher.user_id  # type: ignore[attr-defined]
+        self._put_session("live-1", user_id, expires_at=now + timedelta(hours=2))
+        self._put_session("old-exp", user_id, expires_at=now - timedelta(minutes=1))
+        earlier = now - timedelta(days=1)
+        self._put_session("gone-1", user_id, expires_at=now + timedelta(hours=2), revoked_at=earlier)
+        result = self.world.run(lambda db: disable_teacher(db, admin, user_id, self.world.deps, "off"))
+        self.assertIsInstance(result, Ok)
+        self.assertIsNotNone(self._session("live-1").revoked_at)  # type: ignore[attr-defined]
+        self.assertIsNone(self._session("old-exp").revoked_at)  # type: ignore[attr-defined]
+        self.assertEqual(self._session("gone-1").revoked_at, earlier)  # type: ignore[attr-defined]
+        self.assertEqual(self._revoked_counts()[-1], "1")
+        text = self.world.audit_text()
+        self.assertIn("session_revoked", text)
+        self.assertNotIn("session_revoked 1", text)
+        self.assertNotIn("live-1", text)
+        self.assertNotIn("old-exp", text)
+        self.assertNotIn("gone-1", text)
+
+    def test_enable_revokes_a_session_planted_while_disabled(self) -> None:
+        admin = self.boot()
+        teacher = self._teacher(admin, "teacher.one").value
+        user_id = teacher.user_id  # type: ignore[attr-defined]
+        self.world.run(lambda db: disable_teacher(db, admin, user_id, self.world.deps, "off"))
+        now = self.world.clock.now()
+        self._put_session("while-off", user_id, expires_at=now + timedelta(hours=2))
+        enabled = self.world.run(lambda db: enable_teacher(db, admin, user_id, self.world.deps, "on"))
+        self.assertIsInstance(enabled, Ok)
+        self.assertEqual(enabled.value.status, "active")  # type: ignore[attr-defined]
+        self.assertIsNotNone(self._session("while-off").revoked_at)  # type: ignore[attr-defined]
+        self.assertEqual(self._revoked_counts()[-1], "1")
+        self._put_session("still-on", user_id, expires_at=now + timedelta(hours=3))
+        again = self.world.run(lambda db: enable_teacher(db, admin, user_id, self.world.deps, "on2"))
+        self.assertIsInstance(again, Err)
+        self.assertEqual(again.code, "validation_failed")
+        self.assertIsNone(self._session("still-on").revoked_at)  # type: ignore[attr-defined]
+
+    def test_failed_paths_do_not_revoke(self) -> None:
+        admin = self.boot()
+        teacher = self._teacher(admin, "teacher.one").value
+        user_id = teacher.user_id  # type: ignore[attr-defined]
+        signed = self._login("teacher.one", TEACH_SECRET)
+        actor = Actor(user_id, "teacher", teacher.username)  # type: ignore[attr-defined]
+        denied = self.world.run(lambda db: disable_teacher(db, actor, user_id, self.world.deps, "no"))
+        self.assertEqual(denied.code, "permission_denied")
+        weak = self.world.run(
+            lambda db: reset_teacher_password(db, admin, user_id, "short", self.world.deps, "weak")
+        )
+        self.assertEqual(weak.code, "weak_password")
+        missing = self.world.run(
+            lambda db: reset_teacher_password(db, admin, "missing-user", NEXT_SECRET, self.world.deps, "miss")
+        )
+        self.assertEqual(missing.code, "not_found")
+        loaded = self.world.run(lambda db: Ok(load_session(db, signed.value.session_id, self.world.deps)))  # type: ignore[attr-defined]
+        self.assertIsNotNone(loaded.value)
+        self.world.run(lambda db: disable_teacher(db, admin, user_id, self.world.deps, "off"))
+        now = self.world.clock.now()
+        self._put_session("stay-1", user_id, expires_at=now + timedelta(hours=2))
+        again = self.world.run(lambda db: disable_teacher(db, admin, user_id, self.world.deps, "off2"))
+        self.assertEqual(again.code, "validation_failed")
+        self.assertIsNone(self._session("stay-1").revoked_at)  # type: ignore[attr-defined]
+
+    def test_reset_revokes_and_change_own_does_not(self) -> None:
+        admin = self.boot()
+        teacher = self._teacher(admin, "teacher.one").value
+        user_id = teacher.user_id  # type: ignore[attr-defined]
+        actor = Actor(user_id, "teacher", teacher.username)  # type: ignore[attr-defined]
+        signed = self._login("teacher.one", TEACH_SECRET)
+        changed = self.world.run(
+            lambda db: change_own_password(db, actor, TEACH_SECRET, NEXT_SECRET, self.world.deps, "pw")
+        )
+        self.assertIsInstance(changed, Ok)
+        still = self.world.run(lambda db: Ok(load_session(db, signed.value.session_id, self.world.deps)))  # type: ignore[attr-defined]
+        self.assertIsNotNone(still.value)
+        reset = self.world.run(
+            lambda db: reset_teacher_password(db, admin, user_id, TEACH_SECRET, self.world.deps, "reset")
+        )
+        self.assertIsInstance(reset, Ok)
+        gone = self.world.run(lambda db: Ok(load_session(db, signed.value.session_id, self.world.deps)))  # type: ignore[attr-defined]
+        self.assertIsNone(gone.value)
+        self.assertEqual(self._revoked_counts()[-1], "1")
+        self.assertIsInstance(self._login("teacher.one", TEACH_SECRET), Ok)
+
     def test_archive_removes_the_grant(self) -> None:
         admin = self.boot()
         teacher = self._teacher(admin, "teacher.one").value
@@ -291,6 +377,44 @@ class IdentityCases:
     def _allow(self, teacher_id: str, student_id: str) -> bool:
         result = self.world.run(lambda db: Ok(GrantAuthorizer(db.grants).allow(teacher_id, student_id, "math")))  # type: ignore[attr-defined]
         return bool(result.value)
+
+    def _put_session(
+        self,
+        session_id: str,
+        user_id: str,
+        *,
+        expires_at: object,
+        revoked_at: object | None = None,
+    ) -> None:
+        now = self.world.clock.now()
+        row = Session(
+            session_id=session_id,
+            user_id=user_id,
+            csrf_token="csrf-test",
+            issued_at=now,
+            last_seen_at=now,
+            expires_at=expires_at,  # type: ignore[arg-type]
+            revoked_at=revoked_at,  # type: ignore[arg-type]
+        )
+
+        def work(db: object) -> Ok[None]:
+            db.sessions.put(row)  # type: ignore[attr-defined]
+            return Ok(None)
+
+        self.world.run(work)
+
+    def _session(self, session_id: str) -> object:
+        found: dict[str, object] = {}
+
+        def work(db: object) -> Ok[object]:
+            found["row"] = db.sessions.get(session_id)  # type: ignore[attr-defined]
+            return Ok(found["row"])
+
+        self.world.run(work)
+        return found["row"]
+
+    def _revoked_counts(self) -> list[str]:
+        return [event.outcome for event in self.world.runtime.events if event.event == "session_revoked"]
 
 class MemoryContractTest(IdentityCases, unittest.TestCase):
     def setUp(self) -> None:

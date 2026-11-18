@@ -192,6 +192,17 @@ class PgSessions:
             (at, user_id),
         )
 
+    def revoke_unexpired(self, user_id: str, at: datetime) -> int:
+        cursor = self._conn.execute(
+            """
+            UPDATE sessions
+            SET revoked_at = %s
+            WHERE user_id = %s AND revoked_at IS NULL AND expires_at > %s
+            """,
+            (at, user_id, at),
+        )
+        return int(cursor.rowcount)
+
     def touch(self, session_id: str, at: datetime) -> None:
         self._conn.execute(
             "UPDATE sessions SET last_seen_at = %s WHERE session_id = %s",
@@ -311,22 +322,6 @@ class PgDb:
         self.sessions = PgSessions(conn)
         self.attempts = PgAttempts(pool)
         self.audits = PgAudits(conn)
-
-
-def purge_expired(dsn: str, audit_before: datetime, attempts_before: datetime) -> tuple[int, int]:
-    import psycopg
-
-    with psycopg.connect(dsn, autocommit=True) as conn:
-        with conn.transaction():
-            audit_rows = conn.execute(
-                "DELETE FROM audit_events WHERE occurred_at < %s",
-                (audit_before,),
-            ).rowcount
-            attempt_rows = conn.execute(
-                "DELETE FROM login_attempts WHERE attempted_at < %s",
-                (attempts_before,),
-            ).rowcount
-    return int(audit_rows), int(attempt_rows)
 
 
 def _write(conn: Any, statement: str, params: tuple[object, ...]) -> None:

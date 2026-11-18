@@ -1,4 +1,4 @@
-"""Delete expired runtime files, audit rows, and login attempts."""
+"""Delete expired runtime files, sessions, audit rows, and login attempts."""
 
 from __future__ import annotations
 
@@ -11,32 +11,26 @@ from backend.kernel.logger import Logger
 from backend.kernel.use_log import emit
 
 
-def sweep(directory: Path, log_days: int, audit_days: int, dsn: str, logger: Logger) -> int:
+def sweep(
+    directory: Path,
+    log_days: int,
+    audit_days: int,
+    dsn: str,
+    logger: Logger,
+    *,
+    session_days: int = 30,
+    attempt_days: int = 30,
+) -> int:
     started = time.perf_counter()
     try:
         removed = FileLog(directory, retain_days=log_days).purge()
-        if dsn.strip():
-            _purge_rows(dsn.strip(), log_days, audit_days)
+        counts = _purge_rows(dsn.strip(), audit_days, session_days, attempt_days) if dsn.strip() else ()
     except Exception:
-        emit(
-            logger,
-            level="ERROR",
-            event="log_retention_swept",
-            request_id="retention",
-            module="retention",
-            outcome="err",
-            started=started,
-        )
+        _swept(logger, started, "ERROR", "err")
         raise
-    emit(
-        logger,
-        level="INFO",
-        event="log_retention_swept",
-        request_id="retention",
-        module="retention",
-        outcome="ok",
-        started=started,
-    )
+    for count in counts:
+        _swept(logger, started, "INFO", str(count))
+    _swept(logger, started, "INFO", "ok")
     return removed
 
 
@@ -52,8 +46,26 @@ def days_of(raw: str | None, default: int) -> int:
     return value
 
 
-def _purge_rows(dsn: str, log_days: int, audit_days: int) -> None:
-    from backend.identity.adapters.pg_store import purge_expired
+def _swept(logger: Logger, started: float, level: str, outcome: str) -> None:
+    emit(
+        logger,
+        level=level,
+        event="log_retention_swept",
+        request_id="retention",
+        module="retention",
+        outcome=outcome,
+        started=started,
+    )
+
+
+def _purge_rows(dsn: str, audit_days: int, session_days: int, attempt_days: int) -> tuple[int, int, int]:
+    from backend.identity.adapters.pg_retention import retain_rows
 
     now = datetime.now(timezone.utc)
-    purge_expired(dsn, now - timedelta(days=audit_days), now - timedelta(days=log_days))
+    return retain_rows(
+        dsn,
+        now=now,
+        audit_before=now - timedelta(days=audit_days),
+        session_before=now - timedelta(days=session_days),
+        attempt_before=now - timedelta(days=attempt_days),
+    )

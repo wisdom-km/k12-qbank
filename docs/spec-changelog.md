@@ -46,5 +46,6 @@
 | 2026-11-18 | ADR 0032 到 0039：运行模式、会话清理、迁移锁、存活与就绪、首次改口令、读审计、最后一名管理员、catalog 与 practice 落库。README 两处改为 identity 与审计已在 PostgreSQL。AC-01 到 AC-09 的句子不改。表和代码还没写。 | 用户要求 C0 只写决定。不改已有 ADR 正文。0039 不再另写第二条落库 ADR。 |
 | 2026-11-18 | `V002__catalog_practice.sql` 建 approvals、papers、paper_pages、attempts、confirmations、files。适配器是 `PgApprovals`、`PgPractice`、`PgFiles`。`K12_PG_DSN` 有值时组合根接上这三件。页字节在 `K12_FILE_DIR`。规范化题目表和答案表仍不建。 | 用户要求做 C1。不另写落库 ADR。实测见 `docs/evidence/catalog-practice-pg-2026-11-18.md`。 |
 | 2026-11-18 | `K12_ENV` 区分 development 与 production。`GET /health` 与 `GET /health/live` 仍只表示进程还在。`GET /health/ready` 检查数据库和迁移。同一 IP 每分钟超过 30 次返回 `ip_throttled`。migrate 的一次 up 或 down 在一个事务里持有咨询锁。 | 用户要求做 C2。不改 ADR 0032、0034、0035 正文。 |
+| 2026-11-18 | 过期会话先标吊销，满 `K12_SESSION_RETAIN_DAYS`（默认 30）再删。登录尝试按 `K12_LOGIN_ATTEMPT_RETAIN_DAYS`（默认 30）删除。停用、启用、重置口令的成功路径吊销尚未过期的会话。学情天数仍不写。 | 用户要求做 C3。不改 ADR 0033、0020、0030 正文。 |
 
 方案里的 DEC-01 到 DEC-06 仍是待机构确认。本仓库没有替机构填写这些决定。

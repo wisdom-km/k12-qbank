@@ -11,6 +11,7 @@ from backend.identity.application.grants import grant_teacher, list_grants, revo
 from backend.identity.application.passwords import reset_teacher_password
 from backend.identity.application.queries import list_audit_events
 from backend.identity.application.students import archive_student, create_student, list_students
+from backend.identity.application.sessions import revoke_all_sessions_for
 from backend.identity.application.teachers import (
     create_teacher,
     disable_teacher,
@@ -86,6 +87,10 @@ def register_admin(app: FastAPI) -> None:
     def grants_list(request: Request) -> JSONResponse:
         return _grants(request)
 
+    @app.post("/api/admin/users/{user_id}/sessions/revoke")
+    def user_sessions_revoke(user_id: str, request: Request) -> JSONResponse:
+        return _user_sessions_revoke(user_id, request)
+
     @app.get("/api/admin/audit")
     def audit(request: Request, limit: int = 50, offset: int = 0, action: str = "", actor_user_id: str = "") -> JSONResponse:
         return _audit(request, limit, offset, action, actor_user_id)
@@ -130,6 +135,18 @@ def _teacher_password(teacher_id: str, body: SecretBody, request: Request) -> JS
     if isinstance(result, Err):
         return error_response(request.state.request_id, result)
     return JSONResponse({"ok": True})
+
+
+def _user_sessions_revoke(user_id: str, request: Request) -> JSONResponse:
+    actor = request.state.actor
+    deps = request.app.state.deps
+    result = run_use(
+        request,
+        lambda db: revoke_all_sessions_for(db, actor, user_id, deps, request.state.request_id),
+    )
+    if isinstance(result, Err):
+        return error_response(request.state.request_id, result)
+    return JSONResponse({"revoked": result.value})
 
 
 def _student_create(body: StudentBody, request: Request) -> JSONResponse:

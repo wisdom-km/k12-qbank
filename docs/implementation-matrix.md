@@ -10,7 +10,7 @@ identity 与审计的迁移是 `backend/identity/migrations/V001__init.sql`。`K
 
 M-14：`GET /api/admin/errors` 只读近 24 小时的 ERROR。`K12_ERROR_WEBHOOK_URL` 为空时不向外发送。外部接收方仍未对接。
 
-2026-11-18：ADR 0032、0034、0035 的代码已接上。ADR 0033、0036、0037、0038 的代码还没写。ADR 0039 的六张表和适配器已接上。题目规范化表仍不建。`/health` 仍只表示进程还在。`/health/ready` 才检查数据库和迁移。
+2026-11-18：ADR 0032、0033、0034、0035 的代码已接上。ADR 0036、0037、0038 的代码还没写。ADR 0039 的六张表和适配器已接上。题目规范化表仍不建。`/health` 仍只表示进程还在。`/health/ready` 才检查数据库和迁移。
 
 契约测试指：每个端口一套测试，假适配器和真实适配器都跑。草稿形状的 schema 测试算 core 测试，不算这一列。identity 与审计的一次本机走查写在 `docs/evidence/identity-audit-2026-11-18.md`。catalog 与 practice 的一次本机走查写在 `docs/evidence/catalog-practice-pg-2026-11-18.md`。这两页都不是试用，也不是 AC-01。`test_http_loop` 是本机合成 HTTP，不是端到端。
 
@@ -20,7 +20,7 @@ M-14：`GET /api/admin/errors` 只读近 24 小时的 ERROR。`K12_ERROR_WEBHOOK
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | catalog | 题目草稿、答案草稿、核准写入 | `MemoryDrafts`、`MemoryAnswers`、`MemoryApprovals` | `PgApprovals`。连接由 `K12_PG_DSN` 注入 | `test_question_draft`、`test_import_draft`、`test_import_answer`、`test_contract_schema`、`test_review_import` | `test_catalog_practice_contract`。内存每次都跑。PostgreSQL 在 `K12_PG_DSN` 有值时跑同一套 | `docs/evidence/catalog-practice-pg-2026-11-18.md` | ADR 0013、0014、0017、0018、0039。0039 的运行表已接上。规范化题目表未建 |
 | knowledge | 文档里有查询知识点。代码里没有 | 无 | 无 | 无 | 未写 | 未写 | ADR 0015、0016。切片目录未建 |
-| identity | 会话、用户、学生、授权。practice 仍只通过 Authorizer 读授权结果 | `MemoryDb` | `PgDb`。连接由 `K12_PG_DSN` 注入 | `tests/identity` | 内存每次都跑。PostgreSQL 在 `K12_PG_DSN` 有值时跑同一套 | `docs/evidence/identity-audit-2026-11-18.md` | ADR 0025、0026、0027、0028、0029、0033、0034、0036、0038。0034 的咨询锁已接上。0033、0036、0038 代码未写 |
+| identity | 会话、用户、学生、授权。practice 仍只通过 Authorizer 读授权结果 | `MemoryDb` | `PgDb`。连接由 `K12_PG_DSN` 注入 | `tests/identity` | 内存每次都跑。PostgreSQL 在 `K12_PG_DSN` 有值时跑同一套 | `docs/evidence/identity-audit-2026-11-18.md` | ADR 0025、0026、0027、0028、0029、0033、0034、0036、0038。0033 的清理和 0034 的咨询锁已接上。0036、0038 代码未写 |
 | audit | 审计写入、审计查询、近期 ERROR | `MemoryAuditBook`、`ErrorRing` | `AuditPg` 写 `audit_events`。表在 identity 的 V001 | `test_audit_sink`、`tests/identity` | 内存每次都跑。PostgreSQL 与 identity 同一套 | 同上。webhook 仍空 | ADR 0030、0037。0037 已采纳，读审计未写。不是 ADR 0004 的第七个切片 |
 | practice | 练习存储、文件、单页渲染、授权 | `MemoryPractice`、`MemoryFiles`、`MemoryAuth`。`StdPdf` 是标准库渲染，不是存储。拉丁用 Helvetica，中文用本机楷体 | `PgPractice` / `PgFiles`。页字节在 `K12_FILE_DIR`。目录为空时字节仍在内存 | `test_core_loop`、`test_paper_status`、`test_confirm_rules`、`test_http_loop`、`test_m1_review`、`test_service_probe`、`test_kaiti_page` | `test_catalog_practice_contract`。内存每次都跑。PostgreSQL 在 `K12_PG_DSN` 有值时跑同一套 | `docs/evidence/catalog-practice-pg-2026-11-18.md` | ADR 0006、0015、0024、0039。0039 的运行表已接上。规范化练习册表未建 |
 | analysis | 作答分析、练习推荐、任务。只在架构文档 | 无 | 无 | 无 | 未写 | 未写 | ADR 0005、0016。切片目录未建 |

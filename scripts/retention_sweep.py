@@ -1,4 +1,4 @@
-"""Delete expired log files and audit rows. Reads K12_* from the environment."""
+"""Delete expired log files, sessions, and login attempts. Reads K12_* from the environment."""
 
 from __future__ import annotations
 
@@ -17,8 +17,18 @@ def main() -> int:
     directory = Path(os.environ.get("K12_LOG_DIR", "./var/log/k12"))
     log_days = days_of(os.environ.get("K12_LOG_RETAIN_DAYS"), 14)
     audit_days = days_of(os.environ.get("K12_AUDIT_RETAIN_DAYS"), 1825)
+    session_days = days_of(os.environ.get("K12_SESSION_RETAIN_DAYS"), 30)
+    attempt_days = days_of(os.environ.get("K12_LOGIN_ATTEMPT_RETAIN_DAYS"), 30)
     dsn = os.environ.get("K12_PG_DSN", "")
-    sweep(directory, log_days, audit_days, dsn, build_logger())
+    sweep(
+        directory,
+        log_days,
+        audit_days,
+        dsn,
+        build_logger(),
+        session_days=session_days,
+        attempt_days=attempt_days,
+    )
     return 0
 
 
