@@ -1,10 +1,10 @@
 # 健康检查与错误上报
 
-状态：本机合成 HTTP 有 `GET /health`。正文仍只有 `status`。没有数据库检查。错误上报接收接口还没有。对外可访问之前，不把 M-14 写成发布通过。
+状态：`GET /health` 与 `GET /health/live` 只表示进程还在。`GET /health/ready` 检查数据库和迁移，未就绪是 503。同一 IP 每分钟超过 30 次是 429，错误码 `ip_throttled`。错误上报接收接口还没有。对外可访问之前，不把 M-14 写成发布通过。
 
 ## 健康检查
 
-有服务端之后，HTTP 入口提供 `GET /health`。
+有服务端之后，HTTP 入口提供 `GET /health` 和 `GET /health/live`。两者等价。
 
 进程能应答时，正文只有：
 
@@ -14,9 +14,9 @@
 
 返回里不放密钥、连接串、数据库地址、学生标识、姓名或照片。
 
-`backend/bootstrap/health.py` 的 `health_report()` 返回这个固定状态。`GET /health` 原样返回它，不检查数据库。数据库出现之后，同一个接口再回答「必需依赖是否可连」。连不上就不是 `ok`。
+`backend/bootstrap/health.py` 的 `health_report()` 返回这个固定状态。`GET /health` 和 `GET /health/live` 原样返回它，不检查数据库。数据库和迁移是否齐，由 `GET /health/ready` 回答。就绪失败不改变存活结果。已有探针继续请求 `/health`。
 
-运行平台可以用这个接口决定要不要重启。返回里仍然不放内部细节。
+运行平台可以用存活接口决定要不要重启。返回里仍然不放内部细节。
 
 ## 错误上报
 

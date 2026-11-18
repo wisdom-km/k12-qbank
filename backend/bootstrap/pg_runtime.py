@@ -10,6 +10,7 @@ from typing import Iterator
 
 from backend.bootstrap.compose import FanLog, Loop, _loop, _runtime_sinks, make_deps
 from backend.bootstrap.error_ring import ErrorRing
+from backend.bootstrap.run_mode import require_file_dir
 from backend.bootstrap.stdout_log import StdoutLogger
 from backend.identity.adapters.authorizer import GrantAuthorizer, PoolGrantReader
 from backend.kernel.logger import CompositeLogger
@@ -17,6 +18,11 @@ from backend.kernel.use_log import emit
 
 
 def open_postgres() -> Loop:
+    require_file_dir(
+        os.environ.get("K12_ENV", ""),
+        os.environ.get("K12_FILE_DIR", ""),
+        StdoutLogger(),
+    )
     dsn = os.environ.get("K12_PG_DSN", "").strip()
     pool = _pool_or_exit(dsn)
     runtime = _runtime_sinks()

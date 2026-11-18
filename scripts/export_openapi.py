@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
+import io
 import json
 import sys
+from contextlib import redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from backend.bootstrap.http_app import create_app  # noqa: E402
-
 
 def schema_text() -> str:
-    app = create_app(seed=False, openapi=True)
+    """Return the schema only. The boot line stays on the server, not in this document."""
+    with redirect_stdout(io.StringIO()):
+        from backend.bootstrap.http_app import create_app
+
+        app = create_app(seed=False, openapi=True)
     return json.dumps(app.openapi(), ensure_ascii=False, indent=2) + "\n"
 
 
