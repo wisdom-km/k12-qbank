@@ -17,6 +17,7 @@ class User:
     created_at: datetime
     updated_at: datetime
     disabled_at: datetime | None = None
+    must_change_password: bool = False
 
 
 @dataclass(frozen=True)
@@ -66,3 +67,4 @@ class AuditRecord:
     target_id: str
     reason_code: str
     outcome: str
+    detail_json: str = ""

@@ -23,7 +23,9 @@ def change_own_password(db: object, actor: object, old_secret: str, new_secret: 
     if not password_ok(new_secret):
         note(deps, request_id, mark, action="change_own_password", actor=actor, target_kind="user", target_id=actor.user_id, outcome="err", reason_code="weak_password")
         return Err("weak_password", "weak_password")
-    db.users.update_password(user.user_id, deps.hasher.hash(new_secret), "argon2id", deps.clock.now())  # type: ignore[attr-defined]
+    now = deps.clock.now()
+    db.users.update_password(user.user_id, deps.hasher.hash(new_secret), "argon2id", now)  # type: ignore[attr-defined]
+    db.users.set_must_change(user.user_id, False, now)  # type: ignore[attr-defined]
     note(deps, request_id, mark, action="change_own_password", actor=actor, target_kind="user", target_id=user.user_id, outcome="ok")
     return Ok(None)
 

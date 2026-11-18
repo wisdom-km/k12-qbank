@@ -89,7 +89,7 @@ python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --
 
 默认访问日志已关闭。带 `request_id` 的结构化日志仍打在标准输出。这个端口和核对页 md-json-review 相同。核对页开着时不要启动本服务。两个进程不要同时听 `127.0.0.1:8765`。
 
-浏览器打开 `http://127.0.0.1:8765/login`。未登录会到登录页。登录后老师在 `/`，管理员在 `/admin`。出卷老师来自会话 cookie。停用、启用和重置口令会吊销尚未过期的会话。过期会话和登录尝试按保留天数清理。学情天数仍不写。合成账号仍是 `teacher-synth`。启动进程会读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
+浏览器打开 `http://127.0.0.1:8765/login`。未登录会到登录页。登录后老师在 `/`，管理员在 `/admin`。出卷老师来自会话 cookie。停用、启用和重置口令会吊销尚未过期的会话。过期会话和登录尝试按保留天数清理。学情天数仍不写。引导创建的管理员必须先改掉启动口令，才能调用其他接口。合成账号仍是 `teacher-synth`。启动进程会读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
 
 服务已经在 8765 端口时，另开一个窗口执行 `python scripts/smoke_http.py`。复验：
 

@@ -90,8 +90,10 @@ class IdentityCases:
             lambda db: list_teachers(db, teacher, self.world.deps, "r"),
             lambda db: list_students(db, teacher),
             lambda db: list_grants(db, teacher),
-            lambda db: list_audit_events(db, teacher, limit=10, offset=0, action="", actor_user_id="", since=None, until=None),
-            lambda db: list_recent_errors(teacher, _ring(self), self.world.deps, limit=10, offset=0),
+            lambda db: list_audit_events(
+                db, teacher, self.world.deps, "r", limit=10, offset=0, action="", actor_user_id="", since=None, until=None
+            ),
+            lambda db: list_recent_errors(teacher, _ring(self), self.world.deps, "r", limit=10, offset=0),
         )
         for call in calls:
             result = self.world.run(call)
@@ -334,12 +336,23 @@ class IdentityCases:
         admin = self.boot()
         listed = self.world.run(
             lambda db: list_audit_events(
-                db, admin, limit=10, offset=0, action="bootstrap_admin", actor_user_id="", since=None, until=None
+                db,
+                admin,
+                self.world.deps,
+                "read",
+                limit=10,
+                offset=0,
+                action="bootstrap_admin",
+                actor_user_id="",
+                since=None,
+                until=None,
             )
         )
         self.assertIsInstance(listed, Ok)
         self.assertGreaterEqual(listed.value[1], 1)  # type: ignore[index]
-        errors = self.world.run(lambda db: list_recent_errors(admin, _ring(self), self.world.deps, limit=10, offset=0))
+        errors = self.world.run(
+            lambda db: list_recent_errors(admin, _ring(self), self.world.deps, "errs", limit=10, offset=0)
+        )
         self.assertIsInstance(errors, Ok)
         self.assertEqual(errors.value[1], 1)  # type: ignore[index]
 

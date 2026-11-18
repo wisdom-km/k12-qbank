@@ -14,6 +14,11 @@ from backend.kernel.result import Err, Ok
 
 _WRITE = {"POST", "PUT", "PATCH", "DELETE"}
 _MAX_BODY = 1_048_576
+_WHILE_CHANGING = {
+    ("GET", "/api/session"),
+    ("POST", "/api/logout"),
+    ("POST", "/api/account/password"),
+}
 
 
 def gate(request: Request) -> JSONResponse | None:
@@ -28,11 +33,19 @@ def gate(request: Request) -> JSONResponse | None:
         return error_response(request.state.request_id, Err("store_failed", "the store failed"), status=500)
     if user is None or session is None:
         return error_response(request.state.request_id, Err("unauthenticated", "sign in"))
+    if _password_blocked(request, user):
+        return error_response(request.state.request_id, Err("password_change_required", "password_change_required"))
     if request.method in _WRITE and not _csrf_ok(request, session.csrf_token):
         return error_response(request.state.request_id, Err("csrf", "csrf"))
     request.state.actor = Actor(user.user_id, user.role, user.username)
     request.state.session = session
     return None
+
+
+def _password_blocked(request: Request, user: object) -> bool:
+    if not getattr(user, "must_change_password", False):
+        return False
+    return (request.method, request.url.path) not in _WHILE_CHANGING
 
 
 def _public(request: Request) -> bool:

@@ -30,6 +30,7 @@ def bootstrap_admin(db: object, username: str, secret: str, deps: Deps, request_
         password_algo="argon2id",
         created_at=now,
         updated_at=now,
+        must_change_password=True,
     )
     db.users.insert(user)  # type: ignore[attr-defined]
     note(deps, request_id, mark, action="bootstrap_admin", actor=None, target_kind="user", target_id=user.user_id, outcome="ok")

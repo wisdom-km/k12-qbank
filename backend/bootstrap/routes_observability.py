@@ -35,6 +35,7 @@ def register_observability(app: FastAPI) -> None:
             request.state.actor,
             request.app.state.errors,
             request.app.state.deps,
+            request.state.request_id,
             limit=limit,
             offset=offset,
         )

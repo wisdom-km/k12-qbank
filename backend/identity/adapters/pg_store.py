@@ -11,7 +11,7 @@ from backend.identity.application.conflict import Conflict
 from backend.identity.domain.records import AuditRecord, Grant, Session, Student, User
 
 _USER = """
-user_id, username, role, status, password_hash, password_algo, created_at, updated_at, disabled_at
+user_id, username, role, status, password_hash, password_algo, created_at, updated_at, disabled_at, must_change_password
 """
 _STUDENT = """
 student_id, name, grade, subject_id, status, created_by, created_at, updated_at
@@ -40,7 +40,7 @@ class PgUsers:
     def insert(self, user: User) -> None:
         _write(
             self._conn,
-            f"INSERT INTO users ({_USER}) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            f"INSERT INTO users ({_USER}) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 user.user_id,
                 user.username,
@@ -51,6 +51,7 @@ class PgUsers:
                 user.created_at,
                 user.updated_at,
                 user.disabled_at,
+                user.must_change_password,
             ),
         )
 
@@ -70,6 +71,21 @@ class PgUsers:
             UPDATE users SET status = %s, updated_at = %s, disabled_at = %s WHERE user_id = %s
             """,
             (status, at, disabled_at, user_id),
+        )
+
+    def count_active(self, role: str) -> int:
+        return _count(self._conn, "SELECT count(*) FROM users WHERE role = %s AND status = 'active'", (role,))
+
+    def set_role(self, user_id: str, role: str, at: datetime) -> None:
+        self._conn.execute(
+            "UPDATE users SET role = %s, updated_at = %s WHERE user_id = %s",
+            (role, at, user_id),
+        )
+
+    def set_must_change(self, user_id: str, value: bool, at: datetime) -> None:
+        self._conn.execute(
+            "UPDATE users SET must_change_password = %s, updated_at = %s WHERE user_id = %s",
+            (value, at, user_id),
         )
 
     def list_role(self, role: str) -> tuple[User, ...]:
@@ -375,6 +391,7 @@ def _user(row: tuple[object, ...]) -> User:
         created_at=row[6],  # type: ignore[arg-type]
         updated_at=row[7],  # type: ignore[arg-type]
         disabled_at=row[8],  # type: ignore[arg-type]
+        must_change_password=bool(row[9]),
     )
 
 

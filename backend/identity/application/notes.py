@@ -19,6 +19,7 @@ def note(
     target_id: str,
     outcome: str,
     reason_code: str = "",
+    detail: str = "",
 ) -> None:
     deps.audit.commit(
         request_id=request_id,
@@ -30,6 +31,7 @@ def note(
         target_id=target_id,
         outcome=outcome,
         reason_code=reason_code,
+        detail=detail,
     )
 
 

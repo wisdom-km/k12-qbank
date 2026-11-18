@@ -36,7 +36,7 @@ class AuditPg:
             raise RuntimeError("audit write failed and the fallback did not stick") from exc
 
     def _insert(self, event: LogEvent) -> None:
-        detail = json.dumps(
+        detail = event.detail or json.dumps(
             {"module": event.module, "level": event.level, "event": event.event},
             ensure_ascii=False,
         )

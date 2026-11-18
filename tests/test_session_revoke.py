@@ -12,6 +12,7 @@ from backend.bootstrap.http_app import create_app
 
 ADMIN_USER = "admin"
 ADMIN_SECRET = "admin-pass1"
+ADMIN_NEXT = "admin-pass2"
 TEACH_USER = "teacher.one"
 TEACH_SECRET = "teach-pass1"
 NEXT_SECRET = "new-pass123"
@@ -21,7 +22,7 @@ class SessionRevokeHttpTest(unittest.TestCase):
     def test_disable_and_reset_make_the_old_cookie_unauthorized(self) -> None:
         app = _app()
         with TestClient(app) as admin, TestClient(app) as teacher:
-            admin_token = _login(admin, ADMIN_USER, ADMIN_SECRET)
+            admin_token = _login_admin(admin)
             created = admin.post(
                 "/api/admin/teachers",
                 json={"username": TEACH_USER, "secret": TEACH_SECRET},
@@ -57,7 +58,7 @@ class SessionRevokeHttpTest(unittest.TestCase):
     def test_admin_can_revoke_their_own_session(self) -> None:
         app = _app()
         with TestClient(app) as admin, TestClient(app) as teacher:
-            admin_token = _login(admin, ADMIN_USER, ADMIN_SECRET)
+            admin_token = _login_admin(admin)
             admin_id = admin.get("/api/session").json()["user_id"]
             teacher_token = _login(teacher, _teacher_name(), _teacher_secret())
             refused = teacher.post(
@@ -98,6 +99,18 @@ def _app() -> object:
         },
     ):
         return create_app(seed=True)
+
+
+def _login_admin(client: TestClient) -> str:
+    token = _login(client, ADMIN_USER, ADMIN_SECRET)
+    changed = client.post(
+        "/api/account/password",
+        json={"old_secret": ADMIN_SECRET, "new_secret": ADMIN_NEXT},
+        headers={"X-K12-CSRF": token},
+    )
+    if changed.status_code != 200:
+        raise AssertionError(changed.text)
+    return token
 
 
 def _login(client: TestClient, username: str, secret: str) -> str:
