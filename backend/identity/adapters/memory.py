@@ -112,6 +112,17 @@ class MemorySessions:
             if session.user_id == user_id and session.revoked_at is None:
                 self._rows[session_id] = replace(session, revoked_at=at)
 
+    def revoke_unexpired(self, user_id: str, at: datetime) -> int:
+        count = 0
+        for session_id, session in list(self._rows.items()):
+            if session.user_id != user_id or session.revoked_at is not None:
+                continue
+            if session.expires_at <= at:
+                continue
+            self._rows[session_id] = replace(session, revoked_at=at)
+            count += 1
+        return count
+
     def touch(self, session_id: str, at: datetime) -> None:
         current = self._rows[session_id]
         self._rows[session_id] = replace(current, last_seen_at=at)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from backend.identity.application.deps import Deps
 from backend.identity.application.guard import admin_only, signed_in
 from backend.identity.application.notes import note, started
+from backend.identity.application.sessions import revoke_all_sessions_for
 from backend.identity.domain.rules import password_ok
 from backend.kernel.result import Err, Ok
 
@@ -41,5 +42,8 @@ def reset_teacher_password(db: object, actor: object, teacher_id: str, secret: s
         note(deps, request_id, mark, action="reset_teacher_password", actor=actor, target_kind="user", target_id=teacher_id, outcome="err", reason_code="not_found")
         return Err("not_found", "not_found")
     db.users.update_password(teacher_id, deps.hasher.hash(secret), "argon2id", deps.clock.now())  # type: ignore[attr-defined]
+    revoked = revoke_all_sessions_for(db, actor, teacher_id, deps, request_id)
+    if isinstance(revoked, Err):
+        return revoked
     note(deps, request_id, mark, action="reset_teacher_password", actor=actor, target_kind="user", target_id=teacher_id, outcome="ok")
     return Ok(None)

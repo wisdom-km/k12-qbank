@@ -8,6 +8,7 @@ from backend.identity.application.conflict import Conflict
 from backend.identity.application.deps import Deps
 from backend.identity.application.guard import admin_only
 from backend.identity.application.notes import note, started
+from backend.identity.application.sessions import revoke_all_sessions_for
 from backend.identity.domain.records import User
 from backend.identity.domain.rules import can_disable, can_enable, password_ok, username_ok
 from backend.kernel.result import Err, Ok
@@ -74,8 +75,9 @@ def _status(db: object, actor: object, teacher_id: str, status: str, deps: Deps,
     now = deps.clock.now()
     disabled_at = now if status == "disabled" else None
     db.users.set_status(teacher_id, status, now, disabled_at)  # type: ignore[attr-defined]
-    if status == "disabled":
-        db.sessions.revoke_user(teacher_id, now)  # type: ignore[attr-defined]
+    revoked = revoke_all_sessions_for(db, actor, teacher_id, deps, request_id)
+    if isinstance(revoked, Err):
+        return revoked
     saved = db.users.by_id(teacher_id)  # type: ignore[attr-defined]
     note(deps, request_id, mark, action=action, actor=actor, target_kind="user", target_id=teacher_id, outcome="ok")
     return Ok(saved)

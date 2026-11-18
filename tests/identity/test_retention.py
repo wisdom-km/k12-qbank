@@ -35,5 +35,17 @@ class RetentionSweepTest(unittest.TestCase):
             self.assertGreaterEqual(removed, 1)
             self.assertFalse(old.exists())
             self.assertTrue(recent.exists())
+            self.assertEqual([event.outcome for event in logger.events], ["ok"])
             self.assertEqual(logger.events[-1].event, "log_retention_swept")
-            self.assertEqual(logger.events[-1].outcome, "ok")
+
+    def test_row_counts_are_logged_before_the_ok_line(self) -> None:
+        from unittest import mock
+
+        with TemporaryDirectory() as tmp:
+            logger = ListLog()
+            with mock.patch("backend.bootstrap.retention._purge_rows", return_value=(2, 0, 4)):
+                sweep(Path(tmp), 14, 1825, "postgresql://example", logger, session_days=30, attempt_days=30)
+            outcomes = [event.outcome for event in logger.events]
+            self.assertEqual(outcomes, ["2", "0", "4", "ok"])
+            self.assertTrue(all(event.event == "log_retention_swept" for event in logger.events))
+            self.assertTrue(all(event.level == "INFO" for event in logger.events))
