@@ -2,7 +2,7 @@
 
 状态只用三个词：`proposed`、`accepted`、`superseded`。每条 ADR 开头有同样的状态行。正文里的日期和原句不改。
 
-没有整条被取代。ADR 0010 仍是 `proposed`，其中后端语言、网页框架和关系数据库产品已被 ADR 0012 取代。ADR 0009 仍是 `accepted`，其中数据库产品的候选已被 ADR 0012 取代。
+没有整条被取代。ADR 0010 仍是 `proposed`，其中后端语言、网页框架和关系数据库产品已被 ADR 0012 取代。ADR 0009 仍是 `accepted`，其中数据库产品的候选已被 ADR 0012 取代。ADR 0022 仍是 `proposed`。其中「等人决定字体」已由 ADR 0024 采纳。不改 0022 正文。
 
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
@@ -29,3 +29,4 @@
 | [0021](0021-integration-proof.md) | 真实阶段前要有一次集成验证 | accepted | catalog, practice |
 | [0022](0022-cjk-font-license.md) | 中文字体许可证 | proposed | practice |
 | [0023](0023-openapi-types.md) | 用 OpenAPI 生成网页类型 | accepted | practice |
+| [0024](0024-system-kaiti.md) | 中文用本机楷体 | accepted | practice |

@@ -47,7 +47,7 @@
 | 第一次连接 PostgreSQL | ADR 0012 的迁移规则。题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。发布、知识点和多题练习见 [docs/adr/0015-publication-and-practice.md](docs/adr/0015-publication-and-practice.md)。解题方法和错因见 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。有真实行要写时才建对应的表 |
 | 学情保留和删除 | [docs/adr/0020-learning-data-retention.md](docs/adr/0020-learning-data-retention.md)。不写天数。这一步不实现删除 |
 | 真实阶段前的集成验证 | [docs/adr/0021-integration-proof.md](docs/adr/0021-integration-proof.md)。PostgreSQL 适配器、文件存储和真实老师登录要同一次走完 AC-01、AC-02、AC-04。这一步不连接数据库 |
-| 中文字体 | [docs/adr/0022-cjk-font-license.md](docs/adr/0022-cjk-font-license.md)。需要人工决定。不加入 Noto，不改 `pdf_page.py` |
+| 中文字体 | [docs/adr/0022-cjk-font-license.md](docs/adr/0022-cjk-font-license.md) 记下 OFL 不在允许名单。[docs/adr/0024-system-kaiti.md](docs/adr/0024-system-kaiti.md) 采纳本机楷体。字体文件不进仓库 |
 | 网页 API 类型 | [docs/adr/0023-openapi-types.md](docs/adr/0023-openapi-types.md)。默认进程关闭 OpenAPI。类型由 `scripts/check_api_types.py` 核对 |
 
 ## 命令
