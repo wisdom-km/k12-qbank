@@ -219,6 +219,18 @@ class PgSessions:
         )
         return int(cursor.rowcount)
 
+    def list_unexpired(self, user_id: str, at: datetime) -> tuple[Session, ...]:
+        return _many(
+            self._conn,
+            f"""
+            SELECT {_SESSION} FROM sessions
+            WHERE user_id = %s AND revoked_at IS NULL AND expires_at > %s
+            ORDER BY last_seen_at DESC
+            """,
+            (user_id, at),
+            _session,
+        )
+
     def touch(self, session_id: str, at: datetime) -> None:
         self._conn.execute(
             "UPDATE sessions SET last_seen_at = %s WHERE session_id = %s",

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { bindUnauthenticated, loadSession, notePath } from "./auth.js";
+import { AccountPage } from "./account_page.jsx";
 import { AdminPage } from "./admin_page.jsx";
 import { LoginPage } from "./login_page.jsx";
 import { SessionBar } from "./session_bar.jsx";
@@ -21,6 +22,7 @@ export function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<Guard><TeacherPage /></Guard>} />
       <Route path="/admin" element={<Guard admin><AdminPage /></Guard>} />
+      <Route path="/account" element={<Guard><AccountPage /></Guard>} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

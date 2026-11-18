@@ -14,6 +14,7 @@ from backend.identity.api import LoginCommand
 from backend.identity.application.client_hash import client_hashes
 from backend.identity.application.login import login, logout
 from backend.identity.application.passwords import change_own_password
+from backend.identity.application.sessions import list_own_sessions
 from backend.identity.application.synthetic_seed import session_students
 from backend.kernel.result import Err, Ok
 
@@ -44,6 +45,10 @@ def register_session(app: FastAPI) -> None:
     @app.post("/api/account/password")
     def password(body: PasswordBody, request: Request) -> JSONResponse:
         return _password(body, request)
+
+    @app.get("/api/account/sessions")
+    def own_sessions(request: Request) -> JSONResponse:
+        return _own_sessions(request)
 
 
 def _sign_in(body: LoginBody, request: Request) -> JSONResponse:
@@ -99,6 +104,32 @@ def _current(request: Request) -> JSONResponse:
         return error_response(request.state.request_id, result)
     user, students = result.value  # type: ignore[misc]
     return JSONResponse(_session_body(user, session, students))
+
+
+def _own_sessions(request: Request) -> JSONResponse:
+    actor = request.state.actor
+    deps = request.app.state.deps
+    result = run_use(request, lambda db: list_own_sessions(db, actor, deps))
+    if isinstance(result, Err):
+        return error_response(request.state.request_id, result)
+    rows = [_public_session(row) for row in result.value]  # type: ignore[attr-defined]
+    return JSONResponse({"sessions": rows})
+
+
+def _public_session(row: object) -> dict[str, str]:
+    issued = row.issued_at  # type: ignore[attr-defined]
+    seen = row.last_seen_at  # type: ignore[attr-defined]
+    return {
+        "issued_at": issued.isoformat(),
+        "last_seen_at": seen.isoformat(),
+        "ip_hash_prefix": _hash_prefix(str(row.ip_hash)),  # type: ignore[attr-defined]
+    }
+
+
+def _hash_prefix(value: str) -> str:
+    if len(value) < 8:
+        return ""
+    return value[:8]
 
 
 def _password(body: PasswordBody, request: Request) -> JSONResponse:

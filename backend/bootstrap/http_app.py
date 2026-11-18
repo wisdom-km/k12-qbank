@@ -67,7 +67,7 @@ def _mount_web(app: FastAPI) -> None:
     def page() -> FileResponse:
         return FileResponse(index)
 
-    for path in ("/", "/login", "/admin"):
+    for path in ("/", "/login", "/admin", "/account"):
         app.add_api_route(path, page, methods=["GET"], include_in_schema=False)
 
 
@@ -135,6 +135,13 @@ def _request_id(header: str | None) -> str:
     return uuid.uuid4().hex
 
 
+_CSP = (
+    "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+)
+_PERMISSIONS = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+
+
 def _headers(response: object, request_id: str) -> None:
     headers = response.headers  # type: ignore[attr-defined]
     headers["X-Request-Id"] = request_id
@@ -142,6 +149,9 @@ def _headers(response: object, request_id: str) -> None:
     headers["X-Frame-Options"] = "DENY"
     headers["Referrer-Policy"] = "no-referrer"
     headers["Cache-Control"] = "no-store"
+    if os.environ.get("K12_SECURITY_HEADERS", "1") != "0":
+        headers["Content-Security-Policy"] = _CSP
+        headers["Permissions-Policy"] = _PERMISSIONS
 
 
 def _default_app() -> FastAPI:

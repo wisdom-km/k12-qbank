@@ -154,6 +154,8 @@ AC-01 到 AC-08 是试用能否开始给老师用的条件。出现未核验出�
 | 首个管理员首次改口令 | 已做。引导创建的管理员在改口令之前，其他接口返回 password_change_required。决定见 ADR 0036 |
 | 读审计 | 已做。每次成功读取审计或近期错误都写入 admin_read_committed，明细只有 limit、offset 和筛选字段名。决定见 ADR 0037 |
 | 至少一个活跃管理员 | 已做。disable_user 和 change_role 在活跃管理员会变成 0 时拒绝且不写。disable_teacher 对管理员仍返回 not_found。决定见 ADR 0038 |
+| 响应安全头 | 已做。每个响应默认带 Content-Security-Policy 和 Permissions-Policy。`K12_SECURITY_HEADERS=0` 关闭这两项 |
+| 改口令页与活跃会话 | 已做。`/account` 提交已有的改口令接口。管理页列出当前用户的活跃会话，并可一次吊销 |
 | 发布记录、知识点、练习册、多题练习的列 | 已写入 ADR 0015。表未建 |
 | 解题方法目录，以及错因只指向已有知识点和方法 | 已写入 ADR 0016。表未建。模型不新建目录行 |
 | 按知识点、章节、题型和难度检索，再由老师排序 | 未做。没有知识点标签的题不进这个检索 |
