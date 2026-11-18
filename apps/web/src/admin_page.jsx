@@ -9,23 +9,29 @@ export function AdminPage() {
   const [grants, setGrants] = useState([]);
   const [audit, setAudit] = useState([]);
   const [errors, setErrors] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [userId, setUserId] = useState("");
   const [form, setForm] = useState(EMPTY);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState(null);
 
   async function reload() {
-    const [teacherRows, studentRows, grantRows, auditRows, errorRows] = await Promise.all([
+    const [teacherRows, studentRows, grantRows, auditRows, errorRows, sessionRow, ownRows] = await Promise.all([
       call("/api/admin/teachers"),
       call("/api/admin/students"),
       call("/api/admin/grants"),
       call("/api/admin/audit"),
       call("/api/admin/errors"),
+      call("/api/session"),
+      call("/api/account/sessions"),
     ]);
     setTeachers(teacherRows.teachers || []);
     setStudents(studentRows.students || []);
     setGrants(grantRows.grants || []);
     setAudit(auditRows.events || []);
     setErrors(errorRows.errors || []);
+    setUserId(sessionRow.user_id || "");
+    setSessions(ownRows.sessions || []);
   }
 
   useEffect(() => {
@@ -102,6 +108,19 @@ export function AdminPage() {
             </li>
           ))}
         </ul>
+      </section>
+      <section>
+        <h2>活跃会话</h2>
+        <ul>
+          {sessions.map((row) => (
+            <li key={row.issued_at + row.last_seen_at + row.ip_hash_prefix}>
+              {row.issued_at} · {row.last_seen_at} · {row.ip_hash_prefix}
+            </li>
+          ))}
+        </ul>
+        <button type="button" onClick={() => userId && write("/api/admin/users/" + userId + "/sessions/revoke", {})}>
+          一键吊销
+        </button>
       </section>
       <section>
         <h2>审计与错误</h2>

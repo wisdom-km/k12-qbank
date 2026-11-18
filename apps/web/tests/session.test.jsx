@@ -190,4 +190,93 @@ describe("session pages", () => {
     const logoutCall = fetch.mock.calls.find((call) => call[0] === "/api/logout");
     expect(logoutCall[1].headers["X-K12-CSRF"]).toBeUndefined();
   });
+
+  it("opens the password page from the teacher header and clears the form", async () => {
+    installFetch((path, options) => {
+      if (path === "/api/session") return jsonResponse(200, teacher);
+      if (path === "/api/account/password" && options.method === "POST") return jsonResponse(200, { ok: true });
+      if (path.startsWith("/api/catalog/")) {
+        return jsonResponse(200, {
+          question_version_id: "q-v1",
+          question_approved: false,
+          answer_approved: false,
+          retired: false,
+        });
+      }
+      if (path === "/api/practice/papers") return jsonResponse(200, { count: 0, papers: [] });
+      return jsonResponse(404, { code: "not_found", message: "not_found", request_id: "req-test" });
+    });
+    await renderAt("/");
+    await settle(() => document.body.textContent.includes("修改我的口令"));
+    await act(async () => {
+      const link = [...document.querySelectorAll("a")].find((item) => item.textContent === "修改我的口令");
+      link.click();
+    });
+    await settle(() => document.querySelector("input[name=old_secret]"));
+    await act(async () => {
+      setValue(document.querySelector("input[name=old_secret]"), "old-secret9");
+      setValue(document.querySelector("input[name=new_secret]"), "new-secret9");
+    });
+    await act(async () => {
+      document.querySelector("form").requestSubmit();
+    });
+    await settle(() => document.body.textContent.includes("口令已更新"));
+    expect(document.body.textContent).not.toContain("old-secret9");
+    expect(document.body.textContent).not.toContain("new-secret9");
+    expect(document.querySelector("input[name=old_secret]").value).toBe("");
+    expect(document.querySelector("input[name=new_secret]").value).toBe("");
+    const saved = fetch.mock.calls.find((call) => call[0] === "/api/account/password");
+    expect(saved[1].headers["X-K12-CSRF"]).toBe("csrf-test");
+    expect(JSON.parse(saved[1].body)).toEqual({ old_secret: "old-secret9", new_secret: "new-secret9" });
+  });
+
+  it("lists the admin's own sessions and revokes them in one click", async () => {
+    const admin = {
+      role: "admin",
+      display_name: "admin-one",
+      csrf_token: "csrf-admin",
+      actor_teacher_id: "admin-1",
+      user_id: "admin-1",
+      student_ids: [],
+      question_version_id: "q-v1",
+    };
+    let revoked = false;
+    installFetch((path, options) => {
+      if (revoked) return jsonResponse(401, { code: "unauthenticated", message: "sign in", request_id: "req-test" });
+      if (path === "/api/admin/users/admin-1/sessions/revoke" && options.method === "POST") {
+        revoked = true;
+        return jsonResponse(200, { revoked: 1 });
+      }
+      if (path === "/api/session") return jsonResponse(200, admin);
+      if (path === "/api/account/sessions") {
+        return jsonResponse(200, {
+          sessions: [
+            {
+              issued_at: "2026-11-18T08:00:00+00:00",
+              last_seen_at: "2026-11-18T08:05:00+00:00",
+              ip_hash_prefix: "abcdef01",
+            },
+          ],
+        });
+      }
+      if (path === "/api/admin/teachers") return jsonResponse(200, { teachers: [] });
+      if (path === "/api/admin/students") return jsonResponse(200, { students: [] });
+      if (path === "/api/admin/grants") return jsonResponse(200, { grants: [] });
+      if (path === "/api/admin/audit") return jsonResponse(200, { events: [] });
+      if (path === "/api/admin/errors") return jsonResponse(200, { errors: [] });
+      return jsonResponse(404, { code: "not_found", message: "not_found", request_id: "req-test" });
+    });
+    await renderAt("/admin");
+    await settle(() => document.body.textContent.includes("活跃会话") && document.body.textContent.includes("abcdef01"));
+    expect(document.body.textContent).toContain("2026-11-18T08:00:00+00:00");
+    expect(document.body.textContent).toContain("2026-11-18T08:05:00+00:00");
+    await act(async () => {
+      const button = [...document.querySelectorAll("button")].find((item) => item.textContent === "一键吊销");
+      button.click();
+    });
+    await settle(() => document.querySelector("h1") && document.querySelector("h1").textContent === "登录");
+    const revokeCall = fetch.mock.calls.find((call) => call[0] === "/api/admin/users/admin-1/sessions/revoke");
+    expect(revokeCall[1].method).toBe("POST");
+    expect(revokeCall[1].headers["X-K12-CSRF"]).toBe("csrf-admin");
+  });
 });

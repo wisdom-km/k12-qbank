@@ -48,5 +48,6 @@
 | 2026-11-18 | `K12_ENV` 区分 development 与 production。`GET /health` 与 `GET /health/live` 仍只表示进程还在。`GET /health/ready` 检查数据库和迁移。同一 IP 每分钟超过 30 次返回 `ip_throttled`。migrate 的一次 up 或 down 在一个事务里持有咨询锁。 | 用户要求做 C2。不改 ADR 0032、0034、0035 正文。 |
 | 2026-11-18 | 过期会话先标吊销，满 `K12_SESSION_RETAIN_DAYS`（默认 30）再删。登录尝试按 `K12_LOGIN_ATTEMPT_RETAIN_DAYS`（默认 30）删除。停用、启用、重置口令的成功路径吊销尚未过期的会话。学情天数仍不写。 | 用户要求做 C3。不改 ADR 0033、0020、0030 正文。 |
 | 2026-11-18 | 引导管理员带 must_change_password。改口令成功前只允许会话、注销和改口令。读审计写入 admin_read_committed，明细只有 limit、offset 和筛选字段名。disable_user 与 change_role 拒绝最后一名活跃管理员且不写。 | 用户要求做 C4。不改 ADR 0036、0037、0038 正文。 |
+| 2026-11-18 | 响应默认带 Content-Security-Policy 和 Permissions-Policy。`K12_SECURITY_HEADERS=0` 关闭这两项。`/account` 可改自己的口令。管理页列出并一次吊销当前用户尚未过期的会话。 | 用户要求做 C5。不改 ADR 0025 正文。 |
 
 方案里的 DEC-01 到 DEC-06 仍是待机构确认。本仓库没有替机构填写这些决定。

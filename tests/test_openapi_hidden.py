@@ -20,3 +20,4 @@ class OpenApiHiddenTest(unittest.TestCase):
         schema = app.openapi()
         self.assertEqual(schema["info"]["title"], "k12-qbank")
         self.assertIn("/health", schema["paths"])
+        self.assertIn("/api/account/sessions", schema["paths"])

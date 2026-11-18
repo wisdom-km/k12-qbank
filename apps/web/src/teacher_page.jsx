@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef } from "react";
+import { Link } from "react-router-dom";
 import { call } from "./auth.js";
 import { attemptBlock, canHandOut, confirmReady, showConflictReload } from "./confirm_gate.js";
 import { createPaperActions } from "./paper_loop.js";
@@ -76,7 +77,10 @@ export function TeacherPage() {
 
   return (
     <main>
-      <h1>有理数出卷</h1>
+      <header>
+        <h1>有理数出卷</h1>
+        <Link to="/account">修改我的口令</Link>
+      </header>
       <p className="note">合成题和合成学生。操作键由这次提交带上，谁生成这串文字还没定。</p>
       {session && <p className="note">当前老师：{session.actor_teacher_id}</p>}
       {error && <p className="error">{error}</p>}

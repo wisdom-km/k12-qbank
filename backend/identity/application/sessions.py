@@ -1,9 +1,12 @@
-"""Revoke sessions that have not yet expired. The count stays off the audit row."""
+"""Revoke sessions that have not yet expired, and list the caller's own rows.
+
+The revoke count stays off the audit row. The list writes no audit row.
+"""
 
 from __future__ import annotations
 
 from backend.identity.application.deps import Deps
-from backend.identity.application.guard import admin_only
+from backend.identity.application.guard import admin_only, signed_in
 from backend.identity.application.notes import note, started
 from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit
@@ -43,6 +46,15 @@ def revoke_all_sessions_for(
         actor_user_id="" if actor is None else str(getattr(actor, "user_id", "")),
     )
     return Ok(count)
+
+
+def list_own_sessions(db: object, actor: object, deps: Deps) -> Ok[tuple[object, ...]] | Err:
+    refused = signed_in(actor)
+    if refused is not None:
+        return refused
+    user_id = "" if actor is None else str(getattr(actor, "user_id", ""))
+    rows = db.sessions.list_unexpired(user_id, deps.clock.now())  # type: ignore[attr-defined]
+    return Ok(tuple(rows))
 
 
 def _err(deps: Deps, request_id: str, mark: float, actor: object, code: str) -> None:

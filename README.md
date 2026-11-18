@@ -58,9 +58,9 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | --- | --- |
 | 文档（PRD、架构、规则、ADR、门禁） | 已完成 |
 | 业务代码 `catalog` / `practice` | 合成题目上可以拒绝未核准出卷，生成单页 PDF，并按操作键确认一条作答 |
-| 教学服务 | 本机合成 HTTP 已接上会话。默认不连库。还没有对外发布。页面是 `/login`、`/` 和 `/admin` |
-| 登录 | 页面 `/login`。未登录打开 `/` 或 `/admin` 会到登录页。会话 cookie 是 `k12_sid`。写操作带 `X-K12-CSRF` |
-| 管理员后台 | 页面 `/admin`。管理员可建老师和学生、授权和撤销、查看审计与错误。老师打开该页得到 permission_denied |
+| 教学服务 | 本机合成 HTTP 已接上会话。默认不连库。还没有对外发布。页面是 `/login`、`/`、`/admin` 和 `/account` |
+| 登录 | 页面 `/login`。未登录打开 `/`、`/admin` 或 `/account` 会到登录页。会话 cookie 是 `k12_sid`。写操作带 `X-K12-CSRF` |
+| 管理员后台 | 页面 `/admin`。管理员可建老师和学生、授权和撤销、查看审计与错误，并一次吊销自己的活跃会话。老师打开该页得到 permission_denied |
 | PostgreSQL 已连接 | 仅当 `K12_PG_DSN` 有值时连接并迁移 identity、审计、catalog 与 practice。页字节在 `K12_FILE_DIR`。`K12_ENV` 默认 development；production 缺少连接串或页字节目录时退出。默认进程和单测不连接。CI 的 `postgres` 作业包含 up、down、up，以及 identity、catalog/practice 契约和迁移锁 |
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 在 `K12_PG_DSN` 有值时连接并迁移 |
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
@@ -89,7 +89,7 @@ python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --
 
 默认访问日志已关闭。带 `request_id` 的结构化日志仍打在标准输出。这个端口和核对页 md-json-review 相同。核对页开着时不要启动本服务。两个进程不要同时听 `127.0.0.1:8765`。
 
-浏览器打开 `http://127.0.0.1:8765/login`。未登录会到登录页。登录后老师在 `/`，管理员在 `/admin`。出卷老师来自会话 cookie。停用、启用和重置口令会吊销尚未过期的会话。过期会话和登录尝试按保留天数清理。学情天数仍不写。引导创建的管理员必须先改掉启动口令，才能调用其他接口。合成账号仍是 `teacher-synth`。启动进程会读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
+浏览器打开 `http://127.0.0.1:8765/login`。未登录会到登录页。登录后老师在 `/`，管理员在 `/admin`。老师页有「修改我的口令」，打开 `/account`。出卷老师来自会话 cookie。停用、启用和重置口令会吊销尚未过期的会话。过期会话和登录尝试按保留天数清理。学情天数仍不写。引导创建的管理员必须先改掉启动口令，才能调用其他接口。合成账号仍是 `teacher-synth`。启动进程会读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
 
 服务已经在 8765 端口时，另开一个窗口执行 `python scripts/smoke_http.py`。复验：
 

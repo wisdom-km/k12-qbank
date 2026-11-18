@@ -134,6 +134,15 @@ class MemorySessions:
             count += 1
         return count
 
+    def list_unexpired(self, user_id: str, at: datetime) -> tuple[Session, ...]:
+        chosen = [
+            session
+            for session in self._rows.values()
+            if session.user_id == user_id and session.revoked_at is None and session.expires_at > at
+        ]
+        chosen.sort(key=lambda session: session.last_seen_at, reverse=True)
+        return tuple(chosen)
+
     def touch(self, session_id: str, at: datetime) -> None:
         current = self._rows[session_id]
         self._rows[session_id] = replace(current, last_seen_at=at)
