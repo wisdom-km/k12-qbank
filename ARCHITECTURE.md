@@ -170,7 +170,7 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 
 ## 健康检查与错误上报
 
-`GET /health` 由 HTTP 入口返回 `health_report()`。正文只有 `status`。`ok` 只说明进程应答了，不说明数据库或模型已经就绪。进程还在和依赖就绪是两件事。返回里没有密钥、连接串、姓名、学号或学生照片。错误上报的最小字段和样例在 [docs/observability.md](docs/observability.md)。管理员只读接口 `GET /api/admin/errors` 返回近 24 小时的 ERROR，分页。webhook 由 `K12_ERROR_WEBHOOK_URL` 打开，默认空。对外发布前的关口见下面的 G3。本机合成进程上的一次请求不代替对外可访问，也不代替外部错误上报接收方。
+`GET /health` 由 HTTP 入口返回 `health_report()`。正文只有 `status`。`ok` 只说明进程应答了，不说明数据库或模型已经就绪。进程还在和依赖就绪是两件事。返回里没有密钥、连接串、姓名、学号或学生照片。错误上报的最小字段和样例在 [docs/observability.md](docs/observability.md)。管理员只读接口 `GET /api/admin/errors` 返回近 24 小时的 ERROR，分页。webhook 由 `K12_ERROR_WEBHOOK_URL` 打开，默认空。地址非空时，ErrorRing 异步 POST 只含 time、request_id、module、event、outcome。连接超时 2 秒，失败最多重试 1 次，然后只在标准输出打一条 `webhook_failed` WARN，不升级为 ERROR。对外发布前的关口见下面的 G3。本机合成进程上的一次请求不代替对外可访问。外部错误上报接收方仍未对接，M-14 仍未通过。
 
 ## 测试
 

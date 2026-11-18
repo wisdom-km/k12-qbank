@@ -1,6 +1,6 @@
 # 健康检查与错误上报
 
-状态：`GET /health` 与 `GET /health/live` 只表示进程还在。`GET /health/ready` 检查数据库和迁移，未就绪是 503。同一 IP 每分钟超过 30 次是 429，错误码 `ip_throttled`。错误上报接收接口还没有。对外可访问之前，不把 M-14 写成发布通过。
+状态：`GET /health` 与 `GET /health/live` 只表示进程还在。`GET /health/ready` 检查数据库和迁移，未就绪是 503。同一 IP 每分钟超过 30 次是 429，错误码 `ip_throttled`。服务端可以按五个字段向外 POST。外部接收接口仍未对接。对外可访问之前，不把 M-14 写成发布通过。
 
 ## 健康检查
 
@@ -46,7 +46,7 @@
 
 不上报这些内容：学生照片、姓名、学号、整页或裁切后的图片、密钥、token、连接串、整段请求体、完整提示词。堆栈若要留下，先去掉这些内容。
 
-管理员只读接口 `GET /api/admin/errors` 返回近 24 小时的 ERROR。webhook 由 `K12_ERROR_WEBHOOK_URL` 打开，默认空，空则不向外发送。网页只在页面上显示拒绝码，不把学号或请求体送去上报。
+管理员只读接口 `GET /api/admin/errors` 返回近 24 小时的 ERROR。webhook 由 `K12_ERROR_WEBHOOK_URL` 打开，默认空，空则不向外发送。地址非空时，服务端把一条 ERROR 的 time、request_id、module、event、outcome 异步 POST 出去。不含学生、密钥、actor、detail 或连接串。连接超时 2 秒。失败最多再试 1 次。两次都失败时，标准输出只有一条 WARN，级别不是 ERROR。没有外部接收方时，这一步不算 M-14 通过。网页只在页面上显示拒绝码，不把学号或请求体送去上报。
 
 ## 现在不做
 
