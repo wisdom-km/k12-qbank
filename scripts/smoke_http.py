@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.cookiejar
 import json
 import os
 import sys
@@ -16,6 +17,7 @@ def main() -> int:
     if health.get("status") != "ok" or set(health) != {"status"}:
         print("SMOKE HTTP FAIL: health " + json.dumps(health, ensure_ascii=False))
         return 1
+    _CSRF["value"] = _login(base)
     issue = {
         "teacher_id": "teacher-synth",
         "student_id": "student-synth",
@@ -53,16 +55,28 @@ def main() -> int:
     return 0
 
 
+def _login(base: str) -> str:
+    body = _json(_open(base + "/api/login", {"username": "teacher-synth", "secret": "synth-pass1"}))
+    token = body.get("csrf_token")
+    if not isinstance(token, str) or not token:
+        print("SMOKE HTTP FAIL: login did not return a csrf token")
+        raise SystemExit(1)
+    return token
+
+
 def _open(url: str, body: dict[str, object] | None = None, expect: int = 200) -> urllib.response.addinfourl:
     data = None if body is None else json.dumps(body).encode("utf-8")
+    headers = {"Content-Type": "application/json", "X-Request-Id": "smoke-http"}
+    if body is not None and _CSRF["value"] and not url.endswith("/api/login"):
+        headers["X-K12-CSRF"] = _CSRF["value"]
     request = urllib.request.Request(
         url,
         data=data,
-        headers={"Content-Type": "application/json", "X-Request-Id": "smoke-http"},
+        headers=headers,
         method="POST" if body is not None else "GET",
     )
     try:
-        response = urllib.request.urlopen(request, timeout=3)
+        response = _OPENER.open(request, timeout=3)
     except urllib.error.HTTPError as exc:
         if exc.code != expect:
             print("SMOKE HTTP FAIL: " + url + " status " + str(exc.code))
@@ -77,6 +91,10 @@ def _open(url: str, body: dict[str, object] | None = None, expect: int = 200) ->
 
 def _json(response: urllib.response.addinfourl) -> dict[str, object]:
     return json.loads(response.read().decode("utf-8"))
+
+
+_CSRF = {"value": ""}
+_OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
 
 if __name__ == "__main__":

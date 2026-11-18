@@ -31,9 +31,9 @@
 | argon2-cffi-bindings | 26.2.0 | argon2-cffi 的绑定 | MIT | 不单独调用 |
 | cffi | 2.1.1 | argon2 绑定的传递依赖 | MIT | 不单独调用 |
 | pycparser | 3.12 | cffi 的传递依赖 | BSD-3-Clause | 不单独调用 |
-| psycopg | 3.2.13 | PostgreSQL 驱动。用户已预批准 `psycopg[binary]`。见 ADR 0028 | LGPL-3.0 | 不在 MIT、BSD、Apache-2.0 名单里，待人审。不改用别的驱动 |
-| psycopg-binary | 3.2.13 | psycopg 的二进制包 | LGPL-3.0 | 同上，待人审 |
-| psycopg-pool | 3.2.8 | 连接池。ADR 0028 把它视为该驱动的池 | LGPL-3.0 | 同上，待人审。若要否决这个独立包，请在 PR 里说 |
+| psycopg | 3.2.13 | PostgreSQL 驱动。用户已预批准 `psycopg[binary]`。见 ADR 0028 | LGPL-3.0 | 已审。用户已于 2026-11-18 接受 LGPL-3.0。按未修改的依赖使用。不改仓库许可证 |
+| psycopg-binary | 3.2.13 | psycopg 的二进制包 | LGPL-3.0 | 已审。用户已于 2026-11-18 接受 LGPL-3.0。按未修改的依赖使用 |
+| psycopg-pool | 3.2.8 | 连接池。ADR 0028 把它视为该驱动的池 | LGPL-3.0 | 已审。用户已于 2026-11-18 接受 LGPL-3.0。按未修改的依赖使用 |
 | tzdata | 2026.6 | psycopg 在部分系统上的时区数据 | Apache-2.0 | 不单独调用 |
 
 ## 构建依赖

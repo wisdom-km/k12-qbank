@@ -50,7 +50,7 @@ OCR 参考答案来自核对页的 `{题干文件名}.answers/`。一份文件�
 
 job `review-import` 安装核对页 main，用合成页生成这两份草稿再导入。夹具不是教材页。
 
-服务端和网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。本机合成路径使用 FastAPI 和 React。PostgreSQL 还没连接。第一次写入题目时按 ADR 0013 建表，第一次写入答案时按 ADR 0014 建表。没有要写入的行时不建空表。安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据。机构决定 DEC-01 到 DEC-06 还没填。安卓界面仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
+服务端和网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。本机合成路径使用 FastAPI 和 React。不设置 `K12_PG_DSN` 时不连接数据库。设置后进程连接并迁移 identity 与审计表。第一次写入题目时按 ADR 0013 建表，第一次写入答案时按 ADR 0014 建表。没有要写入的行时不建空表。安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据。机构决定 DEC-01 到 DEC-06 还没填。安卓界面仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
 
 ## 当前实现状态
 
@@ -58,8 +58,8 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | --- | --- |
 | 文档（PRD、架构、规则、ADR、门禁） | 已完成 |
 | 业务代码 `catalog` / `practice` | 合成题目上可以拒绝未核准出卷，生成单页 PDF，并按操作键确认一条作答 |
-| 教学服务 | 本机合成 HTTP 和网页已接上。没有数据库，也还没有对外发布 |
-| 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 已采纳但还没连接 |
+| 教学服务 | 本机合成 HTTP 已接上会话。默认不连库。还没有对外发布。登录页还没做 |
+| 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 在 `K12_PG_DSN` 有值时连接并迁移 |
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
 | 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。内存保存。还不能出卷。数据库还没有 |
 | 契约校验 | JSON Schema 在 `backend/catalog/contracts/`。不新增包。见 [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
@@ -76,7 +76,7 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 docker compose -f docker/compose.yml up -d
 ```
 
-不设置 `K12_PG_DSN` 时，合成站点和测试仍用内存。设置后进程才会连接 PostgreSQL。变量见 `.env.example`。`K12_BOOTSTRAP_ADMIN_USERNAME` 和 `K12_BOOTSTRAP_ADMIN_PASSWORD` 首启后清空。
+不设置 `K12_PG_DSN` 时，合成站点和测试仍用内存。设置后进程才会连接 PostgreSQL 并执行已有迁移。变量见 `.env.example`。`K12_BOOTSTRAP_ADMIN_USERNAME` 和 `K12_BOOTSTRAP_ADMIN_PASSWORD` 首启后清空。
 
 启动本机合成站点（不设置 `K12_PG_DSN` 时不连接数据库）：
 
@@ -86,7 +86,7 @@ python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --
 
 默认访问日志已关闭。带 `request_id` 的结构化日志仍打在标准输出。这个端口和核对页 md-json-review 相同。核对页开着时不要启动本服务。两个进程不要同时听 `127.0.0.1:8765`。
 
-浏览器打开 `http://127.0.0.1:8765/`。老师身份固定为服务端的 `teacher-synth`。启动进程会读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
+浏览器打开 `http://127.0.0.1:8765/`。出卷老师来自会话 cookie。合成账号仍是 `teacher-synth`。登录页还没做。启动进程会读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
 
 服务已经在 8765 端口时，另开一个窗口执行 `python scripts/smoke_http.py`。复验：
 
