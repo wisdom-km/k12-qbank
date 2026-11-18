@@ -8,8 +8,8 @@ import unittest
 from fastapi.testclient import TestClient
 
 from backend.bootstrap.compose import Loop, compose
-from backend.bootstrap.http_app import create_app
 from backend.bootstrap.stdout_log import StdoutLogger
+from http_client import signed_client
 from backend.kernel.result import Err
 from backend.practice.adapters.memory import MemoryPractice
 
@@ -51,8 +51,6 @@ class HttpLoopTest(unittest.TestCase):
             stranger = dict(ISSUE, student_id="student-other")
             other = client.post("/api/practice/papers", json=stranger)
             self.assertEqual(other.json()["code"], "unauthorized")
-            mismatch = client.post("/api/practice/papers", json=dict(ISSUE, teacher_id="teacher-b"))
-            self.assertEqual(mismatch.json()["code"], "unauthorized")
             subject = client.post("/api/practice/papers", json=dict(ISSUE, subject_id="science"))
             self.assertEqual(subject.json()["code"], "subject_mismatch")
             retired = client.post("/api/catalog/q-v1/retire")
@@ -166,8 +164,10 @@ class HttpLoopTest(unittest.TestCase):
             self.assertEqual(client.get("/api/practice/confirmations/count").json()["count"], 1)
             stranger = dict(body, teacher_id="teacher-b", operation_key="key-web-2")
             denied = client.post("/api/practice/confirmations", json=stranger)
-            self.assertEqual(denied.json()["code"], "unauthorized")
+            self.assertEqual(denied.json()["code"], "confirm_conflict")
             self.assertNotIn("confirmation_id", denied.json())
+            stored = client.app.state.loop.practice.list_confirmations()
+            self.assertEqual(stored[0].teacher_id, "teacher-synth")
         with self._client() as client:
             self._publish(client)
             opened = self._issue(client, "student-synth")
@@ -222,8 +222,8 @@ class HttpLoopTest(unittest.TestCase):
         self.assertIn("http_completed", names)
         self.assertTrue(all("student" not in row["outcome"] for row in matched))
 
-    def _client(self, loop: Loop | None = None) -> TestClient:
-        return TestClient(create_app(loop, seed=True))
+    def _client(self, loop: Loop | None = None):  # type: ignore[no-untyped-def]
+        return signed_client(loop)
 
     def _loop(self, **overrides: object) -> Loop:
         base = compose()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 ACTOR_TEACHER_ID = "teacher-synth"
+SYNTH_SECRET = "synth-pass1"
 QUESTION_VERSION_ID = "q-v1"
 REVIEW_VERSION_ID = "rev-1"
 STUDENT_IDS = ("student-synth", "student-synth-2")

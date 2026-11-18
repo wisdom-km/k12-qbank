@@ -13,7 +13,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.bootstrap.compose import Loop, compose
-from backend.bootstrap.http_app import create_app
+from http_client import signed_client
 from backend.bootstrap.seed import load_fixture
 from backend.catalog.adapters.memory import MemoryApprovals
 from backend.catalog.application.publish_version import publish_version, revise_text
@@ -669,8 +669,8 @@ class ReviewLoopTest(unittest.TestCase):
             self.assertEqual(refreshed.json()["answer_text"], "\u53e6\u4e00\u7248\u4f5c\u7b54")
             self.assertNotEqual(refreshed.json()["answer_text"], "2")
 
-    def _client(self, loop: Loop | None = None) -> TestClient:
-        return TestClient(create_app(loop, seed=True))
+    def _client(self, loop: Loop | None = None):  # type: ignore[no-untyped-def]
+        return signed_client(loop)
 
     def _loop(self, **overrides: object) -> Loop:
         base = compose()

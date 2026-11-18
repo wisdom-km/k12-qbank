@@ -40,5 +40,6 @@
 | 2026-11-18 | ADR 0023：开发依赖 openapi-typescript 7.13.0（MIT）生成 apps/web/src/api.types.ts。默认进程仍关闭 OpenAPI。 | 用户要求按建议生成类型并让 CI 核对。不打开合成服务的文档地址。 |
 | 2026-11-18 | ADR 0025 到 0031：角色和会话、首个管理员、argon2id、内存加 PostgreSQL、迁移、日志双流、react-router。`PHASE_SLICES` 增加 identity。不做 JWT、SSO、密码找回、双因素、自助注册、学生或家长账号、SQLite 过渡。 | 用户要求先写下这些决定。不改 ADR 0008 和 0019 的正文。题目表仍等有行再建。 |
 | 2026-11-18 | ADR 0024 采纳：中文用本机楷体，没有则用微软雅黑或黑体。只嵌入这一页的字形。字体文件不进仓库。 | 用户选定楷体或微软黑体。不接受把 OFL 字体放进仓库。不改 ADR 0022 正文。 |
+| 2026-11-18 | HTTP 会话 cookie 与 CSRF。出卷老师来自会话，不再写死老师编号。不设置 `K12_PG_DSN` 时不连接。设置后连接并迁移 identity 与审计。psycopg、psycopg-binary、psycopg-pool 的 LGPL-3.0 标为已审。不改 ADR 0012 和 0028 正文。题目表仍不建。 | 用户接受不否决题目表，也不否决连接池包。 |
 
 方案里的 DEC-01 到 DEC-06 仍是待机构确认。本仓库没有替机构填写这些决定。

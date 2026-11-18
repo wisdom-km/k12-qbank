@@ -207,7 +207,7 @@ ASVS L1 自查是 SHOULD，还没做。
 - 开发和正式数据分开。agent 不连接正式库。正式库的位置还没有。
 - 删除或覆盖真实学生数据之前要人确认，并且先有备份。红线 R-2。
 - 备份要同时包含数据库和文件。只拷一种不算备份。恢复演练还没有做。可丢失窗口待定标。
-- 迁移文件在第一次持久化时加入，并要能回退。当前没有迁移。
+- 迁移文件在第一次持久化时加入，并要能回退。identity 与审计的迁移是 `backend/identity/migrations/V001__init.sql`。题目表和答案表仍没有。
 
 ## 关口
 
@@ -244,7 +244,7 @@ CI 全绿也不等于上表里「未落地」的项目已经在拦。`M-02 RECOR
 
 ## 开发环境
 
-命令见 [AGENTS.md](AGENTS.md)。ADR 0012 已采纳 Python 3.12、FastAPI、PostgreSQL 和 React。core 测试和检查脚本用 Python 3.12。FastAPI 和 React 已锁在 `requirements.txt` 和 `apps/web/package-lock.json`。PostgreSQL 还没连接，也没有迁移。`.python-version` 是 3.12。
+命令见 [AGENTS.md](AGENTS.md)。ADR 0012 已采纳 Python 3.12、FastAPI、PostgreSQL 和 React。core 测试和检查脚本用 Python 3.12。FastAPI 和 React 已锁在 `requirements.txt` 和 `apps/web/package-lock.json`。不设置 `K12_PG_DSN` 时不连接数据库。设置后进程连接并执行已有迁移。`.python-version` 是 3.12。
 
 第一条业务代码按 [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) 做。本地可以用合成题目、合成学生和假适配器。运行时安全验证，以及数据库和文件的联合恢复，按上面的「关口」留到真实学生试用前。
 

@@ -50,7 +50,7 @@ The review tool is the producer. It copies the two JSON Schema files from `backe
 
 Job `review-import` installs the review tool's main and imports both drafts from a synthetic page. The fixture is not a textbook page.
 
-The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). The local synthetic path uses FastAPI and React. PostgreSQL is not connected. The first question insert creates the ADR 0013 tables. The first answer insert creates the ADR 0014 tables. Empty tables are not created early. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
+The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). The local synthetic path uses FastAPI and React. An empty `K12_PG_DSN` does not connect. A set value connects and migrates the identity and audit tables. The first question insert creates the ADR 0013 tables. The first answer insert creates the ADR 0014 tables. Empty tables are not created early. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
 
 ## Current implementation
 
@@ -58,8 +58,8 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | --- | --- |
 | Docs (PRD, architecture, rules, ADRs, gates) | Done |
 | Business code `catalog` / `practice` | On synthetic questions it refuses an unapproved issue, writes a one-page PDF, and confirms one answer by operation key |
-| Teaching service | Local synthetic HTTP and web page are wired. No database, and no public release |
-| Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL is adopted and not connected |
+| Teaching service | Local synthetic HTTP now has a session. The default process does not connect. There is no public release. The login page is not built yet |
+| Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL connects and migrates when `K12_PG_DSN` is set |
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
 | Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. No database yet |
 | Contract check | JSON Schema in `backend/catalog/contracts/`. No new package. See [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
@@ -70,7 +70,7 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 
 Install: Python is in `.python-version` (3.12). Run `python -m pip install -r requirements.txt`, then `npm ci --prefix apps/web` and `npm run build --prefix apps/web`. The secret scan also needs gitleaks on `PATH`. Config is in `.env.example`. Copy it to `.env` and keep that file on the machine. The synthetic HTTP log goes to that process's stdout.
 
-Start the local synthetic site (this does not start a database):
+Start the local synthetic site (an empty `K12_PG_DSN` does not connect; a set value connects and migrates):
 
 ```text
 python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --no-access-log
@@ -78,7 +78,7 @@ python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --
 
 The default access log is off. Structured logs that include `request_id` still go to stdout. This port is the same as the md-json-review check page. Do not start this server while that page is running. The two processes must not both listen on `127.0.0.1:8765`.
 
-Open `http://127.0.0.1:8765/`. The server actor is `teacher-synth`. The process reads `docs/fixtures/rational-number-min.json` and clears both approval flags. There is no separate load command. The second synthetic student, `student-synth-2`, is only in the server grant. It does not add a seventh fixture block.
+Open `http://127.0.0.1:8765/`. The issue actor comes from the session cookie. The synthetic account is still `teacher-synth`. The login page is not built yet. The process reads `docs/fixtures/rational-number-min.json` and clears both approval flags. There is no separate load command. The second synthetic student, `student-synth-2`, is only in the server grant. It does not add a seventh fixture block.
 
 When the site is already listening on port 8765, run `python scripts/smoke_http.py` in another window. To re-check:
 

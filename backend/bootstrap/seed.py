@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from backend.bootstrap.compose import Loop
-from backend.bootstrap.synthetic import ACTOR_TEACHER_ID
+from backend.bootstrap.synthetic import ACTOR_TEACHER_ID, SYNTH_SECRET
 from backend.catalog.api import ApprovalSnapshot
+from backend.identity.application.bootstrap_admin import bootstrap_admin
+from backend.identity.application.run import execute
+from backend.identity.application.synthetic_seed import seed_synthetic
+from backend.kernel.result import Err
 
 FIXTURE = Path(__file__).resolve().parents[2] / "docs" / "fixtures" / "rational-number-min.json"
 
@@ -51,5 +56,43 @@ def load_fixture(loop: Loop) -> None:
     )
     subject_id = question["subject_id"]
     students = (data["student"]["student_id"], "student-synth-2")
-    for student in students:
-        loop.auth.grant(ACTOR_TEACHER_ID, student, subject_id)
+    _seed_identity(loop, subject_id, students)
+    granter = getattr(loop.auth, "grant", None)
+    if granter is not None:
+        for student in students:
+            granter(ACTOR_TEACHER_ID, student, subject_id)
+
+
+def _seed_identity(loop: Loop, subject_id: str, students: tuple[str, ...]) -> None:
+    if loop.opener is None or loop.deps is None:
+        return
+    result = execute(
+        loop.opener,  # type: ignore[arg-type]
+        lambda db: seed_synthetic(
+            db,
+            loop.deps,  # type: ignore[arg-type]
+            user_id=ACTOR_TEACHER_ID,
+            username=ACTOR_TEACHER_ID,
+            secret=SYNTH_SECRET,
+            student_ids=students,
+            subject_id=subject_id,
+        ),
+        loop.deps.logger,
+        "seed",
+    )
+    if isinstance(result, Err):
+        raise RuntimeError("synthetic seed failed")
+
+
+def bootstrap_from_env(loop: Loop) -> None:
+    """Create the first admin when both env values are set. The secret is not logged."""
+    username = os.environ.get("K12_BOOTSTRAP_ADMIN_USERNAME", "")
+    secret = os.environ.get("K12_BOOTSTRAP_ADMIN_PASSWORD", "")
+    if (not username and not secret) or loop.opener is None or loop.deps is None:
+        return
+    execute(
+        loop.opener,  # type: ignore[arg-type]
+        lambda db: bootstrap_admin(db, username, secret, loop.deps, "boot"),  # type: ignore[arg-type]
+        loop.deps.logger,
+        "boot",
+    )

@@ -85,7 +85,7 @@
 
 ## 容易误导
 
-`catalog` 和 `practice` 在合成数据上出卷并确认。本机 HTTP 使用 FastAPI，页面使用 React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。PostgreSQL 还没连接。安卓界面仍未选定，见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md)。
+`catalog` 和 `practice` 在合成数据上出卷并确认。本机 HTTP 使用 FastAPI，页面使用 React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。不设置 `K12_PG_DSN` 时不连接数据库；设置后连接并迁移。HTTP 上的老师来自会话 cookie。安卓界面仍未选定，见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md)。
 
 契约是 `k12-question-draft` 第 1 版和 `k12-answer-draft` 第 1 版。契约文件有 `$id` 和 `version`，草稿有 `schema_version`。未知版本仍是 `not_draft`，说明里写出收到的版本。见 [docs/adr/0018-schema-version.md](docs/adr/0018-schema-version.md)。核对页 `contracts/` 复制的是这里的同一份 JSON Schema。导入失败的 `code` 是 `not_draft` 或 `answer_conflict`，说明里带字段。核对页写入前的同一类失败是 `CONTRACT`。两边的失败都有 `code`、`message`、`request_id`。草稿不能出卷。
 
