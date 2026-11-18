@@ -1,4 +1,4 @@
-"""AC-01, AC-02, and AC-04 stay a future joint proof. This change does not connect PostgreSQL."""
+"""AC-01, AC-02, and AC-04 stay a future joint proof. ADR 0021 still does not connect the catalog database."""
 
 from __future__ import annotations
 
@@ -19,5 +19,6 @@ class IntegrationProofDocsTest(unittest.TestCase):
         self.assertIn("不连接数据库", adr)
         for forbidden in ("postgresql://", "CREATE TABLE", "psycopg"):
             self.assertNotIn(forbidden, adr)
-        self.assertIn("PostgreSQL 还没连接，没有迁移，也没有空表。", matrix)
+        self.assertIn("identity 与审计的迁移是 `backend/identity/migrations/V001__init.sql`。", matrix)
+        self.assertNotIn("PostgreSQL 还没连接，没有迁移，也没有空表。", matrix)
         self.assertIn("| [0021](0021-integration-proof.md) | 真实阶段前要有一次集成验证 | accepted |", index)

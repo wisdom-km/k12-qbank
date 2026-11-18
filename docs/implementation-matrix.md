@@ -2,9 +2,9 @@
 
 日期：2026-11-18。六行是 ADR 0004 的六个切片。只记仓库里已经有的实现。
 
-PostgreSQL 还没连接，没有迁移，也没有空表。内存适配器不是持久适配器。`MemoryFiles` 只在进程内存里放字节，不是磁盘或对象存储。一个端口要同时有内存实现和至少一个持久实现，并且契约测试两边都跑，才算真接缝。
+identity 与审计的迁移是 `backend/identity/migrations/V001__init.sql`。`K12_PG_DSN` 为空时进程仍用内存。题目表和答案表没有建。内存适配器不是持久适配器。`MemoryFiles` 只在进程内存里放字节，不是磁盘或对象存储。一个端口要同时有内存实现和至少一个持久实现，并且契约测试两边都跑，才算真接缝。
 
-2026-11-18 的决定：真实库只用 PostgreSQL，不做 SQLite 过渡。identity 和审计是第一次有行要写的表。题目表和答案表仍没有行，不建。代码未合入之前，下面 identity 和 audit 行仍写「未接」。
+2026-11-18 的决定：真实库只用 PostgreSQL，不做 SQLite 过渡。identity 和审计是第一次有行要写的表。题目表和答案表仍没有行，不建。同一天晚些时候，这两行的内存适配器和 PostgreSQL 适配器已经接上。没有 `K12_PG_DSN` 时，现有合成检查不连接数据库。
 
 日志的 `StdoutLogger` 在组合根，不属于这六个切片。审计写入是独立的一行，不是第七个切片。
 
@@ -16,8 +16,8 @@ PostgreSQL 还没连接，没有迁移，也没有空表。内存适配器不是
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | catalog | 题目草稿、答案草稿、核准写入 | `MemoryDrafts`、`MemoryAnswers`、`MemoryApprovals` | 无 | `test_question_draft`、`test_import_draft`、`test_import_answer`、`test_contract_schema`、`test_review_import` | 未写 | 未写 | ADR 0013、0014、0017、0018 |
 | knowledge | 文档里有查询知识点。代码里没有 | 无 | 无 | 无 | 未写 | 未写 | ADR 0015、0016。切片目录未建 |
-| identity | 会话、用户、学生、授权。practice 仍用 Authorizer | 未接。决定见 ADR 0025 到 0029 | 未接。PostgreSQL 由后续改动连接 | 未写 | 未写 | 未写 | ADR 0025、0026、0027、0028、0029 |
-| audit | 审计写入、近期 ERROR 只读 | 未接 | 未接。表在 identity 的 V001 | 未写 | 未写 | 未写 | ADR 0030。不是 ADR 0004 的第七个切片 |
+| identity | 会话、用户、学生、授权。practice 仍只通过 Authorizer 读授权结果 | `MemoryDb` | `PgDb`。连接由 `K12_PG_DSN` 注入 | `tests/identity` | 内存每次都跑。PostgreSQL 在 `K12_PG_DSN` 有值时跑同一套 | 未写 | ADR 0025、0026、0027、0028、0029 |
+| audit | 审计写入、审计查询、近期 ERROR | `MemoryAuditBook`、`ErrorRing` | `AuditPg` 写 `audit_events`。表在 identity 的 V001 | `test_audit_sink`、`tests/identity` | 内存每次都跑。PostgreSQL 与 identity 同一套 | 未写 | ADR 0030。不是 ADR 0004 的第七个切片 |
 | practice | 练习存储、文件、单页渲染、授权 | `MemoryPractice`、`MemoryFiles`、`MemoryAuth`。`StdPdf` 是标准库渲染，不是存储。拉丁用 Helvetica，中文用本机楷体 | 无 | `test_core_loop`、`test_paper_status`、`test_confirm_rules`、`test_http_loop`、`test_m1_review`、`test_service_probe`、`test_kaiti_page` | 未写 | 未写 | ADR 0006、0015、0024 |
 | analysis | 作答分析、练习推荐、任务。只在架构文档 | 无 | 无 | 无 | 未写 | 未写 | ADR 0005、0016。切片目录未建 |
 | delivery | 排版和导出。代码里没有这个切片 | 无。面向学生的单页 PDF 在 practice 的 `StdPdf` | 无 | 无 | 未写 | 未写 | ADR 0004。切片目录未建 |

@@ -87,8 +87,8 @@ class PhaseScopeTest(unittest.TestCase):
         result = self._run_check("catalog")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("F-13", result.stdout)
-        self.assertIn("backend/practice", result.stdout)
-        self.assertIn("from env", result.stdout)
+        self.assertIn("outside the current phase (catalog, from env)", result.stdout)
+        self.assertTrue("backend/identity" in result.stdout or "backend/practice" in result.stdout)
 
     def test_health_body_is_status_only(self) -> None:
         report = health_report()

@@ -18,6 +18,9 @@ class LogEvent:
     target_kind: str = ""
     target_id: str = ""
     audit: bool = False
+    actor_role: str = ""
+    reason_code: str = ""
+    action: str = ""
 
     def fields(self) -> dict[str, str | int | bool]:
         return asdict(self)

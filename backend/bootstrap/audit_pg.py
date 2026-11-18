@@ -36,12 +36,17 @@ class AuditPg:
             raise RuntimeError("audit write failed and the fallback did not stick") from exc
 
     def _insert(self, event: LogEvent) -> None:
-        detail = json.dumps({"module": event.module, "level": event.level})
+        detail = json.dumps(
+            {"module": event.module, "level": event.level, "event": event.event},
+            ensure_ascii=False,
+        )
         actor = event.actor_user_id or None
         kind = event.target_kind or None
         target = event.target_id or None
-        reason = event.outcome if event.outcome not in {"ok", "err"} else None
         outcome = event.outcome if event.outcome in {"ok", "err"} else "err"
+        reason = event.reason_code or None
+        role = event.actor_role or None
+        action = event.action or event.event
         with self._pool.connection() as conn:  # type: ignore[attr-defined]
             with conn.transaction():
                 conn.execute(
@@ -50,8 +55,8 @@ class AuditPg:
                         event.time,
                         event.request_id,
                         actor,
-                        None,
-                        event.event,
+                        role,
+                        action,
                         kind,
                         target,
                         reason,
