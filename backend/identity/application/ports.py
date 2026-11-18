@@ -1,0 +1,117 @@
+"""Ports. Adapters implement these. No driver types."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Protocol
+
+from backend.identity.domain.records import AuditRecord, Grant, Session, Student, User
+
+
+class IdentityStore(Protocol):
+    def by_id(self, user_id: str) -> User | None: ...
+
+    def by_username(self, username: str) -> User | None: ...
+
+    def count_role(self, role: str) -> int: ...
+
+    def insert(self, user: User) -> None: ...
+
+    def update_password(self, user_id: str, password_hash: str, algo: str, at: datetime) -> None: ...
+
+    def set_status(self, user_id: str, status: str, at: datetime, disabled_at: datetime | None) -> None: ...
+
+    def list_role(self, role: str) -> tuple[User, ...]: ...
+
+
+class StudentStore(Protocol):
+    def by_id(self, student_id: str) -> Student | None: ...
+
+    def insert(self, student: Student) -> None: ...
+
+    def set_status(self, student_id: str, status: str, at: datetime) -> None: ...
+
+    def list_all(self) -> tuple[Student, ...]: ...
+
+
+class GrantStore(Protocol):
+    def active(self, teacher_id: str, student_id: str, subject_id: str) -> Grant | None: ...
+
+    def by_id(self, grant_id: str) -> Grant | None: ...
+
+    def insert(self, grant: Grant) -> None: ...
+
+    def revoke(self, grant_id: str, at: datetime) -> None: ...
+
+    def revoke_student(self, student_id: str, at: datetime) -> None: ...
+
+    def list_all(self) -> tuple[Grant, ...]: ...
+
+
+class SessionStore(Protocol):
+    def put(self, session: Session) -> None: ...
+
+    def get(self, session_id: str) -> Session | None: ...
+
+    def revoke(self, session_id: str, at: datetime) -> None: ...
+
+    def revoke_user(self, user_id: str, at: datetime) -> None: ...
+
+    def touch(self, session_id: str, at: datetime) -> None: ...
+
+
+class LoginAttemptStore(Protocol):
+    def add(self, username_hash: str, ip_hash: str, at: datetime, outcome: str, reason_code: str) -> None: ...
+
+    def count_fails(self, username_hash: str, since: datetime) -> int: ...
+
+    def count_ip(self, ip_hash: str, since: datetime) -> int: ...
+
+
+class AuditReader(Protocol):
+    def add(self, row: AuditRecord) -> None: ...
+
+    def list_rows(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        action: str,
+        actor_user_id: str,
+        since: datetime | None,
+        until: datetime | None,
+    ) -> tuple[tuple[AuditRecord, ...], int]: ...
+
+
+class PasswordHasher(Protocol):
+    def hash(self, secret: str) -> str: ...
+
+    def verify(self, secret: str, stored: str) -> bool: ...
+
+    def needs_rehash(self, stored: str) -> bool: ...
+
+
+class Clock(Protocol):
+    def now(self) -> datetime: ...
+
+
+class RateLimiter(Protocol):
+    def check(self, username_hash: str, ip_hash: str, now: datetime) -> str | None: ...
+
+    def hit(self, username_hash: str, ip_hash: str, now: datetime, outcome: str, reason_code: str) -> None: ...
+
+
+class AuditWriter(Protocol):
+    def commit(
+        self,
+        *,
+        request_id: str,
+        occurred_at: datetime,
+        actor_user_id: str,
+        actor_role: str,
+        action: str,
+        target_kind: str,
+        target_id: str,
+        outcome: str,
+        reason_code: str,
+    ) -> None: ...
