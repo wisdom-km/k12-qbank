@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from dataclasses import replace
 
-from backend.kernel.result import Err
+from backend.kernel.result import Err, StoreFault
 from backend.practice.domain.confirm import (
     Confirmation,
     ConfirmationScope,
@@ -42,12 +42,18 @@ class MemoryPractice:
     def replace_paper(self, paper: Paper) -> None:
         with self._commit_lock:
             if paper.paper_id not in self._papers:
-                raise KeyError(paper.paper_id)
+                raise StoreFault("paper_not_found")
             self._papers[paper.paper_id] = paper
 
     def get_paper(self, paper_id: str) -> Paper | None:
         with self._commit_lock:
             return self._papers.get(paper_id)
+
+    def require_paper(self, paper_id: str) -> Paper:
+        found = self.get_paper(paper_id)
+        if found is None:
+            raise StoreFault("paper_not_found")
+        return found
 
     def paper_count(self) -> int:
         with self._commit_lock:
@@ -86,8 +92,21 @@ class MemoryPractice:
 
     def set_review_version(self, paper_id: str, review_version_id: str) -> None:
         with self._commit_lock:
-            current = self._papers[paper_id]
+            current = self._papers.get(paper_id)
+            if current is None:
+                raise StoreFault("paper_not_found")
             self._papers[paper_id] = replace(current, review_version_id=review_version_id)
+
+    def insert_confirmation(self, record: Confirmation) -> None:
+        """Insert one row. A taken review slot raises slot_conflict."""
+        slot = (record.paper_id, record.sub_question_id, record.review_version_id)
+        scope = scope_of(record)
+        with self._commit_lock:
+            held = self._slots.get(slot)
+            if held is not None and held != scope:
+                raise StoreFault("slot_conflict")
+            self._by_scope[scope] = record
+            self._slots[slot] = scope
 
     def get_confirmation(self, scope: ConfirmationScope) -> Confirmation | None:
         with self._commit_lock:

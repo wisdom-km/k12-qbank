@@ -1,4 +1,4 @@
-"""Apply identity migrations. Usage: python scripts/migrate.py up|down"""
+"""Apply shipped SQL migrations. Usage: python scripts/migrate.py up|down"""
 
 from __future__ import annotations
 

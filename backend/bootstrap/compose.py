@@ -33,11 +33,11 @@ _ROOT = Path(__file__).resolve().parents[2]
 
 @dataclass(frozen=True)
 class Loop:
-    approvals: MemoryApprovals
-    practice: MemoryPractice
+    approvals: object
+    practice: object
     auth: object
     logger: Logger
-    files: MemoryFiles
+    files: object
     renderer: PageRenderer
     health: HealthReport
     identity: object | None = None
@@ -98,14 +98,15 @@ def repo_root() -> Path:
 
 
 def _loop(**kwargs: object) -> Loop:
-    return Loop(
-        approvals=MemoryApprovals(),
-        practice=MemoryPractice(),
-        files=MemoryFiles(),
-        renderer=StdPdf(),
-        health=health_report(),
-        **kwargs,  # type: ignore[arg-type]
-    )
+    values: dict[str, object] = {
+        "approvals": MemoryApprovals(),
+        "practice": MemoryPractice(),
+        "files": MemoryFiles(),
+        "renderer": StdPdf(),
+        "health": health_report(),
+    }
+    values.update(kwargs)
+    return Loop(**values)  # type: ignore[arg-type]
 
 
 def _runtime_sinks() -> list[Logger]:
