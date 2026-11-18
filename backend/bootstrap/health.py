@@ -1,8 +1,8 @@
-"""Fixed health body for GET /health.
+"""Fixed health body for GET /health and GET /health/live.
 
 The composition root serves this value. status=ok means the process answered.
-It does not mean a database or a model is ready. There is no database in this
-slice. The body is status only: no secrets, no connection strings, no student data.
+This body does not check the database. Readiness is GET /health/ready.
+The body is status only: no secrets, no connection strings, no student data.
 """
 
 from __future__ import annotations
@@ -16,5 +16,5 @@ class HealthReport:
 
 
 def health_report() -> HealthReport:
-    """The process can answer. Dependency checks wait until a database exists."""
+    """The process can answer. This body does not check the database."""
     return HealthReport(status="ok")

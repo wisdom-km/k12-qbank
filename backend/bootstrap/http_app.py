@@ -6,11 +6,15 @@ import os
 import re
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 
-from backend.bootstrap.compose import Loop, attach_identity, compose
+from backend.bootstrap.compose import Loop, attach_identity, compose, repo_root
+from backend.bootstrap.ready import ReadyWindow, database_ready
+from backend.bootstrap.run_mode import choose_persist
+from backend.bootstrap.stdout_log import StdoutLogger
 from backend.bootstrap.http_errors import error_response
 from backend.bootstrap.http_gate import gate
 from backend.bootstrap.routes_admin import register_admin
@@ -37,6 +41,8 @@ def create_app(loop: Loop | None = None, *, seed: bool = True, openapi: bool = F
     app.state.opener = wired.opener
     app.state.deps = wired.deps
     app.state.errors = wired.errors
+    app.state.ready_limit = ReadyWindow()
+    app.state.ready_probe = _ready_probe(wired, persist)
     _middleware(app, wired)
     register_observability(app)
     register_session(app)
@@ -71,6 +77,15 @@ def _wire(loop: Loop | None, persist: bool) -> Loop:
     from backend.bootstrap.pg_runtime import open_postgres
 
     return open_postgres()
+
+
+def _ready_probe(wired: Loop, persist: bool) -> Callable[[], bool]:
+    """Memory mode is not ready. A database mode checks the shipped migrations."""
+    if not persist:
+        return lambda: False
+    pool = wired.identity
+    root = repo_root()
+    return lambda: database_ready(pool, root)
 
 
 def _fastapi(openapi: bool) -> FastAPI:
@@ -130,7 +145,12 @@ def _headers(response: object, request_id: str) -> None:
 
 
 def _default_app() -> FastAPI:
-    if os.environ.get("K12_PG_DSN", "").strip():
+    persist = choose_persist(
+        os.environ.get("K12_ENV", ""),
+        os.environ.get("K12_PG_DSN", ""),
+        StdoutLogger(),
+    )
+    if persist:
         return create_app(persist=True)
     return create_app()
 

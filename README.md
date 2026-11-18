@@ -50,7 +50,7 @@ OCR 参考答案来自核对页的 `{题干文件名}.answers/`。一份文件�
 
 job `review-import` 安装核对页 main，用合成页生成这两份草稿再导入。夹具不是教材页。
 
-服务端和网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。本机合成路径使用 FastAPI 和 React。不设置 `K12_PG_DSN` 时不连接数据库。设置后进程连接并迁移 identity、审计、catalog 与 practice。页字节目录是 `K12_FILE_DIR`。规范化题目表仍按 ADR 0013，有行再建。规范化答案表仍按 ADR 0014，有行再建。没有要写入的行时不建空表。安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据。机构决定 DEC-01 到 DEC-06 还没填。安卓界面仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
+服务端和网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。本机合成路径使用 FastAPI 和 React。不设置 `K12_PG_DSN` 时不连接数据库。设置后进程连接并迁移 identity、审计、catalog 与 practice。页字节目录是 `K12_FILE_DIR`。`K12_ENV` 默认是 development。production 在连接串或 `K12_FILE_DIR` 为空时退出。规范化题目表仍按 ADR 0013，有行再建。规范化答案表仍按 ADR 0014，有行再建。没有要写入的行时不建空表。安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据。机构决定 DEC-01 到 DEC-06 还没填。安卓界面仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
 
 ## 当前实现状态
 
@@ -61,7 +61,7 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | 教学服务 | 本机合成 HTTP 已接上会话。默认不连库。还没有对外发布。页面是 `/login`、`/` 和 `/admin` |
 | 登录 | 页面 `/login`。未登录打开 `/` 或 `/admin` 会到登录页。会话 cookie 是 `k12_sid`。写操作带 `X-K12-CSRF` |
 | 管理员后台 | 页面 `/admin`。管理员可建老师和学生、授权和撤销、查看审计与错误。老师打开该页得到 permission_denied |
-| PostgreSQL 已连接 | 仅当 `K12_PG_DSN` 有值时连接并迁移 identity、审计、catalog 与 practice。页字节在 `K12_FILE_DIR`。默认进程和单测不连接。CI 的 `postgres` 作业包含 up、down、up，以及 identity 与 catalog/practice 契约 |
+| PostgreSQL 已连接 | 仅当 `K12_PG_DSN` 有值时连接并迁移 identity、审计、catalog 与 practice。页字节在 `K12_FILE_DIR`。`K12_ENV` 默认 development；production 缺少连接串或页字节目录时退出。默认进程和单测不连接。CI 的 `postgres` 作业包含 up、down、up，以及 identity、catalog/practice 契约和迁移锁 |
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 在 `K12_PG_DSN` 有值时连接并迁移 |
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
 | 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。内存保存。还不能出卷。运行中的核准、卷和确认可写入 PostgreSQL。规范化答案表仍不建 |
