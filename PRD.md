@@ -157,6 +157,7 @@ AC-01 到 AC-08 是试用能否开始给老师用的条件。出现未核验出�
 | 响应安全头 | 已做。每个响应默认带 Content-Security-Policy 和 Permissions-Policy。`K12_SECURITY_HEADERS=0` 关闭这两项 |
 | 改口令页与活跃会话 | 已做。`/account` 提交已有的改口令接口。管理页列出当前用户的活跃会话，并可一次吊销 |
 | OpenAPI | 已做。默认关闭。`K12_OPENAPI=1` 才打开 `/docs` 和 `/openapi.json`。production 不加载合成账号 |
+| 外部错误上报 | 部分已做。`K12_ERROR_WEBHOOK_URL` 非空时异步 POST time、request_id、module、event、outcome。超时 2 秒，最多重试 1 次。失败只打一条 WARN。外部接收方仍未对接，M-14 仍未通过 |
 | 发布记录、知识点、练习册、多题练习的列 | 已写入 ADR 0015。表未建 |
 | 解题方法目录，以及错因只指向已有知识点和方法 | 已写入 ADR 0016。表未建。模型不新建目录行 |
 | 按知识点、章节、题型和难度检索，再由老师排序 | 未做。没有知识点标签的题不进这个检索 |

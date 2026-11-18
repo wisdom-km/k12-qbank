@@ -27,3 +27,4 @@
 | admin_action_committed | INFO | identity | audit=true 时进入审计流。action、target_kind、target_id、outcome |
 | audit_write_failed | ERROR | 审计 sink | 原来的 request_id。原事件另写入回退文件 |
 | log_rotation | INFO | 文件 sink | 新文件的日期分段。不记日志正文 |
+| webhook_failed | WARN | bootstrap | 原来的 request_id。不记地址，不记上报正文 |

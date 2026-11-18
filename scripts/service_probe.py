@@ -295,13 +295,12 @@ def _wait_ready(proc: subprocess.Popen[str], token: str, deadline: float) -> str
         for line in proc.stdout:
             if token in line:
                 found.set()
-                return
+                # Keep reading. A full pipe blocks the server on Windows.
 
     thread = threading.Thread(target=read_stdout, daemon=True)
     thread.start()
     while time.monotonic() < deadline:
         if found.is_set():
-            thread.join(timeout=1)
             return "ready"
         if proc.poll() is not None:
             thread.join(timeout=1)
