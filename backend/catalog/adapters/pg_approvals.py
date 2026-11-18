@@ -7,6 +7,8 @@ from typing import Any, TypeVar
 
 from psycopg.errors import UniqueViolation
 
+from backend.catalog.adapters.pg_answers import insert_approved_answer
+from backend.catalog.adapters.pg_questions import insert_approved_question
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.kernel.result import StoreFault
 
@@ -23,7 +25,7 @@ class PgApprovals:
         self._pool = pool
 
     def put(self, snapshot: ApprovalSnapshot) -> None:
-        _run(self._pool, lambda conn: _upsert(conn, snapshot))
+        _run(self._pool, lambda conn: _save(conn, snapshot))
 
     def read_snapshot(self, question_version_id: str) -> ApprovalSnapshot | None:
         return _run(self._pool, lambda conn: _read(conn, question_version_id))
@@ -97,7 +99,13 @@ def _insert_new(conn: Any, snapshot: ApprovalSnapshot) -> bool:
         f"INSERT INTO approvals ({_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
         _params(snapshot),
     )
+    _remember(conn, snapshot)
     return True
+
+
+def _save(conn: Any, snapshot: ApprovalSnapshot) -> None:
+    _upsert(conn, snapshot)
+    _remember(conn, snapshot)
 
 
 def _replace(conn: Any, expected: ApprovalSnapshot, updated: ApprovalSnapshot) -> bool:
@@ -105,7 +113,16 @@ def _replace(conn: Any, expected: ApprovalSnapshot, updated: ApprovalSnapshot) -
     if current != expected:
         return False
     _upsert(conn, updated)
+    _remember(conn, updated)
     return True
+
+
+def _remember(conn: Any, snapshot: ApprovalSnapshot) -> None:
+    if not snapshot.question_approved or not snapshot.answer_approved:
+        return
+    if not insert_approved_question(conn, snapshot):
+        return
+    insert_approved_answer(conn, snapshot)
 
 
 def _read(conn: Any, question_version_id: str) -> ApprovalSnapshot | None:

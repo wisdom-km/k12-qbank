@@ -37,6 +37,9 @@ def open_postgres() -> Loop:
     attempts = PgAttempts(pool)
     deps = make_deps(attempts, logger)
     approvals, practice, files = _catalog_stores(pool)
+    from backend.catalog.adapters.pg_answers import PgAnswers
+    from backend.catalog.adapters.pg_questions import PgQuestions
+
     return _loop(
         auth=GrantAuthorizer(PoolGrantReader(pool)),  # type: ignore[arg-type]
         logger=logger,
@@ -47,6 +50,8 @@ def open_postgres() -> Loop:
         approvals=approvals,
         practice=practice,
         files=files,
+        questions=PgQuestions(pool),
+        answers=PgAnswers(pool),
     )
 
 

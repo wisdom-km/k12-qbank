@@ -12,6 +12,8 @@ from backend.bootstrap.error_ring import ErrorRing
 from backend.bootstrap.file_log import FileLog
 from backend.bootstrap.health import HealthReport, health_report
 from backend.bootstrap.stdout_log import StdoutLogger
+from backend.catalog.adapters.answer_memory import MemoryAnswers
+from backend.catalog.adapters.draft_memory import MemoryDrafts
 from backend.catalog.adapters.memory import MemoryApprovals
 from backend.identity.adapters.argon2_hasher import Argon2Hasher
 from backend.identity.adapters.authorizer import GrantAuthorizer
@@ -44,6 +46,8 @@ class Loop:
     deps: Deps | None = None
     errors: ErrorRing | None = None
     opener: object | None = None
+    questions: object | None = None
+    answers: object | None = None
 
 
 def compose() -> Loop:
@@ -104,6 +108,8 @@ def _loop(**kwargs: object) -> Loop:
         "files": MemoryFiles(),
         "renderer": StdPdf(),
         "health": health_report(),
+        "questions": MemoryDrafts(),
+        "answers": MemoryAnswers(),
     }
     values.update(kwargs)
     return Loop(**values)  # type: ignore[arg-type]

@@ -30,4 +30,4 @@
 
 ## 还不做
 
-学生账号、家长账号、安卓、题目表、答案表、对外错误上报的真实接收方。默认 webhook 地址仍是空。
+学生账号、家长账号、安卓、对外错误上报的真实接收方。默认 webhook 地址仍是空。题目表和答案表这一段见 [catalog-normalized.md](catalog-normalized.md)。

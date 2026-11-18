@@ -51,5 +51,6 @@
 | 2026-11-18 | 响应默认带 Content-Security-Policy 和 Permissions-Policy。`K12_SECURITY_HEADERS=0` 关闭这两项。`/account` 可改自己的口令。管理页列出并一次吊销当前用户尚未过期的会话。 | 用户要求做 C5。不改 ADR 0025 正文。 |
 | 2026-11-19 | `K12_OPENAPI` 默认 0，为 1 时才打开 `/docs` 和 `/openapi.json`。CI 导出 `apps/web/src/api.openapi.json` 并用 git diff 对账。合成口令改从 `K12_SYNTH_SECRET` 读取。production 不加载合成数据。 | 用户要求做 C6。不改 ADR 0023 正文。 |
 | 2026-11-19 | `K12_ERROR_WEBHOOK_URL` 非空时，ErrorRing 异步 POST 五个字段。超时 2 秒，最多重试 1 次。失败只打一条 WARN。外部接收方仍未对接。 | 用户要求做 C7。不改 ADR 0030 正文。不关闭 #47。 |
+| 2026-11-19 | `V004__questions_answers.sql` 建 `questions` 和 `answers`。核准时追加一行，不覆盖已有 `question_id`。子表仍不建。 | 用户要求做 D1，并确认版本号、两张表、主键名、`origin` 和时间列。不改 ADR 0013、0014、0039 正文。 |
 
 方案里的 DEC-01 到 DEC-06 仍是待机构确认。本仓库没有替机构填写这些决定。

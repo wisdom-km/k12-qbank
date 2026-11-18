@@ -207,7 +207,7 @@ ASVS L1 自查是 SHOULD，还没做。
 - 开发和正式数据分开。agent 不连接正式库。正式库的位置还没有。
 - 删除或覆盖真实学生数据之前要人确认，并且先有备份。红线 R-2。
 - 备份要同时包含数据库和文件。只拷一种不算备份。恢复演练还没有做。可丢失窗口待定标。
-- 迁移文件在第一次持久化时加入，并要能回退。identity 与审计的迁移是 `backend/identity/migrations/V001__init.sql`。题目表和答案表仍没有。
+- 迁移文件在第一次持久化时加入，并要能回退。identity 与审计的迁移是 `backend/identity/migrations/V001__init.sql`。题目表和答案表是 `backend/catalog/migrations/V004__questions_answers.sql`。子表仍未建。
 
 ## 关口
 

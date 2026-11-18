@@ -9,7 +9,11 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
+from backend.catalog.adapters.answer_memory import MemoryAnswers
+from backend.catalog.adapters.draft_memory import MemoryDrafts
 from backend.catalog.adapters.memory import MemoryApprovals
+from backend.catalog.domain.answer import parse_answer_draft
+from backend.catalog.domain.parse import parse_question_draft
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.kernel.result import Err, StoreFault
 from backend.kernel.use_log import read_store
@@ -150,12 +154,39 @@ class CatalogPracticeCases:
         self.assertEqual(result.code, "file_missing")  # type: ignore[attr-defined]
         self.assertEqual(logger.events, [])
 
+    def test_question_round_trip(self) -> None:
+        draft = _draft()
+        self.questions.save(draft)  # type: ignore[attr-defined]
+        self.assertEqual(self.questions.read("1:1"), draft.questions[0])  # type: ignore[attr-defined]
+
+    def test_question_read_returns_the_latest_stem(self) -> None:
+        self.questions.save(_draft())  # type: ignore[attr-defined]
+        revised = _draft("改后")
+        self.questions.save(revised)  # type: ignore[attr-defined]
+        self.assertEqual(self.questions.read("1:1"), revised.questions[0])  # type: ignore[attr-defined]
+
+    def test_answer_round_trip(self) -> None:
+        self.questions.save(_draft())  # type: ignore[attr-defined]
+        answer = _bank_answer()
+        self.assertIsNone(self.answers.put(answer))  # type: ignore[attr-defined]
+        self.assertEqual(self.answers.read(answer.key), answer)  # type: ignore[attr-defined]
+
+    def test_second_applicable_answer_is_refused(self) -> None:
+        self.questions.save(_draft())  # type: ignore[attr-defined]
+        first = _bank_answer()
+        self.answers.put(first)  # type: ignore[attr-defined]
+        second = _bank_answer("3", "2")
+        self.assertEqual(self.answers.put(second), first.key)  # type: ignore[attr-defined]
+        self.assertIsNone(self.answers.read(second.key))  # type: ignore[attr-defined]
+
 
 class MemoryContractTest(CatalogPracticeCases, unittest.TestCase):
     def setUp(self) -> None:
         self.approvals = MemoryApprovals()
         self.practice = MemoryPractice()
         self.files = MemoryFiles()
+        self.questions = MemoryDrafts()
+        self.answers = MemoryAnswers()
 
 
 class PgContractTest(CatalogPracticeCases, unittest.TestCase):
@@ -169,9 +200,14 @@ class PgContractTest(CatalogPracticeCases, unittest.TestCase):
         self.pool = _pool()
         _truncate(self.pool)
         self._directory = tempfile.TemporaryDirectory()
+        from backend.catalog.adapters.pg_answers import PgAnswers
+        from backend.catalog.adapters.pg_questions import PgQuestions
+
         self.approvals = PgApprovals(self.pool)
         self.practice = PgPractice(self.pool)
         self.files = PgFiles(self.pool, Path(self._directory.name))
+        self.questions = PgQuestions(self.pool)
+        self.answers = PgAnswers(self.pool)
 
     def tearDown(self) -> None:
         directory = getattr(self, "_directory", None)
@@ -183,6 +219,45 @@ class PgContractTest(CatalogPracticeCases, unittest.TestCase):
         self.practice.place_issued(paper, _answer(paper))  # type: ignore[attr-defined]
         self.assertEqual(_scalar(self.pool, "SELECT count(*) FROM paper_pages WHERE paper_id = %s", (paper.paper_id,)), 1)
         self.assertEqual(_scalar(self.pool, "SELECT page_number FROM paper_pages WHERE paper_id = %s", (paper.paper_id,)), 1)
+
+    def test_saved_question_keeps_the_older_stem(self) -> None:
+        self.questions.save(_draft())
+        self.questions.save(_draft("改后"))
+        self.assertEqual(_scalar(self.pool, "SELECT count(*) FROM questions WHERE key = %s", ("1:1",)), 2)
+        older = "SELECT stem->0->>'value' FROM questions WHERE key = %s AND version = 1"
+        self.assertEqual(_text(self.pool, older, ("1:1",)), "计算：")
+
+    def test_saved_answer_keeps_the_older_text(self) -> None:
+        self.questions.save(_draft())
+        self.answers.put(_bank_answer("2"))
+        self.answers.put(_bank_answer("9"))
+        count = "SELECT count(*) FROM answers WHERE key = %s"
+        self.assertEqual(_scalar(self.pool, count, ("1:1:teacher:1",)), 2)
+        older = "SELECT content->0->>'value' FROM answers WHERE key = %s AND version = 1"
+        self.assertEqual(_text(self.pool, older, ("1:1:teacher:1",)), "2")
+
+    def test_approval_inserts_a_row_and_does_not_overwrite_it(self) -> None:
+        approved = replace(_snapshot(), question_approved=True, answer_approved=True)
+        self.approvals.put(_snapshot())
+        self.assertEqual(_scalar(self.pool, "SELECT count(*) FROM questions WHERE key = %s", ("q-c1",)), 0)
+        self.approvals.put(approved)
+        stored = self.questions.read("q-c1")
+        self.assertEqual(stored.type, "unresolved")  # type: ignore[union-attr]
+        self.assertEqual(stored.stem[0].value, _STEM)  # type: ignore[attr-defined]
+        self.assertEqual(self.answers.read("q-c1:teacher:1").content[0].value, "2")  # type: ignore[union-attr]
+        self.approvals.put(replace(approved, stem="改过", answer_text="8"))
+        self.assertEqual(self.approvals.read_snapshot("q-c1").stem, "改过")
+        kept = "SELECT stem->0->>'value' FROM questions WHERE question_id = %s"
+        self.assertEqual(_text(self.pool, kept, ("q-c1",)), _STEM)
+        revised = replace(
+            approved,
+            question_version_id="q-c1-v2",
+            answer_version_id="a-c1-v2",
+            stem="第二版",
+        )
+        self.approvals.put(revised)
+        self.assertEqual(_scalar(self.pool, "SELECT count(*) FROM questions", ()), 2)
+        self.assertEqual(self.questions.read("q-c1-v2").stem[0].value, "第二版")  # type: ignore[union-attr]
 
 
 def _snapshot() -> ApprovalSnapshot:
@@ -262,7 +337,7 @@ def _pool() -> object:
 
 def _truncate(pool: object) -> None:
     statement = """
-        TRUNCATE TABLE confirmations, attempts, paper_pages, papers, files, approvals
+        TRUNCATE TABLE answers, questions, confirmations, attempts, paper_pages, papers, files, approvals
         RESTART IDENTITY CASCADE
     """
     with pool.connection() as conn:  # type: ignore[attr-defined]
@@ -270,11 +345,83 @@ def _truncate(pool: object) -> None:
             conn.execute(statement)
 
 
+def _draft(stem: str = "计算："):
+    parsed = parse_question_draft(_question_payload(stem))
+    if isinstance(parsed, Err):
+        raise AssertionError(parsed.message)
+    return parsed.value
+
+
+def _bank_answer(text: str = "2", ordinal: str = "1"):
+    parsed = parse_answer_draft(_answer_payload(text, ordinal))
+    if isinstance(parsed, Err):
+        raise AssertionError(parsed.message)
+    return parsed.value
+
+
+def _question_payload(stem: str) -> dict[str, object]:
+    return {
+        "contract": "k12-question-draft",
+        "contract_version": 1,
+        "schema_version": 1,
+        "ok": True,
+        "reason": "",
+        "preface": "",
+        "source": {"pdf_page": 1},
+        "questions": [
+            {
+                "key": "1:1",
+                "section": "一",
+                "number": "1",
+                "type": "single_choice",
+                "structure": "choice",
+                "status": "confirmed",
+                "stem": [{"type": "text", "value": stem}, {"type": "math", "latex": "(-3)+5"}],
+                "options": [
+                    {"key": "A", "content": [{"type": "text", "value": "2"}]},
+                    {"key": "B", "content": [{"type": "math", "latex": "0"}]},
+                ],
+                "subquestions": [],
+                "assets": [{"role": "crop", "bbox": [0, 0, 10, 20]}],
+                "geometry": {"kind": "editable-geometry", "version": 1, "document": {"mark": "box"}},
+            }
+        ],
+    }
+
+
+def _answer_payload(text: str, ordinal: str) -> dict[str, object]:
+    return {
+        "contract": "k12-answer-draft",
+        "contract_version": 1,
+        "schema_version": 1,
+        "ok": True,
+        "reason": "",
+        "question_key": "1:1",
+        "key": "1:1:teacher:" + ordinal,
+        "origin": "teacher",
+        "status": "confirmed",
+        "applicable": True,
+        "source": {},
+        "content": [{"type": "text", "value": text}],
+        "parts": [
+            {"sub_key": "1", "role": "result", "order": 1, "content": [{"type": "text", "value": text}]}
+        ],
+        "assets": [{"role": "crop", "bbox": [1, 2, 3, 4]}],
+    }
+
+
 def _scalar(pool: object, statement: str, params: tuple[object, ...]) -> int:
     with pool.connection() as conn:  # type: ignore[attr-defined]
         with conn.transaction():
             row = conn.execute(statement, params).fetchone()
     return int(row[0])
+
+
+def _text(pool: object, statement: str, params: tuple[object, ...]) -> str:
+    with pool.connection() as conn:  # type: ignore[attr-defined]
+        with conn.transaction():
+            row = conn.execute(statement, params).fetchone()
+    return str(row[0])
 
 
 _POOL: object | None = None
