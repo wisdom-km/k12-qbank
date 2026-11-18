@@ -43,11 +43,26 @@ def create_app(loop: Loop | None = None, *, seed: bool = True, openapi: bool = F
     register_admin(app)
     register_catalog(app)
     register_practice(app)
-    if _WEB.is_dir():
-        from fastapi.staticfiles import StaticFiles
-
-        app.mount("/", StaticFiles(directory=_WEB, html=True), name="web")
+    _mount_web(app)
     return app
+
+
+def _mount_web(app: FastAPI) -> None:
+    index = _WEB / "index.html"
+    if not index.is_file():
+        return
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    assets = _WEB / "assets"
+    if assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets), name="web-assets")
+
+    def page() -> FileResponse:
+        return FileResponse(index)
+
+    for path in ("/", "/login", "/admin"):
+        app.add_api_route(path, page, methods=["GET"], include_in_schema=False)
 
 
 def _wire(loop: Loop | None, persist: bool) -> Loop:

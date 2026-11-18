@@ -4,7 +4,7 @@
 
 identity 与审计的迁移是 `backend/identity/migrations/V001__init.sql`。`K12_PG_DSN` 为空时进程仍用内存。题目表和答案表没有建。内存适配器不是持久适配器。`MemoryFiles` 只在进程内存里放字节，不是磁盘或对象存储。一个端口要同时有内存实现和至少一个持久实现，并且契约测试两边都跑，才算真接缝。
 
-2026-11-18 的决定：真实库只用 PostgreSQL，不做 SQLite 过渡。identity 和审计是第一次有行要写的表。题目表和答案表仍没有行，不建。同一天晚些时候，这两行的内存适配器和 PostgreSQL 适配器已经接上。没有 `K12_PG_DSN` 时，现有合成检查不连接数据库。HTTP 上的出卷老师来自会话 cookie。practice 仍只调用 Authorizer，不导入 identity。
+2026-11-18 的决定：真实库只用 PostgreSQL，不做 SQLite 过渡。identity 和审计是第一次有行要写的表。题目表和答案表仍没有行，不建。同一天晚些时候，这两行的内存适配器和 PostgreSQL 适配器已经接上。没有 `K12_PG_DSN` 时，现有合成检查不连接数据库。HTTP 上的出卷老师来自会话 cookie。practice 仍只调用 Authorizer，不导入 identity。网页路由是 `/login`、`/` 和 `/admin`。未登录打开受保护页会去 `/login`。
 
 日志的 `StdoutLogger` 在组合根，不属于这六个切片。审计写入是独立的一行，不是第七个切片。
 

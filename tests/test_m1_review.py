@@ -490,7 +490,7 @@ class ReviewLoopTest(unittest.TestCase):
         node = shutil.which("node")
         self.assertIsNotNone(node, "node is required for the stale-list race")
         assert node is not None
-        page = (ROOT / "apps/web/src/App.jsx").read_text(encoding="utf-8")
+        page = (ROOT / "apps/web/src/teacher_page.jsx").read_text(encoding="utf-8")
         self.assertIn('from "./paper_loop.js"', page)
         self.assertNotIn("setPapers(listed.body.papers)", page)
         self.assertNotIn("setPapers(nextPapers.papers)", page)
@@ -510,7 +510,7 @@ class ReviewLoopTest(unittest.TestCase):
         node = shutil.which("node")
         self.assertIsNotNone(node, "node is required for the issue, turn, and confirm path")
         assert node is not None
-        page = (ROOT / "apps/web/src/App.jsx").read_text(encoding="utf-8")
+        page = (ROOT / "apps/web/src/teacher_page.jsx").read_text(encoding="utf-8")
         self.assertIn('from "./paper_state.js"', page)
         self.assertIn("useReducer", page)
         self.assertNotIn("live.current", page)

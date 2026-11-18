@@ -62,6 +62,7 @@
 | 查看骨架状态 | `python scripts/status.py` |
 | 文档冒烟 | `python scripts/smoke_docs.py` |
 | 最小 core 测试 | `python -m unittest discover -s tests -v` |
+| 页面测试 | `npm test --prefix apps/web` |
 | 边界、相对导入和阶段范围 | `python scripts/check_boundaries.py`。允许的业务切片是 `scripts/check.conf` 的 `PHASE_SLICES`，当前 `catalog practice identity`。空白配置回落 `catalog practice`。非空环境变量同名时覆盖 |
 | 日志规则 | `python scripts/check_logging.py` |
 | 文件备份演练 | `python scripts/drill_backup.py`。夹具记录在 `docs/evidence/backup-drill-2026-11-14.md`，不是正式数据 |
@@ -85,7 +86,7 @@
 
 ## 容易误导
 
-`catalog` 和 `practice` 在合成数据上出卷并确认。本机 HTTP 使用 FastAPI，页面使用 React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。不设置 `K12_PG_DSN` 时不连接数据库；设置后连接并迁移。HTTP 上的老师来自会话 cookie。安卓界面仍未选定，见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md)。
+`catalog` 和 `practice` 在合成数据上出卷并确认。本机 HTTP 使用 FastAPI，页面使用 React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。不设置 `K12_PG_DSN` 时不连接数据库；设置后连接并迁移。HTTP 上的老师来自会话 cookie。页面路径是 `/login`、`/` 和 `/admin`。安卓界面仍未选定，见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md)。
 
 契约是 `k12-question-draft` 第 1 版和 `k12-answer-draft` 第 1 版。契约文件有 `$id` 和 `version`，草稿有 `schema_version`。未知版本仍是 `not_draft`，说明里写出收到的版本。见 [docs/adr/0018-schema-version.md](docs/adr/0018-schema-version.md)。核对页 `contracts/` 复制的是这里的同一份 JSON Schema。导入失败的 `code` 是 `not_draft` 或 `answer_conflict`，说明里带字段。核对页写入前的同一类失败是 `CONTRACT`。两边的失败都有 `code`、`message`、`request_id`。草稿不能出卷。
 
