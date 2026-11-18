@@ -59,6 +59,9 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | Docs (PRD, architecture, rules, ADRs, gates) | Done |
 | Business code `catalog` / `practice` | On synthetic questions it refuses an unapproved issue, writes a one-page PDF, and confirms one answer by operation key |
 | Teaching service | Local synthetic HTTP now has a session. The default process does not connect. There is no public release. The pages are `/login`, `/`, and `/admin` |
+| Login | Page `/login`. A signed-out visit to `/` or `/admin` goes to the login page. The session cookie is `k12_sid`. Writes send `X-K12-CSRF` |
+| Admin | Page `/admin`. An admin creates teachers and students, grants and revokes, and reads audit and errors. A teacher sees permission_denied |
+| PostgreSQL connected | The process connects and migrates identity and audit only when `K12_PG_DSN` is set. The default process and the unit tests do not connect. The CI `postgres` job has run migrate up, down, and up |
 | Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL connects and migrates when `K12_PG_DSN` is set |
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
 | Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. No database yet |
