@@ -214,20 +214,20 @@ describe("session pages", () => {
     });
     await settle(() => document.querySelector("input[name=old_secret]"));
     await act(async () => {
-      setValue(document.querySelector("input[name=old_secret]"), "old-secret-9");
-      setValue(document.querySelector("input[name=new_secret]"), "new-secret-9");
+      setValue(document.querySelector("input[name=old_secret]"), "old-secret9");
+      setValue(document.querySelector("input[name=new_secret]"), "new-secret9");
     });
     await act(async () => {
       document.querySelector("form").requestSubmit();
     });
     await settle(() => document.body.textContent.includes("口令已更新"));
-    expect(document.body.textContent).not.toContain("old-secret-9");
-    expect(document.body.textContent).not.toContain("new-secret-9");
+    expect(document.body.textContent).not.toContain("old-secret9");
+    expect(document.body.textContent).not.toContain("new-secret9");
     expect(document.querySelector("input[name=old_secret]").value).toBe("");
     expect(document.querySelector("input[name=new_secret]").value).toBe("");
     const saved = fetch.mock.calls.find((call) => call[0] === "/api/account/password");
     expect(saved[1].headers["X-K12-CSRF"]).toBe("csrf-test");
-    expect(JSON.parse(saved[1].body)).toEqual({ old_secret: "old-secret-9", new_secret: "new-secret-9" });
+    expect(JSON.parse(saved[1].body)).toEqual({ old_secret: "old-secret9", new_secret: "new-secret9" });
   });
 
   it("lists the admin's own sessions and revokes them in one click", async () => {
