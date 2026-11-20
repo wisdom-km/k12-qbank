@@ -27,7 +27,7 @@
 产品试用时，网页和安卓都要走完。写代码的顺序更窄：
 
 1. 服务端先守住出卷和老师确认。
-2. 第一段先做浏览器里的核验、出卷和确认，目录有 `catalog` 和 `practice`。2026-11-18 起 `PHASE_SLICES` 加上 `identity`，见 [docs/exec-plans/active/identity-and-audit.md](docs/exec-plans/active/identity-and-audit.md)。空白配置仍回落前两项。
+2. 第一段先做浏览器里的核验、出卷和确认，目录有 `catalog` 和 `practice`。2026-11-18 起 `PHASE_SLICES` 加上 `identity`，见 [docs/exec-plans/active/identity-and-audit.md](docs/exec-plans/active/identity-and-audit.md)。2026-11-20 起加上 `knowledge` 的内存端口，见 [docs/exec-plans/active/knowledge-slice.md](docs/exec-plans/active/knowledge-slice.md)。空白配置仍回落前两项。
 3. 安卓拍照、上传和缺页排在这段之后。
 4. 桌面安装壳更后。等老师这台电脑上，网页已经能核验、能打开带公式的 PDF。优先试 Tauri 2 的稳定版。Electron 不是退路。
 
@@ -69,8 +69,8 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
 | 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。内存保存。还不能出卷。运行中的核准可同时写入 V004 的 `answers` 和 V005 的 `answer_part`、`answer_asset`。`answer_decision` 仍未建 |
 | 契约校验 | JSON Schema 在 `backend/catalog/contracts/`。不新增包。见 [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
-| 发布、知识点和多题练习 | 列写在 ADR 0015。表未建。现在一卷一题 |
-| 解题方法与错因 | 列写在 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。目录入库。错因是建议。表未建 |
+| 发布、知识点和多题练习 | 列写在 ADR 0015。知识点的内存端口已接。发布记录和多题练习的表未建。现在一卷一题 |
+| 解题方法与错因 | 列写在 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。解题方法的内存端口已接。错因是建议。表未建 |
 
 ## 命令
 

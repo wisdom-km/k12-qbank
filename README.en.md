@@ -27,7 +27,7 @@ Online answering, student accounts, parent accounts, parent weekly or monthly re
 The trial still needs both the web page and Android to finish the loop. The code is narrower than that:
 
 1. The server holds the rules for issuing a paper and for the teacher's confirmation.
-2. The first slice is the browser: check a question, issue a paper, and confirm, in `catalog` and `practice`. As of 2026-11-18, `PHASE_SLICES` also lists `identity`. A blank value still falls back to `catalog` and `practice`. See `docs/exec-plans/active/identity-and-audit.md`.
+2. The first slice is the browser: check a question, issue a paper, and confirm, in `catalog` and `practice`. As of 2026-11-18, `PHASE_SLICES` also lists `identity`. As of 2026-11-20 it also lists the in-memory `knowledge` ports. A blank value still falls back to `catalog` and `practice`. See `docs/exec-plans/active/identity-and-audit.md` and `docs/exec-plans/active/knowledge-slice.md`.
 3. Android photo, upload, and missing-page handling come after that slice.
 4. A desktop install shell comes later, after the web page can check a question and open a formula PDF on the teacher's computer. The candidate is stable Tauri 2. Electron is not the fallback.
 
@@ -69,8 +69,8 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
 | Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. A running approval can also write V004 `answers` plus V005 `answer_part` and `answer_asset`. `answer_decision` is still not created |
 | Contract check | JSON Schema in `backend/catalog/contracts/`. No new package. See [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
-| Publication, knowledge, multi-item papers | Columns are in ADR 0015. Tables are not created. A paper still holds one question |
-| Methods and error causes | Columns are in [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md). The catalog is stored. An error cause is a suggestion. Tables are not created |
+| Publication, knowledge, multi-item papers | Columns are in ADR 0015. The knowledge ports have an in-memory adapter. Publication and multi-item tables are not created. A paper still holds one question |
+| Methods and error causes | Columns are in [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md). The method ports have an in-memory adapter. An error cause is a suggestion. Tables are not created |
 
 ## Commands
 

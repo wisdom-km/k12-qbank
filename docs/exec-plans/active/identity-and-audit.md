@@ -31,3 +31,5 @@
 ## 还不做
 
 学生账号、家长账号、安卓、对外错误上报的真实接收方。默认 webhook 地址仍是空。题目表和答案表这一段见 [catalog-normalized.md](catalog-normalized.md)。
+
+2026-11-20：knowledge 目录已另开，见 [knowledge-slice.md](knowledge-slice.md)。上面「仍不建目录」是这一段开工时的范围。
