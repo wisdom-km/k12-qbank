@@ -1,0 +1,428 @@
+# popen
+proc.pid: 27568
+proc.poll: 0
+proc.returncode: 0
+_probe_wait_failed: None
+_probe_kill_sent: True
+elapsed_s: 2.016
+
+# tracked
+pid: 27568 started: 134396582622147737 is_proc: True
+pid: 21976 started: 134394664131906177 is_proc: False
+pid: 26184 started: 134394664136911886 is_proc: False
+pid: 32712 started: 134394664139270072 is_proc: False
+pid: 30944 started: 134394664139326050 is_proc: False
+pid: 2756 started: 134394664139567009 is_proc: False
+pid: 20904 started: 134394664141034493 is_proc: False
+pid: 33060 started: 134394664145589549 is_proc: False
+pid: 33236 started: 134394664147019028 is_proc: False
+pid: 33440 started: 134394664148109151 is_proc: False
+pid: 26592 started: 134394688914858114 is_proc: False
+pid: 40884 started: 134394688983553488 is_proc: False
+pid: 38856 started: 134394689304583396 is_proc: False
+pid: 40020 started: 134394689304583479 is_proc: False
+pid: 36220 started: 134394689748779814 is_proc: False
+pid: 46988 started: 134394718163177462 is_proc: False
+pid: 42256 started: 134394730808892605 is_proc: False
+pid: 50576 started: 134394768160596022 is_proc: False
+pid: 9884 started: 134394802806504915 is_proc: False
+pid: 19760 started: 134394802827084853 is_proc: False
+pid: 45920 started: 134394853709581775 is_proc: False
+pid: 8844 started: 134396380963740656 is_proc: False
+pid: 45792 started: 134396431304655658 is_proc: False
+pid: 11808 started: 134396434474735236 is_proc: False
+pid: 41716 started: 134396449800221997 is_proc: False
+pid: 52380 started: 134396453877562956 is_proc: False
+pid: 36424 started: 134396538614596108 is_proc: False
+pid: 41000 started: 134396582347838773 is_proc: False
+
+# leftovers
+pid: 21976
+started_now: 134394664131906177
+stamped_started: 134394664131906177
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 21976
+Name            : chrome.exe
+ParentProcessId : 27568
+CreationDate    : 2026/11/18 17:06:53
+HandleCount     : 2755
+ThreadCount     : 53
+
+pid: 26184
+started_now: 134394664136911886
+stamped_started: 134394664136911886
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 26184
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:06:53
+HandleCount     : 287
+ThreadCount     : 8
+
+pid: 32712
+started_now: 134394664139270072
+stamped_started: 134394664139270072
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 32712
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:06:53
+HandleCount     : 1089
+ThreadCount     : 67
+
+pid: 30944
+started_now: 134394664139326050
+stamped_started: 134394664139326050
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 30944
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:06:53
+HandleCount     : 514
+ThreadCount     : 28
+
+pid: 2756
+started_now: 134394664139567009
+stamped_started: 134394664139567009
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 2756
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:06:53
+HandleCount     : 200
+ThreadCount     : 12
+
+pid: 20904
+started_now: 134394664141034493
+stamped_started: 134394664141034493
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 20904
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:06:54
+HandleCount     : 334
+ThreadCount     : 32
+
+pid: 33060
+started_now: 134394664145589549
+stamped_started: 134394664145589549
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 33060
+Name            : cmd.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:06:54
+HandleCount     : 176
+ThreadCount     : 1
+
+pid: 33236
+started_now: 134394664147019028
+stamped_started: 134394664147019028
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 33236
+Name            : conhost.exe
+ParentProcessId : 33060
+CreationDate    : 2026/11/18 17:06:54
+HandleCount     : 121
+ThreadCount     : 3
+
+pid: 33440
+started_now: 134394664148109151
+stamped_started: 134394664148109151
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 33440
+Name            : extension-host.exe
+ParentProcessId : 33060
+CreationDate    : 2026/11/18 17:06:54
+HandleCount     : 73
+ThreadCount     : 5
+
+pid: 26592
+started_now: 134394688914858114
+stamped_started: 134394688914858114
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 26592
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:48:11
+HandleCount     : 483
+ThreadCount     : 31
+
+pid: 40884
+started_now: 134394688983553488
+stamped_started: 134394688983553488
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 40884
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:48:18
+HandleCount     : 347
+ThreadCount     : 29
+
+pid: 38856
+started_now: 134394689304583396
+stamped_started: 134394689304583396
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 38856
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:48:50
+HandleCount     : 593
+ThreadCount     : 26
+
+pid: 40020
+started_now: 134394689304583479
+stamped_started: 134394689304583479
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 40020
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:48:50
+HandleCount     : 255
+ThreadCount     : 11
+
+pid: 36220
+started_now: 134394689748779814
+stamped_started: 134394689748779814
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 36220
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 17:49:34
+HandleCount     : 561
+ThreadCount     : 36
+
+pid: 46988
+started_now: 134394718163177462
+stamped_started: 134394718163177462
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 46988
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 18:36:56
+HandleCount     : 366
+ThreadCount     : 31
+
+pid: 42256
+started_now: 134394730808892605
+stamped_started: 134394730808892605
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 42256
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 18:58:00
+HandleCount     : 362
+ThreadCount     : 31
+
+pid: 50576
+started_now: 134394768160596022
+stamped_started: 134394768160596022
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 50576
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 20:00:16
+HandleCount     : 358
+ThreadCount     : 31
+
+pid: 9884
+started_now: 134394802806504915
+stamped_started: 134394802806504915
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 9884
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 20:58:00
+HandleCount     : 366
+ThreadCount     : 31
+
+pid: 19760
+started_now: 134394802827084853
+stamped_started: 134394802827084853
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 19760
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 20:58:02
+HandleCount     : 371
+ThreadCount     : 31
+
+pid: 45920
+started_now: 134394853709581775
+stamped_started: 134394853709581775
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 45920
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/18 22:22:50
+HandleCount     : 365
+ThreadCount     : 31
+
+pid: 8844
+started_now: 134396380963740656
+stamped_started: 134396380963740656
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 8844
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/20 16:48:16
+HandleCount     : 448
+ThreadCount     : 35
+
+pid: 45792
+started_now: 134396431304655658
+stamped_started: 134396431304655658
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 45792
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/20 18:12:10
+HandleCount     : 469
+ThreadCount     : 35
+
+pid: 11808
+started_now: 134396434474735236
+stamped_started: 134396434474735236
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 11808
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/20 18:17:27
+HandleCount     : 366
+ThreadCount     : 31
+
+pid: 41716
+started_now: 134396449800221997
+stamped_started: 134396449800221997
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 41716
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/20 18:43:00
+HandleCount     : 442
+ThreadCount     : 33
+
+pid: 52380
+started_now: 134396453877562956
+stamped_started: 134396453877562956
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 52380
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/20 18:49:47
+HandleCount     : 351
+ThreadCount     : 27
+
+pid: 36424
+started_now: 134396538614596108
+stamped_started: 134396538614596108
+started_matches: True
+alive_now: True
+cim:
+
+
+ProcessId       : 36424
+Name            : chrome.exe
+ParentProcessId : 21976
+CreationDate    : 2026/11/20 21:11:01
+HandleCount     : 347
+ThreadCount     : 18
