@@ -531,27 +531,27 @@ def _alive(pid: int) -> bool:
 
 
 def _windows_children(parent: int) -> list[int]:
-    import ctypes
-    from ctypes import wintypes
+    return [pid for pid, ppid in _enumerate_pids(parent) if ppid == parent]
 
+
+def _enumerate_pids(parent: int) -> list[tuple[int, int]]:
+    import ctypes
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    snapshot_flag = 0x00000002
     entry_type = _process_entry()
-    snap = kernel32.CreateToolhelp32Snapshot(snapshot_flag, 0)
+    snap = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
     if snap in (0, None) or int(snap) == -1:
         return []
     entry = entry_type()
     entry.dwSize = ctypes.sizeof(entry_type)
-    found: list[int] = []
+    rows: list[tuple[int, int]] = []
     try:
         ok = kernel32.Process32First(snap, ctypes.byref(entry))
         while ok:
-            if int(entry.th32ParentProcessID) == parent:
-                found.append(int(entry.th32ProcessID))
+            rows.append((int(entry.th32ProcessID), int(entry.th32ParentProcessID)))
             ok = kernel32.Process32Next(snap, ctypes.byref(entry))
     finally:
         kernel32.CloseHandle(snap)
-    return found
+    return rows
 
 
 def _process_entry() -> type:
