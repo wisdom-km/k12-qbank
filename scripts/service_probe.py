@@ -332,6 +332,7 @@ def _spawn(command: list[str] | str, *, shell: bool, pipe: bool) -> subprocess.P
 
 
 def _stop(proc: subprocess.Popen[str]) -> bool:
+    entered = time.monotonic()
     tracked = getattr(proc, "_probe_pids", None)
     if tracked is None:
         # Stamp creation time before the kill. Windows can reuse a pid
@@ -360,7 +361,113 @@ def _stop(proc: subprocess.Popen[str]) -> bool:
             break
         time.sleep(0.05)
     proc._probe_leftovers = leftovers  # type: ignore[attr-defined]
+    if leftovers:
+        _record_leftovers(proc, list(tracked), leftovers, entered)
     return not leftovers
+
+
+def _record_leftovers(
+    proc: subprocess.Popen[str],
+    tracked: list[tuple[int, int | None]],
+    leftovers: list[int],
+    entered: float,
+) -> None:
+    try:
+        _write_leftover_file(proc, tracked, leftovers, entered)
+    except Exception as exc:
+        try:
+            _leftover_log_path(proc.pid).write_text(
+                f"diagnostic error: {exc!r}\n", encoding="utf-8"
+            )
+        except Exception:
+            return
+
+
+def _write_leftover_file(
+    proc: subprocess.Popen[str],
+    tracked: list[tuple[int, int | None]],
+    leftovers: list[int],
+    entered: float,
+) -> None:
+    elapsed = time.monotonic() - entered
+    polled = proc.poll()
+    lines = [
+        "# popen",
+        f"proc.pid: {proc.pid}",
+        f"proc.poll: {polled!r}",
+        f"proc.returncode: {proc.returncode!r}",
+        f"_probe_wait_failed: {getattr(proc, '_probe_wait_failed', None)!r}",
+        f"_probe_kill_sent: {getattr(proc, '_probe_kill_sent', False)!r}",
+        f"elapsed_s: {elapsed:.3f}",
+        "",
+        "# tracked",
+    ]
+    for pid, started in tracked:
+        lines.append(f"pid: {pid} started: {started!r} is_proc: {pid == proc.pid}")
+    lines.extend(["", "# leftovers"])
+    stamped = {pid: started for pid, started in tracked}
+    for pid in leftovers:
+        lines.extend(_leftover_pid_lines(pid, stamped.get(pid)))
+    _leftover_log_path(proc.pid).write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def _leftover_log_path(pid: int):
+    from pathlib import Path
+
+    millis = int(time.time() * 1000) % 1000
+    stamp = time.strftime("%Y-%m-%dT%H-%M-%S") + f"-{millis:03d}"
+    directory = Path("var")
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / f"probe-stop-leftovers-{stamp}-{pid}.log"
+
+
+def _leftover_pid_lines(pid: int, stamped_started: int | None) -> list[str]:
+    if sys.platform == "win32":
+        started_now = _windows_started(pid)
+        alive_now = _windows_alive(pid)
+        wmic = _wmic_process(pid)
+    else:
+        started_now = None
+        alive_now = False
+        wmic = "wmic skipped: not windows"
+    return [
+        f"pid: {pid}",
+        f"started_now: {started_now!r}",
+        f"stamped_started: {stamped_started!r}",
+        f"started_matches: {started_now == stamped_started}",
+        f"alive_now: {alive_now}",
+        "wmic:",
+        wmic,
+        "",
+    ]
+
+
+def _wmic_process(pid: int) -> str:
+    try:
+        done = subprocess.run(
+            [
+                "wmic", "process", "where", f"ProcessId={pid}", "get",
+                "Name,ParentProcessId,CreationDate,HandleCount,ThreadCount",
+                "/format:list",
+            ],
+            timeout=3,
+            capture_output=True,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return "wmic timeout"
+    except Exception as exc:
+        return f"wmic error: {exc!r}"
+    data = done.stdout
+    if not data:
+        return "wmic empty"
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")) or b"\x00" in data[:4]:
+        text = data.decode("utf-16", errors="replace")
+    else:
+        text = data.decode("utf-8", errors="replace")
+    if not text.strip():
+        return "wmic empty"
+    return text.rstrip()
 
 
 def _kill_tree(proc: subprocess.Popen[str]) -> None:
