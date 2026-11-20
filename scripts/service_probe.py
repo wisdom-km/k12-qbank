@@ -26,6 +26,10 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+if __name__ == "__main__" and not __package__:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from scripts._probe_descendants import _LOG_DIR, _descendants
+
 
 @dataclass(frozen=True)
 class ProbeResult:
@@ -490,14 +494,6 @@ def _kill_tree(proc: subprocess.Popen[str]) -> None:
             proc.kill()
         except OSError:
             return
-
-
-def _descendants(pid: int) -> list[int]:
-    found: list[int] = []
-    for child in _children(pid):
-        found.append(child)
-        found.extend(_descendants(child))
-    return found
 
 
 def _children(parent: int) -> list[int]:

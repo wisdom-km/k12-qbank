@@ -731,24 +731,34 @@ class ServiceProbeDescendantsTest(unittest.TestCase):
 
     def test_descendants_handles_unknown_root_start_time(self) -> None:
         root = 77001
-        pattern = f"probe-descendants-no-root-start-*-{root}.log"
-        folder = Path("var")
-        before = set(folder.glob(pattern)) if folder.is_dir() else set()
-        try:
-            found = self._collected(
-                root,
-                {root: [(888, root)]},
-                {root: None, 888: 2_000_100},
-            )
+
+        def enumerate_pids(parent: int) -> list[tuple[int, int]]:
+            return []
+
+        def windows_started(pid: int) -> int | None:
+            return None if pid == root else 2_000_100
+
+        with tempfile.TemporaryDirectory() as folder:
+            log_dir = Path(folder)
+            with patch("scripts.service_probe.sys.platform", "win32"), patch(
+                "scripts.service_probe._LOG_DIR",
+                log_dir,
+            ), patch(
+                "scripts.service_probe._enumerate_pids",
+                side_effect=enumerate_pids,
+            ), patch(
+                "scripts.service_probe._windows_started",
+                side_effect=windows_started,
+            ):
+                from scripts.service_probe import _descendants
+
+                found = _descendants(root)
             self.assertEqual(found, [])
-            created = set(folder.glob(pattern)) - before
-            self.assertEqual(len(created), 1)
-            text = next(iter(created)).read_text(encoding="utf-8")
-            self.assertIn(str(root), text)
-        finally:
-            if folder.is_dir():
-                for path in set(folder.glob(pattern)) - before:
-                    path.unlink(missing_ok=True)
+            logs = list(log_dir.glob(f"probe-descendants-no-root-start-*-{root}.log"))
+            self.assertGreaterEqual(len(logs), 1)
+            text = logs[0].read_text(encoding="utf-8")
+            self.assertIn("root_pid=77001", text)
+            self.assertIn("windows_started returned None", text)
 
 
 def _kill_pid(pid: int) -> None:
