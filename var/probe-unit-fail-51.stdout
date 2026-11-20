@@ -1,0 +1,3 @@
+CHUNKED_HEALTH elapsed=6.078 status=ok detail=ready, smoke passed, process stopped; still running: 21976,26184,32712,30944,2756,20904,33060,33236,33440,26592,40884,38856,40020,36220,41724,46988,42256,50576,9884,19760,45920,54568,3488,8844,32120,45792,41900,11808,41716,52380,42352,7668
+SCHEME_HEALTH elapsed=0.546 status=health_failed detail=health url scheme is not http
+SLOW_HEALTH budget=1.0 judged=1.016 cleaned=1.471 status=health_failed sent=4 detail=health request failed: TimeoutError; ready budget elapsed
