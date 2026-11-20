@@ -9,6 +9,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.service_probe import supervise
 
@@ -675,6 +676,89 @@ def pid_alive(pid: int) -> bool:
     end = stat.rfind(")")
     parts = stat[end + 2 :].split()
     return bool(parts) and parts[0] != "Z"
+
+
+class ServiceProbeDescendantsTest(unittest.TestCase):
+    def _collected(
+        self,
+        root: int,
+        rows: dict[int, list[tuple[int, int]]],
+        started: dict[int, int | None],
+    ) -> list[int]:
+        def enumerate_pids(parent: int) -> list[tuple[int, int]]:
+            return list(rows.get(parent, []))
+
+        def windows_started(pid: int) -> int | None:
+            return started.get(pid)
+
+        with patch("scripts.service_probe.sys.platform", "win32"), patch(
+            "scripts.service_probe._enumerate_pids",
+            side_effect=enumerate_pids,
+        ), patch(
+            "scripts.service_probe._windows_started",
+            side_effect=windows_started,
+        ):
+            from scripts.service_probe import _descendants
+
+            return _descendants(root)
+
+    def test_descendants_rejects_stale_child_with_older_start_time(self) -> None:
+        root = 4242
+        found = self._collected(
+            root,
+            {root: [(999, root)]},
+            {root: 2_000_000, 999: 1_000_000},
+        )
+        self.assertEqual(found, [])
+
+    def test_descendants_accepts_real_child_with_later_start_time(self) -> None:
+        root = 4242
+        found = self._collected(
+            root,
+            {root: [(888, root)]},
+            {root: 2_000_000, 888: 2_000_100},
+        )
+        self.assertEqual(found, [888])
+
+    def test_descendants_rejects_whole_subtree_rooted_at_stale_child(self) -> None:
+        root = 4242
+        found = self._collected(
+            root,
+            {root: [(999, root)], 999: [(1001, 999)]},
+            {root: 2_000_000, 999: 1_000_000, 1001: 3_000_000},
+        )
+        self.assertEqual(found, [])
+
+    def test_descendants_handles_unknown_root_start_time(self) -> None:
+        root = 77001
+
+        def enumerate_pids(parent: int) -> list[tuple[int, int]]:
+            return []
+
+        def windows_started(pid: int) -> int | None:
+            return None if pid == root else 2_000_100
+
+        with tempfile.TemporaryDirectory() as folder:
+            log_dir = Path(folder)
+            with patch("scripts.service_probe.sys.platform", "win32"), patch(
+                "scripts.service_probe._LOG_DIR",
+                log_dir,
+            ), patch(
+                "scripts.service_probe._enumerate_pids",
+                side_effect=enumerate_pids,
+            ), patch(
+                "scripts.service_probe._windows_started",
+                side_effect=windows_started,
+            ):
+                from scripts.service_probe import _descendants
+
+                found = _descendants(root)
+            self.assertEqual(found, [])
+            logs = list(log_dir.glob(f"probe-descendants-no-root-start-*-{root}.log"))
+            self.assertGreaterEqual(len(logs), 1)
+            text = logs[0].read_text(encoding="utf-8")
+            self.assertIn("root_pid=77001", text)
+            self.assertIn("windows_started returned None", text)
 
 
 def _kill_pid(pid: int) -> None:
