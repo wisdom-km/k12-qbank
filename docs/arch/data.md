@@ -10,6 +10,8 @@
 
 参考答案契约是 `k12-answer-draft` 第 1 版，见 ADR 0014。扫描件、模型候选和老师修改共用 `answer_version`，`origin` 分别是 `ocr`、`model`、`teacher`。核对页把 OCR 答案写成一份文件一条答案。`import_answer_draft` 解析一次后按 `key` 放进内存。同一题最多一条 `applicable` 为 true。模型候选不能标成可出卷。确认过的答案草稿仍不是发布，`answer_version_id` 要等核准。第一次写入答案时才建 `answer_version`、`answer_part`、`answer_asset` 和 `answer_decision`。没有要写入的行时不建空表。学生作答不进这些表。
 
+2026-11-20：`V005__catalog_subtables.sql` 已建 `question_option`、`sub_question`、`question_asset`、`answer_part`、`answer_asset`。`figure_geometry` 和 `answer_decision` 仍不建。上面关于仍不建表的句子是这一步之前的说法。
+
 发布记录、知识点、练习册和多题练习的列见 ADR 0015。解题方法是另一张目录，见 ADR 0016。知识点回答要懂什么，解题方法回答怎么做。某一次做错只生成建议，建议指向已有标识。老师确认后才成为这次错因。错因不写入题目行或参考答案。模型不得因此往目录里插入新行。这些表也是有行要写时才建。现在的学生卷仍只冻结一个题目版本。数据库仍是这一个 PostgreSQL。
 
 题目正文可以有结构化 JSON。来源、审核、知识点和作答仍然是独立关系，不把整库塞进一个 JSON。
@@ -32,4 +34,4 @@
 
 配置只来自环境变量。示例键在 `.env.example`。真实值只在本机 `.env`，该文件被忽略。
 
-迁移：identity 与审计的可回退迁移是 `backend/identity/migrations/V001__init.sql`。题目和答案的可回退迁移是 `backend/catalog/migrations/V004__questions_answers.sql`。进程只在 `K12_PG_DSN` 有值时连接并执行迁移。
+迁移：identity 与审计的可回退迁移是 `backend/identity/migrations/V001__init.sql`。题目和答案的可回退迁移是 `backend/catalog/migrations/V004__questions_answers.sql`。子表的可回退迁移是 `backend/catalog/migrations/V005__catalog_subtables.sql`。进程只在 `K12_PG_DSN` 有值时连接并执行迁移。
