@@ -53,5 +53,6 @@
 | 2026-11-19 | `K12_ERROR_WEBHOOK_URL` 非空时，ErrorRing 异步 POST 五个字段。超时 2 秒，最多重试 1 次。失败只打一条 WARN。外部接收方仍未对接。 | 用户要求做 C7。不改 ADR 0030 正文。不关闭 #47。 |
 | 2026-11-19 | `V004__questions_answers.sql` 建 `questions` 和 `answers`。核准时追加一行，不覆盖已有 `question_id`。子表仍不建。 | 用户要求做 D1，并确认版本号、两张表、主键名、`origin` 和时间列。不改 ADR 0013、0014、0039 正文。 |
 | 2026-11-20 | `V005__catalog_subtables.sql` 建 `question_option`、`sub_question`、`question_asset`、`answer_part`、`answer_asset`。核准带真实题型时写子行，不再写 `unresolved`。`figure_geometry` 和 `answer_decision` 仍不建。 | 用户确认父键、行标识、`position`、jsonb、可空题型和 `sub_key`。不改 ADR 0013、0014、0039 正文。 |
+| 2026-11-20 | knowledge 切片增加端口和内存适配器。挂标签检查已核准题目、主知识点和学科。不建表，不写 V006。 | 用户要求按 ADR 0015 和 0016 起内存目录，并补上学科一致与不提供摘标签。不改 ADR 正文。 |
 
 方案里的 DEC-01 到 DEC-06 仍是待机构确认。本仓库没有替机构填写这些决定。

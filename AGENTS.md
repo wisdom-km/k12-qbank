@@ -63,7 +63,7 @@
 | 文档冒烟 | `python scripts/smoke_docs.py` |
 | 最小 core 测试 | `python -m unittest discover -s tests -v` |
 | 页面测试 | `npm test --prefix apps/web` |
-| 边界、相对导入和阶段范围 | `python scripts/check_boundaries.py`。允许的业务切片是 `scripts/check.conf` 的 `PHASE_SLICES`，当前 `catalog practice identity`。空白配置回落 `catalog practice`。非空环境变量同名时覆盖 |
+| 边界、相对导入和阶段范围 | `python scripts/check_boundaries.py`。允许的业务切片是 `scripts/check.conf` 的 `PHASE_SLICES`，当前 `catalog practice identity knowledge`。空白配置回落 `catalog practice`。非空环境变量同名时覆盖 |
 | 日志规则 | `python scripts/check_logging.py` |
 | 文件备份演练 | `python scripts/drill_backup.py`。夹具记录在 `docs/evidence/backup-drill-2026-11-14.md`，不是正式数据 |
 | 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
@@ -92,4 +92,4 @@
 
 核对页写出的 `.questions.json` 用 `import_question_draft` 直接保存。形状先过 `backend/catalog/contracts/` 的 JSON Schema，见 [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md)。不要再设计一套题目 JSON。题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。OCR 答案在 `{题干文件名}.answers/` 里，一份文件一条答案，用 `import_answer_draft` 直接保存。不要再设计一套答案 JSON。答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。扫描件和模型候选不要拆成两套表。知识点和解题方法是目录，错因只作建议，见 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。不要把错因写进题目行，也不要让分析用例新建目录行。第一次有真实行写入 PostgreSQL 时才建表。
 
-第一段合成闭环停在 `aa629cd`。题目草稿、OCR 答案导入和 ADR 0016 已在其后的 main。`PHASE_SLICES` 现为 `catalog practice identity`。`knowledge`、`analysis`、`delivery` 仍不建。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。登录和审计见 ADR 0025 到 0031。
+第一段合成闭环停在 `aa629cd`。题目草稿、OCR 答案导入和 ADR 0016 已在其后的 main。`PHASE_SLICES` 现为 `catalog practice identity knowledge`。knowledge 的内存端口已接，表未建，见 [docs/exec-plans/active/knowledge-slice.md](docs/exec-plans/active/knowledge-slice.md)。`analysis`、`delivery` 仍不建。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。登录和审计见 ADR 0025 到 0031。

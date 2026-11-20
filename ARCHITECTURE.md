@@ -71,7 +71,7 @@ flowchart LR
 
 ## 目录
 
-第一段代码创建了 `catalog` 和 `practice`。2026-11-18 起，`scripts/check.conf` 的 `PHASE_SLICES` 是 `catalog practice identity`。空白配置仍回落到 `catalog` 和 `practice`。非空环境变量 `PHASE_SLICES` 覆盖该行。放宽时先改本文件和执行计划，再改配置。`knowledge`、`analysis`、`delivery` 等有代码再加目录，不预先铺空包。桌面壳不在第一段。`kernel` 和 `bootstrap` 始终允许，不写进这个名单。登录和审计的计划见 [docs/exec-plans/active/identity-and-audit.md](docs/exec-plans/active/identity-and-audit.md)。
+第一段代码创建了 `catalog` 和 `practice`。2026-11-18 起，`scripts/check.conf` 的 `PHASE_SLICES` 是 `catalog practice identity`。空白配置仍回落到 `catalog` 和 `practice`。非空环境变量 `PHASE_SLICES` 覆盖该行。放宽时先改本文件和执行计划，再改配置。`knowledge`、`analysis`、`delivery` 等有代码再加目录，不预先铺空包。桌面壳不在第一段。`kernel` 和 `bootstrap` 始终允许，不写进这个名单。登录和审计的计划见 [docs/exec-plans/active/identity-and-audit.md](docs/exec-plans/active/identity-and-audit.md)。2026-11-20：`PHASE_SLICES` 加上 `knowledge`。内存端口已接，表未建。见 [docs/exec-plans/active/knowledge-slice.md](docs/exec-plans/active/knowledge-slice.md)。`analysis` 和 `delivery` 仍不建。
 
 ```text
 backend/kernel/                 LogEvent、Logger、Ok、Err
@@ -119,7 +119,7 @@ apps/android/                   尚未创建
 | F-10 | 单个 Python 文件超过 800 行 | 模块变浅 | `scripts/check_boundaries.py` |
 | F-11 | 组合根里写业务分支，或导入 domain | 规则出现第二份 | 导入 domain 由 `scripts/check_boundaries.py` 拒绝。业务分支仍是 review |
 | F-12 | 未确认 DEC-03 就调用真实模型处理学生卷 | 数据处理条件未知 | review。开发用假适配器。未落地 |
-| F-13 | 创建 `PHASE_SLICES` 以外的切片，或建立安卓工程、桌面壳、Electron。当前是 catalog、practice 和 identity | 实现会摊开，低配电脑再带一个浏览器 | `scripts/check_boundaries.py` 读 `scripts/check.conf`。非空环境变量 `PHASE_SLICES` 覆盖该行 |
+| F-13 | 创建 `PHASE_SLICES` 以外的切片，或建立安卓工程、桌面壳、Electron。当前是 catalog、practice、identity 和 knowledge | 实现会摊开，低配电脑再带一个浏览器 | `scripts/check_boundaries.py` 读 `scripts/check.conf`。非空环境变量 `PHASE_SLICES` 覆盖该行 |
 | F-14 | 网页或 App 的源码导入 backend | 规则会抄进界面 | `scripts/check_boundaries.py`。`apps/` 还不存在时这项空过，目录一出现就查 |
 
 ## 文件大小
@@ -230,7 +230,7 @@ ASVS L1 自查是 SHOULD，还没做。
 | M-03 密钥形态 | `scripts/check` | 已接，并在 CI 里跑。远端 push protection 的原始记录见 `docs/evidence/G0-2026-11-14.md` |
 | M-04 日志 | `scripts/check_logging.py` | 已接。查 print、具体日志库、log 调用上的明显敏感字段和 f-string。内存路径上，日志输出失败不撤销已完成的写入，并留下只含允许字段的降级记录。合成 HTTP 的存储失败演练用同一个 `request_id` 对上 `use_case_failed` 和 `http_completed`。错误上报接收接口还没有 |
 | M-05 空 catch | `scripts/check` 与 `scripts/check.ps1` 同一项 | 已接 |
-| F-02、F-03、F-04、F-10、F-11 的 import、F-13、F-14 | `scripts/check_boundaries.py` | 已接进全量检查，含相对导入夹具。F-13 的业务切片来自 `PHASE_SLICES`，当前 catalog practice identity。空白配置仍回落 catalog practice。pre-commit 的 `--fast` 不跑这项 |
+| F-02、F-03、F-04、F-10、F-11 的 import、F-13、F-14 | `scripts/check_boundaries.py` | 已接进全量检查，含相对导入夹具。F-13 的业务切片来自 `PHASE_SLICES`，当前 catalog practice identity knowledge。空白配置仍回落 catalog practice。pre-commit 的 `--fast` 不跑这项 |
 | F-01、F-05、F-06、F-11 的业务分支、F-12 | 无 | 未落地，标 review |
 | CI 的 `check` | `.github/workflows/ci.yml` | 已接。成功与否看 [Actions 的 check](https://github.com/wisdom-km/k12-qbank/actions)。过期的运行号不写在这里，历史运行留在 `docs/evidence/` |
 | main 分支保护 | GitHub 设置 | 规则已写上。当前设置以仓库的分支保护页为准，不在这里抄一份会过期的截图说明 |
