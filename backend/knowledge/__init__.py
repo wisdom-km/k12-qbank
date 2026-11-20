@@ -1,5 +1,6 @@
-"""Knowledge slice. Ports and records."""
+"""Knowledge slice. Ports, records, and memory adapters. No PostgreSQL."""
 
+from backend.knowledge.memory import MemoryKnowledgePoints, MemoryMethods, MemoryTagger
 from backend.knowledge.models import (
     COMPOSITE,
     FAULT_CODES,
@@ -26,6 +27,9 @@ __all__ = [
     "KnowledgeFault",
     "KnowledgePoint",
     "KnowledgePoints",
+    "MemoryKnowledgePoints",
+    "MemoryMethods",
+    "MemoryTagger",
     "Method",
     "Methods",
     "QuestionKnowledge",
