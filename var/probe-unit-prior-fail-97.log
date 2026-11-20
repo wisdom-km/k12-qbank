@@ -1,0 +1,45 @@
+round: 97
+start: 2026-11-20T20:02:08.5776758+08:00
+end: 2026-11-20T20:02:39.9821840+08:00
+exit_code: 1
+stdout_file: D:\Qbank\var\probe-unit-fail-97.stdout
+stderr_file: D:\Qbank\var\probe-unit-fail-97.stderr
+--- stdout ---
+CHUNKED_HEALTH elapsed=0.578 status=ok detail=ready, smoke passed, process stopped
+SCHEME_HEALTH elapsed=0.500 status=health_failed detail=health url scheme is not http
+SLOW_HEALTH budget=1.0 judged=1.023 cleaned=1.689 status=health_failed sent=4 detail=health request failed: TimeoutError; ready budget elapsed
+--- stderr ---
+test_shell_command_is_stopped_when_the_probe_returns (tests.test_service_probe.ServiceProbeCommandTest.test_shell_command_is_stopped_when_the_probe_returns) ... ok
+test_smoke_timeout_stops_the_service_and_the_smoke (tests.test_service_probe.ServiceProbeCommandTest.test_smoke_timeout_stops_the_service_and_the_smoke) ... ok
+test_chunked_health_body_within_the_ready_budget_passes (tests.test_service_probe.ServiceProbeHealthTest.test_chunked_health_body_within_the_ready_budget_passes) ... ok
+test_delayed_bind_within_the_ready_budget_passes (tests.test_service_probe.ServiceProbeHealthTest.test_delayed_bind_within_the_ready_budget_passes) ... ok
+test_exit_after_ready_fails_before_smoke (tests.test_service_probe.ServiceProbeHealthTest.test_exit_after_ready_fails_before_smoke) ... ok
+test_exit_while_waiting_for_bind_fails_promptly (tests.test_service_probe.ServiceProbeHealthTest.test_exit_while_waiting_for_bind_fails_promptly) ... ok
+test_health_after_ready_then_the_port_is_free (tests.test_service_probe.ServiceProbeHealthTest.test_health_after_ready_then_the_port_is_free) ... ok
+test_health_waits_through_the_ready_budget_then_fails (tests.test_service_probe.ServiceProbeHealthTest.test_health_waits_through_the_ready_budget_then_fails) ... ok
+test_invalid_health_port_is_refused_before_connect (tests.test_service_probe.ServiceProbeHealthTest.test_invalid_health_port_is_refused_before_connect) ... ok
+test_non_http_health_url_is_refused_before_connect (tests.test_service_probe.ServiceProbeHealthTest.test_non_http_health_url_is_refused_before_connect) ... ok
+test_occupied_port_fails_and_leaves_the_holder (tests.test_service_probe.ServiceProbeHealthTest.test_occupied_port_fails_and_leaves_the_holder) ... ok
+test_slow_health_body_past_the_ready_budget_fails (tests.test_service_probe.ServiceProbeHealthTest.test_slow_health_body_past_the_ready_budget_fails) ... ok
+test_module_imports_as_a_script (tests.test_service_probe.ServiceProbeImportTest.test_module_imports_as_a_script) ... ok
+test_cli_nonzero_when_the_service_exits_early (tests.test_service_probe.ServiceProbeRealEntryTest.test_cli_nonzero_when_the_service_exits_early) ... ok
+test_exit_during_smoke_is_not_success (tests.test_service_probe.ServiceProbeRealEntryTest.test_exit_during_smoke_is_not_success) ... ok
+test_health_from_another_process_is_not_our_bind (tests.test_service_probe.ServiceProbeRealEntryTest.test_health_from_another_process_is_not_our_bind) ... ok
+test_real_uvicorn_leaves_the_port_holder_when_bind_fails (tests.test_service_probe.ServiceProbeRealEntryTest.test_real_uvicorn_leaves_the_port_holder_when_bind_fails) ... ok
+test_ready_timeout_kills_the_process (tests.test_service_probe.ServiceProbeTest.test_ready_timeout_kills_the_process) ... ok
+test_smoke_failure_kills_the_process (tests.test_service_probe.ServiceProbeTest.test_smoke_failure_kills_the_process) ... FAIL
+test_startup_failure_is_cleaned_up (tests.test_service_probe.ServiceProbeTest.test_startup_failure_is_cleaned_up) ... ok
+test_success_stops_the_process (tests.test_service_probe.ServiceProbeTest.test_success_stops_the_process) ... ok
+
+======================================================================
+FAIL: test_smoke_failure_kills_the_process (tests.test_service_probe.ServiceProbeTest.test_smoke_failure_kills_the_process)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Qbank\tests\test_service_probe.py", line 52, in test_smoke_failure_kills_the_process
+    self.assertTrue(result.cleaned)
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 21 tests in 31.326s
+
+FAILED (failures=1)

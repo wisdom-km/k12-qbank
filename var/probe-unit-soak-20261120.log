@@ -1,0 +1,254 @@
+# probe_unit_soak session
+started: 2026-11-20T22:06:15.6652738+08:00
+rounds: 200
+head: f8065e1
+python: G:\BaseWare\Anaconda\envs\k12-qbank\python.exe
+cleared_env: (none)
+argv: G:\BaseWare\Anaconda\envs\k12-qbank\python.exe -m unittest tests.test_service_probe -v
+
+===== round 1/200 =====
+start: 2026-11-20T22:06:15.6707559+08:00
+end: 2026-11-20T22:06:43.2825440+08:00
+exit_code: 0
+result: PASS
+
+===== round 2/200 =====
+start: 2026-11-20T22:06:43.3042357+08:00
+end: 2026-11-20T22:07:10.7779393+08:00
+exit_code: 0
+result: PASS
+
+===== round 3/200 =====
+start: 2026-11-20T22:07:10.7799730+08:00
+end: 2026-11-20T22:07:38.3730587+08:00
+exit_code: 0
+result: PASS
+
+===== round 4/200 =====
+start: 2026-11-20T22:07:38.3757776+08:00
+end: 2026-11-20T22:08:05.7565913+08:00
+exit_code: 0
+result: PASS
+
+===== round 5/200 =====
+start: 2026-11-20T22:08:05.7686738+08:00
+end: 2026-11-20T22:08:33.2583456+08:00
+exit_code: 0
+result: PASS
+
+===== round 6/200 =====
+start: 2026-11-20T22:08:33.2602431+08:00
+end: 2026-11-20T22:09:00.0531147+08:00
+exit_code: 0
+result: PASS
+
+===== round 7/200 =====
+start: 2026-11-20T22:09:00.0561641+08:00
+end: 2026-11-20T22:09:27.2869058+08:00
+exit_code: 0
+result: PASS
+
+===== round 8/200 =====
+start: 2026-11-20T22:09:27.2886306+08:00
+end: 2026-11-20T22:09:54.7537464+08:00
+exit_code: 0
+result: PASS
+
+===== round 9/200 =====
+start: 2026-11-20T22:09:54.7564563+08:00
+end: 2026-11-20T22:10:22.1473392+08:00
+exit_code: 0
+result: PASS
+
+===== round 10/200 =====
+start: 2026-11-20T22:10:22.1492358+08:00
+end: 2026-11-20T22:10:49.6252148+08:00
+exit_code: 0
+result: PASS
+
+===== round 11/200 =====
+start: 2026-11-20T22:10:49.6271956+08:00
+end: 2026-11-20T22:11:17.3318933+08:00
+exit_code: 0
+result: PASS
+
+===== round 12/200 =====
+start: 2026-11-20T22:11:17.3338257+08:00
+end: 2026-11-20T22:11:44.9445343+08:00
+exit_code: 0
+result: PASS
+
+===== round 13/200 =====
+start: 2026-11-20T22:11:44.9461320+08:00
+end: 2026-11-20T22:12:11.8907450+08:00
+exit_code: 0
+result: PASS
+
+===== round 14/200 =====
+start: 2026-11-20T22:12:11.8929173+08:00
+end: 2026-11-20T22:12:39.7505703+08:00
+exit_code: 0
+result: PASS
+
+===== round 15/200 =====
+start: 2026-11-20T22:12:39.7520662+08:00
+end: 2026-11-20T22:13:07.1002451+08:00
+exit_code: 0
+result: PASS
+
+===== round 16/200 =====
+start: 2026-11-20T22:13:07.1022030+08:00
+end: 2026-11-20T22:13:34.0903495+08:00
+exit_code: 0
+result: PASS
+
+===== round 17/200 =====
+start: 2026-11-20T22:13:34.0920308+08:00
+end: 2026-11-20T22:14:01.0624613+08:00
+exit_code: 0
+result: PASS
+
+===== round 18/200 =====
+start: 2026-11-20T22:14:01.0642882+08:00
+end: 2026-11-20T22:14:28.1531259+08:00
+exit_code: 0
+result: PASS
+
+===== round 19/200 =====
+start: 2026-11-20T22:14:28.1547736+08:00
+end: 2026-11-20T22:14:55.1475951+08:00
+exit_code: 0
+result: PASS
+
+===== round 20/200 =====
+start: 2026-11-20T22:14:55.1495528+08:00
+end: 2026-11-20T22:15:22.8990603+08:00
+exit_code: 0
+result: PASS
+
+===== round 21/200 =====
+start: 2026-11-20T22:15:22.9014452+08:00
+end: 2026-11-20T22:15:49.9846533+08:00
+exit_code: 0
+result: PASS
+
+===== round 22/200 =====
+start: 2026-11-20T22:15:49.9863065+08:00
+end: 2026-11-20T22:16:17.3925040+08:00
+exit_code: 0
+result: PASS
+
+===== round 23/200 =====
+start: 2026-11-20T22:16:17.3944705+08:00
+end: 2026-11-20T22:16:44.4222945+08:00
+exit_code: 0
+result: PASS
+
+===== round 24/200 =====
+start: 2026-11-20T22:16:44.4242954+08:00
+end: 2026-11-20T22:17:11.7561901+08:00
+exit_code: 0
+result: PASS
+
+===== round 25/200 =====
+start: 2026-11-20T22:17:11.7577676+08:00
+end: 2026-11-20T22:17:38.9293702+08:00
+exit_code: 0
+result: PASS
+
+===== round 26/200 =====
+start: 2026-11-20T22:17:38.9310648+08:00
+end: 2026-11-20T22:18:05.4032364+08:00
+exit_code: 0
+result: PASS
+
+===== round 27/200 =====
+start: 2026-11-20T22:18:05.4050021+08:00
+end: 2026-11-20T22:18:32.3389154+08:00
+exit_code: 0
+result: PASS
+
+===== round 28/200 =====
+start: 2026-11-20T22:18:32.3407967+08:00
+end: 2026-11-20T22:18:59.3897265+08:00
+exit_code: 0
+result: PASS
+
+===== round 29/200 =====
+start: 2026-11-20T22:18:59.3914890+08:00
+end: 2026-11-20T22:19:26.4584848+08:00
+exit_code: 0
+result: PASS
+
+===== round 30/200 =====
+start: 2026-11-20T22:19:26.4600981+08:00
+end: 2026-11-20T22:19:53.4319979+08:00
+exit_code: 0
+result: PASS
+
+===== round 31/200 =====
+start: 2026-11-20T22:19:53.4335564+08:00
+end: 2026-11-20T22:20:20.5745052+08:00
+exit_code: 0
+result: PASS
+
+===== round 32/200 =====
+start: 2026-11-20T22:20:20.5761457+08:00
+end: 2026-11-20T22:20:47.6255024+08:00
+exit_code: 0
+result: PASS
+
+===== round 33/200 =====
+start: 2026-11-20T22:20:47.6272486+08:00
+end: 2026-11-20T22:21:15.2350684+08:00
+exit_code: 0
+result: PASS
+
+===== round 34/200 =====
+start: 2026-11-20T22:21:15.2368715+08:00
+end: 2026-11-20T22:21:42.5321920+08:00
+exit_code: 0
+result: PASS
+
+===== round 35/200 =====
+start: 2026-11-20T22:21:42.5337322+08:00
+end: 2026-11-20T22:22:09.8002669+08:00
+exit_code: 0
+result: PASS
+
+===== round 36/200 =====
+start: 2026-11-20T22:22:09.8017768+08:00
+end: 2026-11-20T22:22:37.5522249+08:00
+exit_code: 0
+result: PASS
+
+===== round 37/200 =====
+start: 2026-11-20T22:22:37.5537377+08:00
+end: 2026-11-20T22:23:05.0730250+08:00
+exit_code: 0
+result: PASS
+
+===== round 38/200 =====
+start: 2026-11-20T22:23:05.0746377+08:00
+end: 2026-11-20T22:23:32.3442138+08:00
+exit_code: 0
+result: PASS
+
+===== round 39/200 =====
+start: 2026-11-20T22:23:32.3455115+08:00
+end: 2026-11-20T22:23:59.9651172+08:00
+exit_code: 0
+result: PASS
+
+===== round 40/200 =====
+start: 2026-11-20T22:23:59.9665287+08:00
+end: 2026-11-20T22:25:34.4476214+08:00
+exit_code: 1
+result: FAIL
+fail_log: D:\Qbank\var\probe-unit-fail-40.log
+stdout_file: D:\Qbank\var\probe-unit-fail-40.stdout
+stderr_file: D:\Qbank\var\probe-unit-fail-40.stderr
+stopped: first failing round; later rounds were not started
+
+summary requested=200 completed=40 pass=39 fail=1
+finished: 2026-11-20T22:25:34.4822958+08:00

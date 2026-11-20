@@ -1,0 +1,3 @@
+CHUNKED_HEALTH elapsed=0.578 status=ok detail=ready, smoke passed, process stopped
+SCHEME_HEALTH elapsed=0.500 status=health_failed detail=health url scheme is not http
+SLOW_HEALTH budget=1.0 judged=1.023 cleaned=1.689 status=health_failed sent=4 detail=health request failed: TimeoutError; ready budget elapsed

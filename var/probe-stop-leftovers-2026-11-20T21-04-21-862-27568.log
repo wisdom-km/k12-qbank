@@ -1,0 +1,300 @@
+# popen
+proc.pid: 27568
+proc.poll: 1
+proc.returncode: 1
+_probe_wait_failed: None
+_probe_kill_sent: True
+elapsed_s: 2.843
+
+# tracked
+pid: 27568 started: 134396534580303154 is_proc: True
+pid: 21976 started: 134394664131906177 is_proc: False
+pid: 26184 started: 134394664136911886 is_proc: False
+pid: 32712 started: 134394664139270072 is_proc: False
+pid: 30944 started: 134394664139326050 is_proc: False
+pid: 2756 started: 134394664139567009 is_proc: False
+pid: 20904 started: 134394664141034493 is_proc: False
+pid: 33060 started: 134394664145589549 is_proc: False
+pid: 33236 started: 134394664147019028 is_proc: False
+pid: 33440 started: 134394664148109151 is_proc: False
+pid: 26592 started: 134394688914858114 is_proc: False
+pid: 40884 started: 134394688983553488 is_proc: False
+pid: 38856 started: 134394689304583396 is_proc: False
+pid: 40020 started: 134394689304583479 is_proc: False
+pid: 36220 started: 134394689748779814 is_proc: False
+pid: 41724 started: 134394690130074092 is_proc: False
+pid: 46988 started: 134394718163177462 is_proc: False
+pid: 42256 started: 134394730808892605 is_proc: False
+pid: 50576 started: 134394768160596022 is_proc: False
+pid: 9884 started: 134394802806504915 is_proc: False
+pid: 19760 started: 134394802827084853 is_proc: False
+pid: 45920 started: 134394853709581775 is_proc: False
+pid: 54568 started: 134394943202839191 is_proc: False
+pid: 3488 started: 134395021452730059 is_proc: False
+pid: 8844 started: 134396380963740656 is_proc: False
+pid: 32120 started: 134396430266470920 is_proc: False
+pid: 45792 started: 134396431304655658 is_proc: False
+pid: 41900 started: 134396433155371583 is_proc: False
+pid: 11808 started: 134396434474735236 is_proc: False
+pid: 41716 started: 134396449800221997 is_proc: False
+pid: 52380 started: 134396453877562956 is_proc: False
+pid: 42352 started: 134396454479039197 is_proc: False
+pid: 7668 started: 134396534400199658 is_proc: False
+pid: 5612 started: 134396534580342161 is_proc: False
+
+# leftovers
+pid: 21976
+started_now: 134394664131906177
+stamped_started: 134394664131906177
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 26184
+started_now: 134394664136911886
+stamped_started: 134394664136911886
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 32712
+started_now: 134394664139270072
+stamped_started: 134394664139270072
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 30944
+started_now: 134394664139326050
+stamped_started: 134394664139326050
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 2756
+started_now: 134394664139567009
+stamped_started: 134394664139567009
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 20904
+started_now: 134394664141034493
+stamped_started: 134394664141034493
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 33060
+started_now: 134394664145589549
+stamped_started: 134394664145589549
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 33236
+started_now: 134394664147019028
+stamped_started: 134394664147019028
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 33440
+started_now: 134394664148109151
+stamped_started: 134394664148109151
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 26592
+started_now: 134394688914858114
+stamped_started: 134394688914858114
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 40884
+started_now: 134394688983553488
+stamped_started: 134394688983553488
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 38856
+started_now: 134394689304583396
+stamped_started: 134394689304583396
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 40020
+started_now: 134394689304583479
+stamped_started: 134394689304583479
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 36220
+started_now: 134394689748779814
+stamped_started: 134394689748779814
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 41724
+started_now: 134394690130074092
+stamped_started: 134394690130074092
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 46988
+started_now: 134394718163177462
+stamped_started: 134394718163177462
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 42256
+started_now: 134394730808892605
+stamped_started: 134394730808892605
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 50576
+started_now: 134394768160596022
+stamped_started: 134394768160596022
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 9884
+started_now: 134394802806504915
+stamped_started: 134394802806504915
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 19760
+started_now: 134394802827084853
+stamped_started: 134394802827084853
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 45920
+started_now: 134394853709581775
+stamped_started: 134394853709581775
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 54568
+started_now: 134394943202839191
+stamped_started: 134394943202839191
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 3488
+started_now: 134395021452730059
+stamped_started: 134395021452730059
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 8844
+started_now: 134396380963740656
+stamped_started: 134396380963740656
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 32120
+started_now: 134396430266470920
+stamped_started: 134396430266470920
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 45792
+started_now: 134396431304655658
+stamped_started: 134396431304655658
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 41900
+started_now: 134396433155371583
+stamped_started: 134396433155371583
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 11808
+started_now: 134396434474735236
+stamped_started: 134396434474735236
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 41716
+started_now: 134396449800221997
+stamped_started: 134396449800221997
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 52380
+started_now: 134396453877562956
+stamped_started: 134396453877562956
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 42352
+started_now: 134396454479039197
+stamped_started: 134396454479039197
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+
+pid: 7668
+started_now: 134396534400199658
+stamped_started: 134396534400199658
+started_matches: True
+alive_now: True
+wmic:
+wmic error: FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)

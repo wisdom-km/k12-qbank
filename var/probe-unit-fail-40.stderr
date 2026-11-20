@@ -1,0 +1,34 @@
+test_shell_command_is_stopped_when_the_probe_returns (tests.test_service_probe.ServiceProbeCommandTest.test_shell_command_is_stopped_when_the_probe_returns) ... ok
+test_smoke_timeout_stops_the_service_and_the_smoke (tests.test_service_probe.ServiceProbeCommandTest.test_smoke_timeout_stops_the_service_and_the_smoke) ... ok
+test_chunked_health_body_within_the_ready_budget_passes (tests.test_service_probe.ServiceProbeHealthTest.test_chunked_health_body_within_the_ready_budget_passes) ... ok
+test_delayed_bind_within_the_ready_budget_passes (tests.test_service_probe.ServiceProbeHealthTest.test_delayed_bind_within_the_ready_budget_passes) ... ok
+test_exit_after_ready_fails_before_smoke (tests.test_service_probe.ServiceProbeHealthTest.test_exit_after_ready_fails_before_smoke) ... ok
+test_exit_while_waiting_for_bind_fails_promptly (tests.test_service_probe.ServiceProbeHealthTest.test_exit_while_waiting_for_bind_fails_promptly) ... ok
+test_health_after_ready_then_the_port_is_free (tests.test_service_probe.ServiceProbeHealthTest.test_health_after_ready_then_the_port_is_free) ... ok
+test_health_waits_through_the_ready_budget_then_fails (tests.test_service_probe.ServiceProbeHealthTest.test_health_waits_through_the_ready_budget_then_fails) ... ok
+test_invalid_health_port_is_refused_before_connect (tests.test_service_probe.ServiceProbeHealthTest.test_invalid_health_port_is_refused_before_connect) ... ok
+test_non_http_health_url_is_refused_before_connect (tests.test_service_probe.ServiceProbeHealthTest.test_non_http_health_url_is_refused_before_connect) ... ok
+test_occupied_port_fails_and_leaves_the_holder (tests.test_service_probe.ServiceProbeHealthTest.test_occupied_port_fails_and_leaves_the_holder) ... ok
+test_slow_health_body_past_the_ready_budget_fails (tests.test_service_probe.ServiceProbeHealthTest.test_slow_health_body_past_the_ready_budget_fails) ... ok
+test_module_imports_as_a_script (tests.test_service_probe.ServiceProbeImportTest.test_module_imports_as_a_script) ... ok
+test_cli_nonzero_when_the_service_exits_early (tests.test_service_probe.ServiceProbeRealEntryTest.test_cli_nonzero_when_the_service_exits_early) ... ok
+test_exit_during_smoke_is_not_success (tests.test_service_probe.ServiceProbeRealEntryTest.test_exit_during_smoke_is_not_success) ... FAIL
+test_health_from_another_process_is_not_our_bind (tests.test_service_probe.ServiceProbeRealEntryTest.test_health_from_another_process_is_not_our_bind) ... ok
+test_real_uvicorn_leaves_the_port_holder_when_bind_fails (tests.test_service_probe.ServiceProbeRealEntryTest.test_real_uvicorn_leaves_the_port_holder_when_bind_fails) ... ok
+test_ready_timeout_kills_the_process (tests.test_service_probe.ServiceProbeTest.test_ready_timeout_kills_the_process) ... ok
+test_smoke_failure_kills_the_process (tests.test_service_probe.ServiceProbeTest.test_smoke_failure_kills_the_process) ... ok
+test_startup_failure_is_cleaned_up (tests.test_service_probe.ServiceProbeTest.test_startup_failure_is_cleaned_up) ... ok
+test_success_stops_the_process (tests.test_service_probe.ServiceProbeTest.test_success_stops_the_process) ... ok
+
+======================================================================
+FAIL: test_exit_during_smoke_is_not_success (tests.test_service_probe.ServiceProbeRealEntryTest.test_exit_during_smoke_is_not_success)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Qbank\tests\test_service_probe.py", line 501, in test_exit_during_smoke_is_not_success
+    self.assertTrue(result.cleaned)
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 21 tests in 94.394s
+
+FAILED (failures=1)
