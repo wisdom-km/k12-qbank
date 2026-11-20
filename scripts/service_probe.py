@@ -425,49 +425,54 @@ def _leftover_pid_lines(pid: int, stamped_started: int | None) -> list[str]:
     if sys.platform == "win32":
         started_now = _windows_started(pid)
         alive_now = _windows_alive(pid)
-        wmic = _wmic_process(pid)
+        cim = _cim_process(pid)
     else:
         started_now = None
         alive_now = False
-        wmic = "wmic skipped: not windows"
+        cim = "cim skipped: not windows"
     return [
         f"pid: {pid}",
         f"started_now: {started_now!r}",
         f"stamped_started: {stamped_started!r}",
         f"started_matches: {started_now == stamped_started}",
         f"alive_now: {alive_now}",
-        "wmic:",
-        wmic,
+        "cim:",
+        cim,
         "",
     ]
 
 
-def _wmic_process(pid: int) -> str:
+def _cim_process(pid: int) -> str:
+    # pid is coerced to int so the WQL filter cannot carry extra PowerShell.
+    safe_pid = int(pid)
+    command = (
+        "$OutputEncoding = [Console]::OutputEncoding = "
+        "[System.Text.UTF8Encoding]::new($false); "
+        "Get-CimInstance Win32_Process -Filter "
+        f"'ProcessId = {safe_pid}' | "
+        "Select-Object ProcessId,Name,ParentProcessId,CreationDate,HandleCount,ThreadCount | "
+        "Format-List"
+    )
     try:
         done = subprocess.run(
             [
-                "wmic", "process", "where", f"ProcessId={pid}", "get",
-                "Name,ParentProcessId,CreationDate,HandleCount,ThreadCount",
-                "/format:list",
+                "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-NoLogo", "-Command", command,
             ],
             timeout=3,
             capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return "wmic timeout"
+        return "cim timeout"
     except Exception as exc:
-        return f"wmic error: {exc!r}"
-    data = done.stdout
-    if not data:
-        return "wmic empty"
-    if data.startswith((b"\xff\xfe", b"\xfe\xff")) or b"\x00" in data[:4]:
-        text = data.decode("utf-16", errors="replace")
-    else:
-        text = data.decode("utf-8", errors="replace")
-    if not text.strip():
-        return "wmic empty"
-    return text.rstrip()
+        return f"cim error: {exc!r}"
+    if not (done.stdout or "").strip():
+        return "cim empty"
+    return done.stdout.rstrip()
 
 
 def _kill_tree(proc: subprocess.Popen[str]) -> None:
