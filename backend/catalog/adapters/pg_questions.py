@@ -10,12 +10,14 @@ from typing import Any, TypeVar
 
 from psycopg.types.json import Json
 
+from backend.catalog.adapters.pg_children import write_question_children
 from backend.catalog.domain.parse import parse_question_draft
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.catalog.domain.validate import (
     CONTRACT,
     CONTRACT_VERSION,
     GEOMETRY_KIND,
+    TYPE_STRUCTURE,
     ChoiceOption,
     CropAsset,
     DraftFile,
@@ -56,11 +58,12 @@ class PgQuestions:
 
 
 def insert_approved_question(conn: Any, snapshot: ApprovalSnapshot) -> bool:
-    """Insert the approved snapshot once. A later put leaves this row as it was.
+    """Insert one approved row. An existing question_id is left unchanged.
 
-    The snapshot has no draft type, so the row uses the draft code unresolved.
+    A snapshot without a real type does not invent unresolved.
     """
-    if _exists(conn, snapshot.question_version_id):
+    pair = _approved_pair(snapshot)
+    if pair is None or _exists(conn, snapshot.question_version_id):
         return False
     now = datetime.now(timezone.utc)
     stem = [{"type": "text", "value": snapshot.stem}]
@@ -73,8 +76,8 @@ def insert_approved_question(conn: Any, snapshot: ApprovalSnapshot) -> bool:
             snapshot.question_version_id,
             "",
             "",
-            "unresolved",
-            "unresolved",
+            pair[0],
+            pair[1],
             "confirmed",
             stem,
             [],
@@ -87,6 +90,7 @@ def insert_approved_question(conn: Any, snapshot: ApprovalSnapshot) -> bool:
             {"pdf_page": None},
         ),
     )
+    write_question_children(conn, snapshot.question_version_id, [], [], [])
     return True
 
 
@@ -101,10 +105,14 @@ def _save_file(conn: Any, draft: DraftFile) -> None:
     source = {"pdf_page": draft.pdf_page}
     for question in draft.questions:
         version = _next_version(conn, question.key)
+        question_id = str(uuid.uuid4())
+        options = [_option(item) for item in question.options]
+        subquestions = [_sub(item) for item in question.subquestions]
+        assets = [_asset(item) for item in question.assets]
         conn.execute(
             _INSERT,
             _values(
-                str(uuid.uuid4()),
+                question_id,
                 version,
                 now,
                 question.key,
@@ -114,9 +122,9 @@ def _save_file(conn: Any, draft: DraftFile) -> None:
                 question.structure,
                 question.status,
                 _fragments(question.stem),
-                [_option(item) for item in question.options],
-                [_sub(item) for item in question.subquestions],
-                [_asset(item) for item in question.assets],
+                options,
+                subquestions,
+                assets,
                 _geometry(question.geometry),
                 draft.ok,
                 draft.reason,
@@ -124,6 +132,7 @@ def _save_file(conn: Any, draft: DraftFile) -> None:
                 source,
             ),
         )
+        write_question_children(conn, question_id, options, subquestions, assets)
 
 
 def _values(
@@ -223,6 +232,14 @@ def _payload(row: tuple[object, ...]) -> dict[str, object]:
 def _next_version(conn: Any, key: str) -> int:
     row = conn.execute("SELECT COALESCE(MAX(version), 0) FROM questions WHERE key = %s", (key,)).fetchone()
     return int(row[0]) + 1
+
+
+def _approved_pair(snapshot: ApprovalSnapshot) -> tuple[str, str] | None:
+    if snapshot.type == "" or snapshot.type == "unresolved":
+        return None
+    if TYPE_STRUCTURE.get(snapshot.type) != snapshot.structure:
+        return None
+    return snapshot.type, snapshot.structure
 
 
 def _exists(conn: Any, question_id: str) -> bool:
