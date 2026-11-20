@@ -179,6 +179,15 @@ class CatalogPracticeCases:
         self.assertEqual(self.answers.put(second), first.key)  # type: ignore[attr-defined]
         self.assertIsNone(self.answers.read(second.key))  # type: ignore[attr-defined]
 
+    def test_composite_question_keeps_two_parts(self) -> None:
+        draft = _composite()
+        self.questions.save(draft)  # type: ignore[attr-defined]
+        stored = self.questions.read("1:2")  # type: ignore[attr-defined]
+        self.assertEqual(stored, draft.questions[0])
+        self.assertEqual(len(stored.subquestions), 2)  # type: ignore[attr-defined]
+        self.assertEqual(len(stored.subquestions[0].options), 2)  # type: ignore[attr-defined]
+        self.assertEqual(len(stored.assets), 1)  # type: ignore[attr-defined]
+
 
 class MemoryContractTest(CatalogPracticeCases, unittest.TestCase):
     def setUp(self) -> None:
@@ -237,16 +246,22 @@ class PgContractTest(CatalogPracticeCases, unittest.TestCase):
         self.assertEqual(_text(self.pool, older, ("1:1:teacher:1",)), "2")
 
     def test_approval_inserts_a_row_and_does_not_overwrite_it(self) -> None:
-        approved = replace(_snapshot(), question_approved=True, answer_approved=True)
-        self.approvals.put(_snapshot())
+        bare = replace(_snapshot(), question_approved=True, answer_approved=True)
+        self.approvals.put(bare)
+        self.assertEqual(_scalar(self.pool, "SELECT count(*) FROM questions WHERE type = 'unresolved'", ()), 0)
         self.assertEqual(_scalar(self.pool, "SELECT count(*) FROM questions WHERE key = %s", ("q-c1",)), 0)
+        approved = replace(bare, type="solution", structure="worked")
         self.approvals.put(approved)
         stored = self.questions.read("q-c1")
-        self.assertEqual(stored.type, "unresolved")  # type: ignore[union-attr]
+        self.assertEqual(stored.type, "solution")  # type: ignore[union-attr]
+        self.assertEqual(stored.structure, "worked")  # type: ignore[union-attr]
         self.assertEqual(stored.stem[0].value, _STEM)  # type: ignore[attr-defined]
         self.assertEqual(self.answers.read("q-c1:teacher:1").content[0].value, "2")  # type: ignore[union-attr]
+        self.assertEqual(_scalar(self.pool, "SELECT count(*) FROM question_option", ()), 0)
+        self.assertEqual(_scalar(self.pool, "SELECT count(*) FROM answer_part", ()), 0)
         self.approvals.put(replace(approved, stem="改过", answer_text="8"))
         self.assertEqual(self.approvals.read_snapshot("q-c1").stem, "改过")
+        self.assertEqual(self.approvals.read_snapshot("q-c1").type, "solution")
         kept = "SELECT stem->0->>'value' FROM questions WHERE question_id = %s"
         self.assertEqual(_text(self.pool, kept, ("q-c1",)), _STEM)
         revised = replace(
@@ -258,6 +273,63 @@ class PgContractTest(CatalogPracticeCases, unittest.TestCase):
         self.approvals.put(revised)
         self.assertEqual(_scalar(self.pool, "SELECT count(*) FROM questions", ()), 2)
         self.assertEqual(self.questions.read("q-c1-v2").stem[0].value, "第二版")  # type: ignore[union-attr]
+
+    def test_saved_choice_writes_options_and_a_crop(self) -> None:
+        self.questions.save(_draft())
+        options = """
+            SELECT count(*) FROM question_option o
+            JOIN questions q ON q.question_id = o.question_id
+            WHERE q.key = %s AND q.version = 1 AND o.sub_question_id IS NULL
+        """
+        assets = """
+            SELECT count(*) FROM question_asset a
+            JOIN questions q ON q.question_id = a.question_id
+            WHERE q.key = %s AND q.version = 1 AND a.role = 'crop'
+        """
+        self.assertEqual(_scalar(self.pool, options, ("1:1",)), 2)
+        self.assertEqual(_scalar(self.pool, assets, ("1:1",)), 1)
+        self.questions.save(_draft("改后"))
+        self.assertEqual(_scalar(self.pool, options, ("1:1",)), 2)
+
+    def test_saved_composite_writes_two_subquestions(self) -> None:
+        self.questions.save(_composite())
+        subs = """
+            SELECT count(*) FROM sub_question s
+            JOIN questions q ON q.question_id = s.question_id
+            WHERE q.key = %s
+        """
+        nested = """
+            SELECT count(*) FROM question_option o
+            JOIN sub_question s ON s.sub_question_id = o.sub_question_id
+            JOIN questions q ON q.question_id = s.question_id
+            WHERE q.key = %s AND s.number = '1'
+        """
+        self.assertEqual(_scalar(self.pool, subs, ("1:2",)), 2)
+        self.assertEqual(_scalar(self.pool, nested, ("1:2",)), 2)
+        own = """
+            SELECT count(*) FROM question_option o
+            JOIN questions q ON q.question_id = o.question_id
+            WHERE q.key = %s AND o.sub_question_id IS NULL
+        """
+        self.assertEqual(_scalar(self.pool, own, ("1:2",)), 0)
+
+    def test_saved_answer_writes_two_parts_and_a_crop(self) -> None:
+        self.questions.save(_draft())
+        self.answers.put(_bank_answer())
+        parts = """
+            SELECT count(*) FROM answer_part p
+            JOIN answers a ON a.answer_id = p.answer_id
+            WHERE a.key = %s AND a.version = 1
+        """
+        crops = """
+            SELECT count(*) FROM answer_asset c
+            JOIN answers a ON a.answer_id = c.answer_id
+            WHERE a.key = %s AND a.version = 1 AND c.role = 'crop'
+        """
+        self.assertEqual(_scalar(self.pool, parts, ("1:1:teacher:1",)), 2)
+        self.assertEqual(_scalar(self.pool, crops, ("1:1:teacher:1",)), 1)
+        self.answers.put(_bank_answer("9"))
+        self.assertEqual(_scalar(self.pool, parts, ("1:1:teacher:1",)), 2)
 
 
 def _snapshot() -> ApprovalSnapshot:
@@ -337,12 +409,22 @@ def _pool() -> object:
 
 def _truncate(pool: object) -> None:
     statement = """
-        TRUNCATE TABLE answers, questions, confirmations, attempts, paper_pages, papers, files, approvals
+        TRUNCATE TABLE
+            question_option, question_asset, sub_question,
+            answer_part, answer_asset,
+            answers, questions, confirmations, attempts, paper_pages, papers, files, approvals
         RESTART IDENTITY CASCADE
     """
     with pool.connection() as conn:  # type: ignore[attr-defined]
         with conn.transaction():
             conn.execute(statement)
+
+
+def _composite():
+    parsed = parse_question_draft(_composite_payload())
+    if isinstance(parsed, Err):
+        raise AssertionError(parsed.message)
+    return parsed.value
 
 
 def _draft(stem: str = "计算："):
@@ -357,6 +439,35 @@ def _bank_answer(text: str = "2", ordinal: str = "1"):
     if isinstance(parsed, Err):
         raise AssertionError(parsed.message)
     return parsed.value
+
+
+def _composite_payload() -> dict[str, object]:
+    payload = _question_payload("综合")
+    question = payload["questions"][0]
+    question["key"] = "1:2"
+    question["number"] = "2"
+    question["type"] = "composite"
+    question["structure"] = "composite"
+    question["options"] = []
+    question["subquestions"] = [
+        {
+            "number": "1",
+            "type": "single_choice",
+            "structure": "choice",
+            "stem": [{"type": "text", "value": "选一个"}],
+            "options": [
+                {"key": "A", "content": [{"type": "text", "value": "2"}]},
+                {"key": "B", "content": [{"type": "text", "value": "3"}]},
+            ],
+        },
+        {
+            "number": "2",
+            "type": "fill_blank",
+            "structure": "blank",
+            "stem": [{"type": "text", "value": "填一个"}],
+        },
+    ]
+    return payload
 
 
 def _question_payload(stem: str) -> dict[str, object]:
@@ -404,7 +515,8 @@ def _answer_payload(text: str, ordinal: str) -> dict[str, object]:
         "source": {},
         "content": [{"type": "text", "value": text}],
         "parts": [
-            {"sub_key": "1", "role": "result", "order": 1, "content": [{"type": "text", "value": text}]}
+            {"sub_key": "1", "role": "result", "order": 1, "content": [{"type": "text", "value": text}]},
+            {"sub_key": "1", "role": "step", "order": 2, "content": [{"type": "text", "value": "先算"}]},
         ],
         "assets": [{"role": "crop", "bbox": [1, 2, 3, 4]}],
     }

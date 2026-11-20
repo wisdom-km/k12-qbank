@@ -6,7 +6,7 @@
 
 黑龙江省的机构老师，用人教版七年级上册有理数运算的一小批已核验题目，在电脑网页和可安装的安卓 App 上完成：核验题目、给每名学生出纸卷、收回、确认 AI 建议、再安排练习。场景是一名老师、大约 100 名学生，以后可能到大约三名老师、300 名学生。这两个数字是场景，不是容量保证。
 
-档位是长期项目。要保存真实学情，老师会访问。文档和检查已经在仓库里。`catalog` 和 `practice` 可以在本机用合成数据走核验、出卷、打开 PDF 和确认。identity 与审计已在 PostgreSQL。设置 `K12_PG_DSN` 后，catalog 与 practice 的运行表也写入 PostgreSQL（见 [ADR 0039](docs/adr/0039-catalog-persistence.md)）。V004 已建 `questions` 和 `answers`。子表仍未建。`python scripts/status.py` 只打印状态，不启动网站。
+档位是长期项目。要保存真实学情，老师会访问。文档和检查已经在仓库里。`catalog` 和 `practice` 可以在本机用合成数据走核验、出卷、打开 PDF 和确认。identity 与审计已在 PostgreSQL。设置 `K12_PG_DSN` 后，catalog 与 practice 的运行表也写入 PostgreSQL（见 [ADR 0039](docs/adr/0039-catalog-persistence.md)）。V004 已建 `questions` 和 `answers`。V005 已建 `question_option`、`sub_question`、`question_asset`、`answer_part`、`answer_asset`。`figure_geometry` 和 `answer_decision` 仍未建。`python scripts/status.py` 只打印状态，不启动网站。
 
 ## 老师要完成的闭环
 
@@ -63,11 +63,11 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | 管理员后台 | 页面 `/admin`。管理员可建老师和学生、授权和撤销、查看审计与错误，并一次吊销自己的活跃会话。老师打开该页得到 permission_denied |
 | PostgreSQL 已连接 | 仅当 `K12_PG_DSN` 有值时连接并迁移 identity、审计、catalog 与 practice。页字节在 `K12_FILE_DIR`。`K12_ENV` 默认 development；production 缺少连接串或页字节目录时退出。默认进程和单测不连接。CI 的 `postgres` 作业包含 up、down、up，以及 identity、catalog/practice 契约和迁移锁 |
 | 运行模式 | `K12_ENV` 默认 development。production 缺少连接串或 `K12_FILE_DIR` 时退出。development 且连接串为空时用内存 |
-| catalog PG | 设置 `K12_PG_DSN` 时写入 V002 的运行表，以及 V004 的 `questions` 和 `answers`。子表仍未建 |
+| catalog PG | 设置 `K12_PG_DSN` 时写入 V002 的运行表，V004 的 `questions` 和 `answers`，以及 V005 的五张子表。`figure_geometry` 和 `answer_decision` 仍未建 |
 | practice PG | 设置 `K12_PG_DSN` 时写入 papers、attempts、confirmations。页字节在 `K12_FILE_DIR` |
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 在 `K12_PG_DSN` 有值时连接并迁移 |
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
-| 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。内存保存。还不能出卷。运行中的核准可同时写入 V004 的 `answers`。子表仍未建 |
+| 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。内存保存。还不能出卷。运行中的核准可同时写入 V004 的 `answers` 和 V005 的 `answer_part`、`answer_asset`。`answer_decision` 仍未建 |
 | 契约校验 | JSON Schema 在 `backend/catalog/contracts/`。不新增包。见 [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
 | 发布、知识点和多题练习 | 列写在 ADR 0015。表未建。现在一卷一题 |
 | 解题方法与错因 | 列写在 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。目录入库。错因是建议。表未建 |

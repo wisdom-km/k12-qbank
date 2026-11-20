@@ -19,4 +19,4 @@
 
 ## 还不做
 
-`question_option`、`sub_question`、`question_asset`、`figure_geometry`、`answer_part`、`answer_asset`、`answer_decision`。knowledge、analysis、delivery 的目录。M-14 的外部接收方。#47 保持打开。
+2026-11-20 起，五张子表见 [catalog-subtables.md](catalog-subtables.md)。这里仍不做 `figure_geometry` 和 `answer_decision`。knowledge、analysis、delivery 的目录。M-14 的外部接收方。#47 保持打开。

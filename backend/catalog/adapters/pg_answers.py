@@ -9,6 +9,7 @@ from typing import Any, TypeVar
 
 from psycopg.types.json import Json
 
+from backend.catalog.adapters.pg_children import write_answer_children
 from backend.catalog.domain.answer import (
     CONTRACT,
     CONTRACT_VERSION,
@@ -72,6 +73,7 @@ def insert_approved_answer(conn: Any, snapshot: ApprovalSnapshot) -> None:
             "",
         ),
     )
+    write_answer_children(conn, snapshot.answer_version_id, [], [])
 
 
 def _run(pool: object, work: Callable[[Any], T]) -> T:
@@ -90,13 +92,24 @@ def _put(conn: Any, answer: AnswerDraft) -> str | None:
     if question_id is None:
         raise StoreFault("store_failed")
     version = _next_version(conn, answer.key)
-    conn.execute(_INSERT, _values_for(answer, question_id, version))
+    answer_id = str(uuid.uuid4())
+    parts = [_part(item) for item in answer.parts]
+    assets = [_asset(item) for item in answer.assets]
+    conn.execute(_INSERT, _values_for(answer, question_id, version, answer_id, parts, assets))
+    write_answer_children(conn, answer_id, parts, assets)
     return None
 
 
-def _values_for(answer: AnswerDraft, question_id: str, version: int) -> tuple[object, ...]:
+def _values_for(
+    answer: AnswerDraft,
+    question_id: str,
+    version: int,
+    answer_id: str,
+    parts: list[object],
+    assets: list[object],
+) -> tuple[object, ...]:
     return _values(
-        str(uuid.uuid4()),
+        answer_id,
         question_id,
         version,
         answer.question_key,
@@ -106,8 +119,8 @@ def _values_for(answer: AnswerDraft, question_id: str, version: int) -> tuple[ob
         answer.applicable,
         _source(answer),
         _fragments(answer.content),
-        [_part(item) for item in answer.parts],
-        [_asset(item) for item in answer.assets],
+        parts,
+        assets,
         answer.ok,
         answer.reason,
     )

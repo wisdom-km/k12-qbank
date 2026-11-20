@@ -18,6 +18,8 @@ class ApprovalSnapshot:
     item_order: tuple[str, ...] = ()
     stem: str = ""
     answer_text: str = ""
+    type: str = ""
+    structure: str = ""
 
 
 @dataclass(frozen=True)

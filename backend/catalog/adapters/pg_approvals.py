@@ -10,13 +10,15 @@ from psycopg.errors import UniqueViolation
 from backend.catalog.adapters.pg_answers import insert_approved_answer
 from backend.catalog.adapters.pg_questions import insert_approved_question
 from backend.catalog.domain.snapshot import ApprovalSnapshot
+from backend.catalog.domain.validate import TYPE_STRUCTURE
 from backend.kernel.result import StoreFault
 
 T = TypeVar("T")
 
 _COLUMNS = """
 question_version_id, answer_version_id, asset_ids, layout_template_id,
-question_approved, answer_approved, retired, subject_id, item_order, stem, answer_text
+question_approved, answer_approved, retired, subject_id, item_order, stem, answer_text,
+type, structure
 """
 
 
@@ -73,11 +75,15 @@ def _upsert(conn: Any, snapshot: ApprovalSnapshot) -> None:
         subject_id = EXCLUDED.subject_id,
         item_order = EXCLUDED.item_order,
         stem = EXCLUDED.stem,
-        answer_text = EXCLUDED.answer_text
+        answer_text = EXCLUDED.answer_text,
+        type = EXCLUDED.type,
+        structure = EXCLUDED.structure
     """
     conn.execute(
         f"""
-        INSERT INTO approvals ({_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO approvals ({_COLUMNS}) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
         ON CONFLICT (question_version_id) DO UPDATE SET {assignments}
         """,
         _params(snapshot),
@@ -96,7 +102,11 @@ def _insert_new(conn: Any, snapshot: ApprovalSnapshot) -> bool:
     ):
         return False
     conn.execute(
-        f"INSERT INTO approvals ({_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        f"""
+        INSERT INTO approvals ({_COLUMNS}) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
+        """,
         _params(snapshot),
     )
     _remember(conn, snapshot)
@@ -162,6 +172,7 @@ def _params(snapshot: ApprovalSnapshot) -> tuple[object, ...]:
         list(snapshot.item_order),
         snapshot.stem,
         snapshot.answer_text,
+        *_stored_type(snapshot),
     )
 
 
@@ -178,7 +189,15 @@ def _snapshot(row: tuple[object, ...]) -> ApprovalSnapshot:
         item_order=_texts(row[8]),
         stem=str(row[9]),
         answer_text=str(row[10]),
+        type="" if row[11] is None else str(row[11]),
+        structure="" if row[12] is None else str(row[12]),
     )
+
+
+def _stored_type(snapshot: ApprovalSnapshot) -> tuple[str | None, str | None]:
+    if TYPE_STRUCTURE.get(snapshot.type) != snapshot.structure or snapshot.type == "":
+        return None, None
+    return snapshot.type, snapshot.structure
 
 
 def _texts(value: object) -> tuple[str, ...]:
