@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class MigrationFilesTest(unittest.TestCase):
     def test_v001_has_up_and_down(self) -> None:
         found = discover(ROOT)
-        self.assertEqual([item.version for item in found], ["V001", "V002", "V003", "V004"])
+        self.assertEqual([item.version for item in found], ["V001", "V002", "V003", "V004", "V005"])
         self.assertTrue(found[0].down.is_file())
         up = "\n".join(sql_statements(found[0].up.read_text(encoding="utf-8")))
         down = "\n".join(sql_statements(found[0].down.read_text(encoding="utf-8")))
@@ -47,6 +47,25 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertIn("DROP TABLE IF EXISTS answers", down4)
         self.assertIn("DROP TABLE IF EXISTS questions", down4)
         self.assertNotIn("schema_migrations", up4)
+        self.assertTrue(found[4].down.is_file())
+        up5 = found[4].up.read_text(encoding="utf-8")
+        down5 = found[4].down.read_text(encoding="utf-8")
+        for name in (
+            "question_option",
+            "sub_question",
+            "question_asset",
+            "answer_part",
+            "answer_asset",
+        ):
+            self.assertIn(f"CREATE TABLE {name}", up5)
+            self.assertIn(f"DROP TABLE IF EXISTS {name}", down5)
+        self.assertIn("ALTER TABLE approvals ADD COLUMN type", up5)
+        self.assertIn("DROP COLUMN IF EXISTS type", down5)
+        self.assertNotIn("CREATE TABLE figure_geometry", up5)
+        self.assertNotIn("CREATE TABLE answer_decision", up5)
+        self.assertNotIn("schema_migrations", up5)
+        self.assertNotIn("ALTER TABLE questions", up5)
+        self.assertNotIn("ALTER TABLE answers", up5)
 
     def test_domain_and_application_do_not_import_the_driver(self) -> None:
         base = ROOT / "backend" / "identity"
