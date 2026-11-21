@@ -24,5 +24,6 @@
 - `publication_asset`。
 - `layout_template_id` 绑定到出卷。
 - HTTP 出卷仍走 `open_paper`。这条路径本批不传发布账本。
+- HTTP 出卷路径未接入 publications 账本。`routes_practice` / `open_paper` 当前不传，`issue_paper` 的闸对 HTTP 请求不生效。D6 实装 retire 前必须先接 HTTP，否则真实 bypass 会出现。跟踪见 issue #65。
 - knowledge 的 PostgreSQL 表、`figure_geometry`、`answer_decision`。
 - M-14 的外部接收方。issue #47 仍开着，本批不关闭、不改标签。
