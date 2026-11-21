@@ -10,6 +10,7 @@ from pathlib import Path
 
 from backend.bootstrap.stdout_log import StdoutLogger
 from backend.catalog.adapters.memory import MemoryApprovals
+from backend.catalog.adapters.memory_publications import MemoryPublications
 from backend.catalog.application.read_snapshot import read_snapshot
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.kernel.log_event import LogEvent
@@ -75,6 +76,7 @@ def issue_command() -> IssuePaperCommand:
 class CoreLoopTest(unittest.TestCase):
     def setUp(self) -> None:
         self.approvals = MemoryApprovals()
+        self.publications = MemoryPublications()
         self.practice = MemoryPractice()
         self.auth = MemoryAuth()
         self.logger = ListLogger()
@@ -106,6 +108,7 @@ class CoreLoopTest(unittest.TestCase):
             "req-refuse",
             self.next_id,
             actor_teacher_id="teacher-synth",
+            publications=self.publications,
         )
         self.assertIsInstance(result, Err)
         assert isinstance(result, Err)
@@ -217,6 +220,7 @@ class CoreLoopTest(unittest.TestCase):
             "req-auth",
             self.next_id,
             actor_teacher_id="teacher-other",
+            publications=self.publications,
         )
         self.assertIsInstance(result, Err)
         assert isinstance(result, Err)
@@ -259,6 +263,7 @@ class CoreLoopTest(unittest.TestCase):
             "req-blank",
             self.next_id,
             actor_teacher_id="teacher-synth",
+            publications=self.publications,
         )
         self.assertIsInstance(result, Err)
         assert isinstance(result, Err)
@@ -313,7 +318,9 @@ class CoreLoopTest(unittest.TestCase):
         self.assertIn("use_case_failed", text)
 
     def _issue(self):
-        self.approvals.put(approved())
+        snap = approved()
+        self.approvals.put(snap)
+        self.publications.fill_grandfather([snap])
         result = issue_paper(
             issue_command(),
             self.approvals,
@@ -323,6 +330,7 @@ class CoreLoopTest(unittest.TestCase):
             "req-issue",
             self.next_id,
             actor_teacher_id="teacher-synth",
+            publications=self.publications,
         )
         self.assertIsInstance(result, Ok)
         assert isinstance(result, Ok)

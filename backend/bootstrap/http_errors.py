@@ -26,6 +26,7 @@ _STATUS = {
     "already_granted": 409,
     "not_granted": 409,
     "payload_too_large": 413,
+    "no_active_publication": 409,
 }
 _GENERIC = {"invalid_credentials", "unauthenticated"}
 

@@ -91,6 +91,24 @@ def prepare_issue(
     return Ok(PreparedIssue(paper=paper, answer_text=answer_text))
 
 
+def gate_active_publication(
+    publications: Publications,
+    paper: Paper,
+    logger: Logger,
+    request_id: str,
+) -> Err | None:
+    """Refuse when this binding has no active publication. Callers must pass a ledger."""
+    if publications.active_of(paper.question_version_id, paper.answer_version_id) is not None:
+        return None
+    return _refuse_issue(
+        logger,
+        request_id,
+        time.perf_counter(),
+        "no_active_publication",
+        "the question version and the answer version have no active publication",
+    )
+
+
 def issue_paper(
     command: IssuePaperCommand,
     approvals: ApprovalPort,
@@ -101,7 +119,7 @@ def issue_paper(
     new_id: Callable[[], str] | None = None,
     *,
     actor_teacher_id: str,
-    publications: Publications | None = None,
+    publications: Publications,
 ) -> Ok[Paper] | Err:
     prepared = prepare_issue(
         command,
@@ -115,17 +133,9 @@ def issue_paper(
     if isinstance(prepared, Err):
         return prepared
     paper = prepared.value.paper
-    # None keeps the previous writer. open_paper, render, and confirm do not pass a ledger.
-    if publications is not None and publications.active_of(
-        paper.question_version_id, paper.answer_version_id
-    ) is None:
-        return _refuse_issue(
-            logger,
-            request_id,
-            time.perf_counter(),
-            "no_active_publication",
-            "the question version and the answer version have no active publication",
-        )
+    blocked = gate_active_publication(publications, paper, logger, request_id)
+    if blocked is not None:
+        return blocked
     started = time.perf_counter()
     saved = read_store(
         lambda: store.add_paper(paper),

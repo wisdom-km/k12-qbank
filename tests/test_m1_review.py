@@ -119,6 +119,8 @@ class ReviewLoopTest(unittest.TestCase):
         load_fixture(loop)
         published = publish_version("q-v1", loop.approvals, loop.logger, "req-pub")
         self.assertIsInstance(published, Ok)
+        assert isinstance(published, Ok)
+        loop.publications.fill_grandfather([published.value])
         issued = issue_paper(
             _command("q-v1"),
             loop.approvals,
@@ -127,6 +129,7 @@ class ReviewLoopTest(unittest.TestCase):
             loop.logger,
             "req-issue",
             actor_teacher_id="teacher-synth",
+            publications=loop.publications,
         )
         self.assertIsInstance(issued, Ok)
         assert isinstance(issued, Ok)
@@ -181,6 +184,7 @@ class ReviewLoopTest(unittest.TestCase):
             loop.logger,
             "req-block",
             actor_teacher_id="teacher-synth",
+            publications=loop.publications,
         )
         self.assertIsInstance(blocked, Err)
         assert isinstance(blocked, Err)
@@ -188,6 +192,8 @@ class ReviewLoopTest(unittest.TestCase):
         self.assertEqual(loop.practice.paper_count(), 1)
         again = publish_version("q-v2", loop.approvals, loop.logger, "req-pub-2")
         self.assertIsInstance(again, Ok)
+        assert isinstance(again, Ok)
+        loop.publications.fill_grandfather([again.value])
         newer = issue_paper(
             _command("q-v2"),
             loop.approvals,
@@ -196,6 +202,7 @@ class ReviewLoopTest(unittest.TestCase):
             loop.logger,
             "req-new",
             actor_teacher_id="teacher-synth",
+            publications=loop.publications,
         )
         self.assertIsInstance(newer, Ok)
         assert isinstance(newer, Ok)
@@ -530,6 +537,8 @@ class ReviewLoopTest(unittest.TestCase):
         load_fixture(loop)
         published = publish_version("q-v1", loop.approvals, loop.logger, "req-pub")
         self.assertIsInstance(published, Ok)
+        assert isinstance(published, Ok)
+        loop.publications.fill_grandfather([published.value])
         issued = issue_paper(
             _command("q-v1"),
             loop.approvals,
@@ -538,6 +547,7 @@ class ReviewLoopTest(unittest.TestCase):
             loop.logger,
             "req-old",
             actor_teacher_id="teacher-synth",
+            publications=loop.publications,
         )
         self.assertIsInstance(issued, Ok)
         assert isinstance(issued, Ok)
@@ -605,6 +615,7 @@ class ReviewLoopTest(unittest.TestCase):
                 loop.logger,
                 "req-block-" + row.question_version_id,
                 actor_teacher_id="teacher-synth",
+                publications=loop.publications,
             )
             self.assertIsInstance(blocked, Err)
             assert isinstance(blocked, Err)

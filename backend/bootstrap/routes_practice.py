@@ -88,6 +88,7 @@ def _issue(body: IssueBody, request: Request) -> JSONResponse:
         request.state.request_id,
         actor_teacher_id=actor,
         attempt_text=synthetic_attempt_text(),
+        publications=loop.publications,
     )
     if isinstance(result, Err):
         return error_response(request.state.request_id, result)
