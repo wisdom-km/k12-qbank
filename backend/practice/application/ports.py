@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol
 
 from backend.kernel.result import Err
 from backend.practice.domain.confirm import Confirmation, ConfirmationScope, PendingAnswer
+from backend.practice.domain.item import PracticeItem
 from backend.practice.domain.page_face import PaperPage
 from backend.practice.domain.paper import Paper
 
@@ -80,3 +82,16 @@ class FileStore(Protocol):
 class PageRenderer(Protocol):
     def render(self, page: PaperPage) -> bytes | Err:
         """Return PDF bytes, or Err when the page cannot be drawn."""
+
+
+class PracticeItems(Protocol):
+    def items_of(self, paper_id: str) -> tuple[PracticeItem, ...]:
+        """Return this paper's items ordered by order_no ascending."""
+
+    def set_items(self, paper_id: str, items: Sequence[PracticeItem]) -> None:
+        """Replace every item of this paper. An empty sequence is the single-item fallback."""
+
+
+class ComposedPaperStore(Protocol):
+    def place_composed(self, paper: Paper, items: tuple[PracticeItem, ...]) -> None:
+        """Write the paper, one page per item, and the item rows as one unit."""
