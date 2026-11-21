@@ -15,7 +15,7 @@ class MigrationFilesTest(unittest.TestCase):
         found = discover(ROOT)
         self.assertEqual(
             [item.version for item in found],
-            ["V001", "V002", "V003", "V004", "V005", "V006"],
+            ["V001", "V002", "V003", "V004", "V005", "V006", "V007"],
         )
         self.assertTrue(found[0].down.is_file())
         up = "\n".join(sql_statements(found[0].up.read_text(encoding="utf-8")))
@@ -80,6 +80,22 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertNotIn("ALTER TABLE paper_pages", up6)
         self.assertNotIn("ALTER TABLE confirmations", up6)
         self.assertNotIn("schema_migrations", up6)
+        self.assertTrue(found[6].down.is_file())
+        up7 = found[6].up.read_text(encoding="utf-8")
+        down7 = found[6].down.read_text(encoding="utf-8")
+        self.assertIn("CREATE TABLE publication", up7)
+        self.assertIn("AND NOT retired", up7)
+        self.assertNotIn("CREATE TABLE publication_asset", up7)
+        self.assertNotIn("ALTER TABLE papers", up7)
+        self.assertNotIn("ALTER TABLE paper_pages", up7)
+        self.assertNotIn("ALTER TABLE confirmations", up7)
+        self.assertNotIn("ALTER TABLE practice_item", up7)
+        self.assertNotIn("ALTER TABLE approvals", up7)
+        insert = up7.split("INSERT INTO publication", 1)[1]
+        self.assertNotIn("layout_template_id", insert)
+        self.assertIn("DELETE FROM publication", down7)
+        self.assertIn("DROP TABLE publication", down7)
+        self.assertNotIn("schema_migrations", up7)
 
     def test_domain_and_application_do_not_import_the_driver(self) -> None:
         base = ROOT / "backend" / "identity"

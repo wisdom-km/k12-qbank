@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from backend.catalog.api import ApprovalPort
+from backend.catalog.api import ApprovalPort, Publications
 from backend.kernel.result import Err, Ok
 from backend.practice.application.ports import ComposedPaperStore
 from backend.practice.domain.item import PracticeItem
@@ -20,6 +20,7 @@ def compose_multi_item_paper(
     student_id: str,
     review_version_id: str,
     approvals: ApprovalPort,
+    publications: Publications,
     writer: ComposedPaperStore,
 ) -> Ok[Paper] | Err:
     """Freeze two or more items. The paper column keeps items[0] for old readers."""
@@ -30,6 +31,12 @@ def compose_multi_item_paper(
         refused = _is_item_approved(item, approvals)
         if refused is not None:
             return refused
+    for item in items:
+        if publications.active_of(item.question_version_id, item.answer_version_id) is None:
+            return Err(
+                "no_active_publication",
+                "the question version and the answer version have no active publication",
+            )
     first = approvals.read_snapshot(items[0].question_version_id)
     if first is None:
         return Err("question_not_approved", "the question version is not approved")

@@ -7,7 +7,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from backend.catalog.api import ApprovalPort, issuable_snapshot
+from backend.catalog.api import ApprovalPort, Publications, issuable_snapshot
 from backend.kernel.logger import Logger
 from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
@@ -101,6 +101,7 @@ def issue_paper(
     new_id: Callable[[], str] | None = None,
     *,
     actor_teacher_id: str,
+    publications: Publications | None = None,
 ) -> Ok[Paper] | Err:
     prepared = prepare_issue(
         command,
@@ -114,6 +115,17 @@ def issue_paper(
     if isinstance(prepared, Err):
         return prepared
     paper = prepared.value.paper
+    # None keeps the previous writer. open_paper, render, and confirm do not pass a ledger.
+    if publications is not None and publications.active_of(
+        paper.question_version_id, paper.answer_version_id
+    ) is None:
+        return _refuse_issue(
+            logger,
+            request_id,
+            time.perf_counter(),
+            "no_active_publication",
+            "the question version and the answer version have no active publication",
+        )
     started = time.perf_counter()
     saved = read_store(
         lambda: store.add_paper(paper),
