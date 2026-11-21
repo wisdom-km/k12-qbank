@@ -6,6 +6,8 @@ import os
 import unittest
 
 from backend.catalog.adapters.memory import MemoryApprovals
+from backend.catalog.adapters.memory_publications import MemoryPublications
+from backend.catalog.domain.publication import Publication
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.kernel.log_event import LogEvent
 from backend.kernel.result import Err, Ok
@@ -73,6 +75,7 @@ class PracticeItemCases:
         specs = (("q-d4-b2", "a-d4-b2", 2), ("q-d4-b3", "a-d4-b3", 3), ("q-d4-b1", "a-d4-b1", 1))
         for question_id, answer_id, _order in specs:
             self.approvals.put(_snapshot(question_id, answer_id))  # type: ignore[attr-defined]
+            self._activate(question_id, answer_id)
         given = tuple(_item(paper_id, order, question_id, answer_id) for question_id, answer_id, order in specs)
         placed = self._compose(paper_id, given)
         self.assertIsInstance(placed, Ok)  # type: ignore[attr-defined]
@@ -226,6 +229,93 @@ class PracticeItemCases:
             self.assertEqual(refused.code, "bad_order")  # type: ignore[union-attr]
             self._assert_absent(paper_id)
 
+    def test_multi_item_rejects_item_without_active_publication(self) -> None:
+        paper_id = "paper-d5-g"
+        self.approvals.put(_snapshot("q-d5-g1", "a-d5-g1"))  # type: ignore[attr-defined]
+        self.approvals.put(_snapshot("q-d5-g2", "a-d5-g2"))  # type: ignore[attr-defined]
+        refused = self._compose(
+            paper_id,
+            (
+                _item(paper_id, 1, "q-d5-g1", "a-d5-g1"),
+                _item(paper_id, 2, "q-d5-g2", "a-d5-g2"),
+            ),
+        )
+        self.assertIsInstance(refused, Err)  # type: ignore[attr-defined]
+        self.assertEqual(refused.code, "no_active_publication")  # type: ignore[union-attr]
+        self._assert_absent(paper_id)
+
+    def test_single_item_rejects_without_active_publication(self) -> None:
+        self.approvals.put(_snapshot("q-d5-h", "a-d5-h"))  # type: ignore[attr-defined]
+        refused = issue_paper(
+            _command("q-d5-h"),
+            self.approvals,  # type: ignore[arg-type]
+            self.auth,
+            self.practice,  # type: ignore[arg-type]
+            self.logger,
+            "req-d5-h",
+            lambda: "paper-d5-h",
+            actor_teacher_id=_TEACHER,
+            publications=self.publications,  # type: ignore[attr-defined]
+        )
+        self.assertIsInstance(refused, Err)  # type: ignore[attr-defined]
+        self.assertEqual(refused.code, "no_active_publication")  # type: ignore[union-attr]
+        self.assertIsNone(self.practice.get_paper("paper-d5-h"))  # type: ignore[attr-defined]
+        self.assertTrue(
+            any(event.outcome == "no_active_publication" for event in self.logger.events)
+        )  # type: ignore[attr-defined]
+
+    def test_old_paper_opens_even_when_publication_missing(self) -> None:
+        self.approvals.put(_snapshot("q-d5-i", "a-d5-i", item_order=("sq-1",)))  # type: ignore[attr-defined]
+        self.assertIsNone(self.publications.active_of("q-d5-i", "a-d5-i"))  # type: ignore[attr-defined]
+        opened = open_paper(
+            _command("q-d5-i"),
+            self.approvals,  # type: ignore[arg-type]
+            self.auth,
+            self.practice,  # type: ignore[arg-type]
+            self.files,
+            self.renderer,
+            self.logger,
+            "req-d5-i",
+            lambda: "paper-d5-i",
+            actor_teacher_id=_TEACHER,
+            attempt_text="5",
+        )
+        self.assertIsInstance(opened, Ok)  # type: ignore[attr-defined]
+        view = opened.value  # type: ignore[union-attr]
+        self.assertIsNone(view.render_code)
+        self.assertEqual(view.paper.status, "可打印")
+        confirmed = confirm_attempt(
+            ConfirmCommand(
+                operation_key="op-d5-i",
+                paper_id=view.paper.paper_id,
+                sub_question_id="sq-1",
+                teacher_id=_TEACHER,
+                review_version_id=view.paper.review_version_id,
+                decision="adopt",
+                fixture_answer_id=view.fixture_answer_id,
+            ),
+            self.auth,
+            self.practice,  # type: ignore[arg-type]
+            self.logger,
+            "req-d5-i-confirm",
+            lambda: "conf-d5-i",
+            actor_teacher_id=_TEACHER,
+        )
+        self.assertIsInstance(confirmed, Ok)  # type: ignore[attr-defined]
+        self.assertEqual(confirmed.value.decision, "adopt")  # type: ignore[union-attr]
+        self.assertIsNone(self.publications.active_of("q-d5-i", "a-d5-i"))  # type: ignore[attr-defined]
+
+    def _activate(self, question_version_id: str, answer_version_id: str) -> None:
+        self.publications.put(  # type: ignore[attr-defined]
+            Publication(
+                publication_id=f"pub-{question_version_id}-{answer_version_id}",
+                question_version_id=question_version_id,
+                answer_version_id=answer_version_id,
+                subject_id=_SUBJECT,
+                status="active",
+            )
+        )
+
     def _compose(self, paper_id: str, items: tuple[PracticeItem, ...]) -> Ok[Paper] | Err:
         return compose_multi_item_paper(
             paper_id,
@@ -234,6 +324,7 @@ class PracticeItemCases:
             student_id=_STUDENT,
             review_version_id="rev-d4",
             approvals=self.approvals,  # type: ignore[arg-type]
+            publications=self.publications,  # type: ignore[attr-defined]
             writer=self.writer,  # type: ignore[arg-type]
         )
 
@@ -271,6 +362,7 @@ class PracticeItemCases:
 class MemoryPracticeItemTest(PracticeItemCases, unittest.TestCase):
     def setUp(self) -> None:
         self.approvals = MemoryApprovals()
+        self.publications = MemoryPublications()
         self.practice = MemoryPractice()
         self.items = MemoryPracticeItems()
         self.writer = MemoryComposedWriter(self.practice, self.items)
@@ -286,12 +378,14 @@ class PgPracticeItemTest(PracticeItemCases, unittest.TestCase):
         if not os.environ.get("K12_PG_DSN", "").strip():
             self.skipTest("K12_PG_DSN is not set")
         from backend.catalog.adapters.pg_approvals import PgApprovals
+        from backend.catalog.adapters.pg_publications import PgPublications
         from backend.practice.adapters.pg_items import PgPracticeItems
         from backend.practice.adapters.pg_practice import PgPractice
 
         self.pool = _pool()
         _truncate(self.pool)
         self.approvals = PgApprovals(self.pool)
+        self.publications = PgPublications(self.pool)
         self.practice = PgPractice(self.pool)
         self.items = PgPracticeItems(self.pool)
         self.writer = self.items
@@ -385,7 +479,7 @@ def _pool() -> object:
 def _truncate(pool: object) -> None:
     statement = """
         TRUNCATE TABLE
-            practice_item, confirmations, attempts, paper_pages, papers, approvals
+            publication, practice_item, confirmations, attempts, paper_pages, papers, approvals
         RESTART IDENTITY CASCADE
     """
     with pool.connection() as conn:  # type: ignore[attr-defined]
