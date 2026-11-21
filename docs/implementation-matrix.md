@@ -16,6 +16,8 @@ M-14：`GET /api/admin/errors` 只读近 24 小时的 ERROR。`K12_ERROR_WEBHOOK
 
 2026-11-20：V005 建 `question_option`、`sub_question`、`question_asset`、`answer_part`、`answer_asset`。核准快照带真实题型时写入题目行和答案行，不再写 `unresolved`。已有 `question_id` 不覆盖。`figure_geometry` 和 `answer_decision` 仍未建。同一天，knowledge 的内存端口已接。知识点表和解题方法表仍未建。
 
+2026-11-21：V006 建 `practice_item`。多题卷按 `order_no` 冻结。`papers.question_version_id` 仍保留，写入时抄传入序列的第一条。适用答案不新增 catalog 端口，沿用核准快照上绑定的 `answer_version_id`。
+
 契约测试指：每个端口一套测试，假适配器和真实适配器都跑。草稿形状的 schema 测试算 core 测试，不算这一列。identity 与审计的一次本机走查写在 `docs/evidence/identity-audit-2026-11-18.md`。catalog 与 practice 的一次本机走查写在 `docs/evidence/catalog-practice-pg-2026-11-18.md`。这两页都不是试用，也不是 AC-01。`test_http_loop` 是本机合成 HTTP，不是端到端。
 
 改了某一格，同一个 PR 里改本表，并勾选 PR 模板里的对应项。
@@ -26,6 +28,6 @@ M-14：`GET /api/admin/errors` 只读近 24 小时的 ERROR。`K12_ERROR_WEBHOOK
 | knowledge | `KnowledgePoints`、`Methods`、`QuestionTagger`。只读接缝是 `CatalogReader` | `MemoryKnowledgePoints`、`MemoryMethods`、`MemoryTagger` | 未接 | `test_knowledge_point_crud`、`test_method_crud`、`test_tagger_rules`、`test_catalog_seam` | `test_knowledge_contract`。内存每次都跑。PostgreSQL 分支预留未写 | 未写 | ADR 0015、0016。端口和内存实现已接。表未建 |
 | identity | 会话、用户、学生、授权。practice 仍只通过 Authorizer 读授权结果 | `MemoryDb` | `PgDb`。连接由 `K12_PG_DSN` 注入 | `tests/identity` | 内存每次都跑。PostgreSQL 在 `K12_PG_DSN` 有值时跑同一套 | `docs/evidence/identity-audit-2026-11-18.md` | ADR 0025、0026、0027、0028、0029、0033、0034、0036、0038。0033 的清理、0034 的咨询锁、0036 的首次改口令和 0038 的最后一名管理员已接上 |
 | audit | 审计写入、审计查询、近期 ERROR | `MemoryAuditBook`、`ErrorRing` | `AuditPg` 写 `audit_events`。表在 identity 的 V001 | `test_audit_sink`、`tests/identity`、`test_error_webhook` | 内存每次都跑。PostgreSQL 与 identity 同一套 | 同上。地址非空时 webhook 发送五个字段。外部接收方仍未对接 | ADR 0030、0037。0037 的读审计已接上。不是 ADR 0004 的第七个切片 |
-| practice | 练习存储、文件、单页渲染、授权 | `MemoryPractice`、`MemoryFiles`、`MemoryAuth`。`StdPdf` 是标准库渲染，不是存储。拉丁用 Helvetica，中文用本机楷体 | `PgPractice` / `PgFiles`。页字节在 `K12_FILE_DIR`。目录为空时字节仍在内存 | `test_core_loop`、`test_paper_status`、`test_confirm_rules`、`test_http_loop`、`test_m1_review`、`test_service_probe`、`test_kaiti_page` | `test_catalog_practice_contract`。内存每次都跑。PostgreSQL 在 `K12_PG_DSN` 有值时跑同一套 | `docs/evidence/catalog-practice-pg-2026-11-18.md` | ADR 0006、0015、0024、0039。0039 的运行表已接上。规范化练习册表未建 |
+| practice | 练习存储、文件、单页渲染、授权、`PracticeItems` | `MemoryPractice`、`MemoryPracticeItems`、`MemoryFiles`、`MemoryAuth`。`StdPdf` 是标准库渲染，不是存储。拉丁用 Helvetica，中文用本机楷体 | `PgPractice` / `PgPracticeItems` / `PgFiles`。页字节在 `K12_FILE_DIR`。目录为空时字节仍在内存 | `test_core_loop`、`test_paper_status`、`test_confirm_rules`、`test_http_loop`、`test_m1_review`、`test_service_probe`、`test_kaiti_page` | `test_catalog_practice_contract`、`tests/practice/test_practice_item_contract`。内存每次都跑。PostgreSQL 在 `K12_PG_DSN` 有值时跑同一套 | `docs/evidence/catalog-practice-pg-2026-11-18.md`、`docs/evidence/practice-item-2026-11-21.md` | ADR 0006、0015、0024、0039。0039 的运行表已接上。ADR 0015 第 7 条 `practice_item` 已接。旧 `papers.question_version_id` 保留作兼容 |
 | analysis | 作答分析、练习推荐、任务。只在架构文档 | 无 | 无 | 无 | 未写 | 未写 | ADR 0005、0016。切片目录未建 |
 | delivery | 排版和导出。代码里没有这个切片 | 无。面向学生的单页 PDF 在 practice 的 `StdPdf` | 无 | 无 | 未写 | 未写 | ADR 0004。切片目录未建 |
