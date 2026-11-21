@@ -9,7 +9,8 @@ from backend.catalog.api import ApprovalPort
 from backend.kernel.logger import Logger
 from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
-from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeStore
+from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeItems, PracticeStore
+from backend.practice.application.resolve_items import _resolve_items
 from backend.practice.domain.page_face import PaperPage
 from backend.practice.domain.paper import Paper, mark_issued, mark_printable, recall_file
 
@@ -25,6 +26,7 @@ def render_paper(
     request_id: str,
     *,
     actor_teacher_id: str,
+    items: PracticeItems | None = None,
 ) -> Ok[Paper] | Err:
     started = time.perf_counter()
     loaded = _load_allowed(paper_id, auth, store, logger, request_id, started, actor_teacher_id)
@@ -34,9 +36,10 @@ def render_paper(
     if paper.status != "待渲染":
         return _refuse(logger, request_id, started, "not_rendering", "only a paper waiting for render can become printable")
     # The formula was copied at issue. A later bank edit must not change this page.
+    resolved = _resolve_items(paper.paper_id, store, items)
     face = PaperPage(
-        question_version_id=paper.question_version_id,
-        answer_version_id=paper.answer_version_id,
+        question_version_id=resolved[0].question_version_id,
+        answer_version_id=resolved[0].answer_version_id,
         formula=paper.formula,
         student_id=paper.student_id,
         page_number=1,
@@ -101,6 +104,7 @@ def hand_out_paper(
     request_id: str,
     *,
     actor_teacher_id: str,
+    items: PracticeItems | None = None,
 ) -> Ok[Paper] | Err:
     """Hand-out reads retirement again. A retired publication does not change the file id."""
     started = time.perf_counter()
@@ -108,8 +112,10 @@ def hand_out_paper(
     if isinstance(loaded, Err):
         return loaded
     paper = loaded.value
+    resolved = _resolve_items(paper.paper_id, store, items)
+    version_id = resolved[0].question_version_id
     snapshot = read_store(
-        lambda: approvals.read_snapshot(paper.question_version_id),
+        lambda: approvals.read_snapshot(version_id),
         logger,
         request_id,
         "practice.handout",
