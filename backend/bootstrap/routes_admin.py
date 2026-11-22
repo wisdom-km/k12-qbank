@@ -10,9 +10,20 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from backend.bootstrap.http_errors import error_response, run_use
-from backend.bootstrap.schemas.publication import PublicationItem, PublicationListResponse
+from backend.bootstrap.schemas.publication import (
+    AttachPublicationAssetBody,
+    AttachPublicationAssetResponse,
+    PublicationAssetItem,
+    PublicationAssetListResponse,
+    PublicationItem,
+    PublicationListResponse,
+    RemovePublicationAssetResponse,
+)
+from backend.catalog.application.attach_publication_asset import attach_publication_asset
+from backend.catalog.application.list_publication_assets import list_publication_assets
 from backend.catalog.application.list_publications import bound_page, list_publications
 from backend.catalog.application.publish_publication import publish_publication
+from backend.catalog.application.remove_publication_asset import remove_publication_asset
 from backend.catalog.application.retire_publication import retire_publication
 from backend.identity.application.grants import grant_teacher, list_grants, revoke_grant
 from backend.identity.application.guard import admin_only
@@ -145,6 +156,90 @@ def register_admin(app: FastAPI) -> None:
             limit=page_limit,
         )
         return JSONResponse(body.model_dump())
+
+    @app.post(
+        "/api/admin/publications/{publication_id}/assets",
+        response_model=AttachPublicationAssetResponse,
+    )
+    def publications_asset_attach(
+        publication_id: str,
+        body: AttachPublicationAssetBody,
+        request: Request,
+    ) -> JSONResponse:
+        refused = admin_only(request.state.actor)
+        if refused is not None:
+            return error_response(request.state.request_id, refused)
+        actor = request.state.actor.user_id
+        started = time.perf_counter()
+        try:
+            outcome = attach_publication_asset(
+                request.app.state.loop.publications,
+                publication_id,
+                body.file_id,
+                body.kind,
+                body.checksum,
+                body.size_bytes,
+                body.mime_type,
+                actor,
+                request.app.state.loop.logger,
+                request_id=request.state.request_id,
+            )
+        except StoreFault as fault:
+            if fault.code != "invalid_actor":
+                raise
+            return _actor_missing(request, started)
+        status = _ATTACH_STATUS[outcome.result]
+        payload = AttachPublicationAssetResponse(
+            result=outcome.result,
+            publication_asset_id=outcome.publication_asset_id,
+        )
+        return JSONResponse(payload.model_dump(exclude_none=True), status_code=status)
+
+    @app.delete(
+        "/api/admin/publications/{publication_id}/assets/{publication_asset_id}",
+        response_model=RemovePublicationAssetResponse,
+    )
+    def publications_asset_remove(
+        publication_id: str,
+        publication_asset_id: str,
+        request: Request,
+    ) -> JSONResponse:
+        refused = admin_only(request.state.actor)
+        if refused is not None:
+            return error_response(request.state.request_id, refused)
+        actor = request.state.actor.user_id
+        started = time.perf_counter()
+        try:
+            outcome = remove_publication_asset(
+                request.app.state.loop.publications,
+                publication_id,
+                publication_asset_id,
+                actor,
+                request.app.state.loop.logger,
+                request_id=request.state.request_id,
+            )
+        except StoreFault as fault:
+            if fault.code != "invalid_actor":
+                raise
+            return _actor_missing(request, started)
+        status = 200 if outcome.result == "removed" else 404
+        payload = RemovePublicationAssetResponse(result=outcome.result)
+        return JSONResponse(payload.model_dump(), status_code=status)
+
+    @app.get(
+        "/api/admin/publications/{publication_id}/assets",
+        response_model=PublicationAssetListResponse,
+    )
+    def publications_asset_list(publication_id: str, request: Request) -> JSONResponse:
+        refused = admin_only(request.state.actor)
+        if refused is not None:
+            return error_response(request.state.request_id, refused)
+        found = list_publication_assets(request.app.state.loop.publications, publication_id)
+        if found is None:
+            missing = AttachPublicationAssetResponse(result="publication_not_found")
+            return JSONResponse(missing.model_dump(exclude_none=True), status_code=404)
+        body = PublicationAssetListResponse(items=[_asset_item(row) for row in found])
+        return JSONResponse(body.model_dump(mode="json"))
 
     @app.post("/api/admin/publications/retire")
     def publications_retire(body: RetirePublicationBody, request: Request) -> JSONResponse:
@@ -412,6 +507,45 @@ def _grant_body(grant: object) -> dict[str, object]:
         "subject_id": grant.subject_id,  # type: ignore[attr-defined]
         "revoked": grant.revoked_at is not None,  # type: ignore[attr-defined]
     }
+
+
+_ATTACH_STATUS = {
+    "attached": 201,
+    "already_attached": 200,
+    "publication_not_found": 404,
+    "publication_retired": 409,
+    "invalid_file_id": 400,
+    "disallowed_mime": 400,
+    "page_file_rejected": 400,
+    "paper_file_rejected": 400,
+}
+
+
+def _actor_missing(request: Request, started: float) -> JSONResponse:
+    emit(
+        request.app.state.loop.logger,
+        level="ERROR",
+        event="route_actor_missing",
+        request_id=request.state.request_id,
+        module="catalog.publication",
+        outcome="invalid_actor",
+        started=started,
+    )
+    return error_response(request.state.request_id, Err("store_failed", "store_failed"), status=500)
+
+
+def _asset_item(row: object) -> PublicationAssetItem:
+    return PublicationAssetItem(
+        publication_asset_id=row.publication_asset_id,  # type: ignore[attr-defined]
+        publication_id=row.publication_id,  # type: ignore[attr-defined]
+        file_id=row.file_id,  # type: ignore[attr-defined]
+        kind=row.kind,  # type: ignore[attr-defined]
+        checksum=row.checksum,  # type: ignore[attr-defined]
+        size_bytes=row.size_bytes,  # type: ignore[attr-defined]
+        mime_type=row.mime_type,  # type: ignore[attr-defined]
+        created_at=row.created_at,  # type: ignore[attr-defined]
+        created_by=row.created_by,  # type: ignore[attr-defined]
+    )
 
 
 def _publication_item(row: object) -> PublicationItem:

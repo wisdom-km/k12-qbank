@@ -514,7 +514,9 @@ def _reapply_v007(pool: object) -> None:
     with pool.connection() as conn:  # type: ignore[attr-defined]
         with conn.transaction():
             conn.execute("TRUNCATE TABLE approvals RESTART IDENTITY CASCADE")
-            conn.execute("DELETE FROM schema_migrations WHERE version = 'V007'")
+            # publication_asset references publication. Drop the child first, then let the runner apply both.
+            conn.execute("DELETE FROM schema_migrations WHERE version IN ('V007', 'V008')")
+            conn.execute("DROP TABLE IF EXISTS publication_asset")
             conn.execute("DROP TABLE IF EXISTS publication")
     approvals = PgApprovals(pool)
     for snap in _samples():
