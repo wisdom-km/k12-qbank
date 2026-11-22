@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import time
+from typing import Literal
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from backend.bootstrap.http_errors import error_response, run_use
+from backend.bootstrap.schemas.publication import PublicationItem, PublicationListResponse
+from backend.catalog.application.list_publications import bound_page, list_publications
 from backend.catalog.application.publish_publication import publish_publication
 from backend.catalog.application.retire_publication import retire_publication
 from backend.identity.application.grants import grant_teacher, list_grants, revoke_grant
@@ -111,6 +114,37 @@ def register_admin(app: FastAPI) -> None:
     @app.get("/api/admin/audit")
     def audit(request: Request, limit: int = 50, offset: int = 0, action: str = "", actor_user_id: str = "") -> JSONResponse:
         return _audit(request, limit, offset, action, actor_user_id)
+
+    @app.get("/api/admin/publications", response_model=PublicationListResponse)
+    def publications_list(
+        request: Request,
+        question_version_id: str | None = None,
+        answer_version_id: str | None = None,
+        subject_id: str | None = None,
+        status: Literal["active", "retired"] | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> JSONResponse:
+        refused = admin_only(request.state.actor)
+        if refused is not None:
+            return error_response(request.state.request_id, refused)
+        page_offset, page_limit = bound_page(offset, limit)
+        rows, total = list_publications(
+            request.app.state.loop.publications,
+            question_version_id,
+            answer_version_id,
+            subject_id,
+            status,
+            page_offset,
+            page_limit,
+        )
+        body = PublicationListResponse(
+            items=[_publication_item(row) for row in rows],
+            total=total,
+            offset=page_offset,
+            limit=page_limit,
+        )
+        return JSONResponse(body.model_dump())
 
     @app.post("/api/admin/publications/retire")
     def publications_retire(body: RetirePublicationBody, request: Request) -> JSONResponse:
@@ -378,6 +412,17 @@ def _grant_body(grant: object) -> dict[str, object]:
         "subject_id": grant.subject_id,  # type: ignore[attr-defined]
         "revoked": grant.revoked_at is not None,  # type: ignore[attr-defined]
     }
+
+
+def _publication_item(row: object) -> PublicationItem:
+    return PublicationItem(
+        publication_id=row.publication_id,  # type: ignore[attr-defined]
+        question_version_id=row.question_version_id,  # type: ignore[attr-defined]
+        answer_version_id=row.answer_version_id,  # type: ignore[attr-defined]
+        subject_id=row.subject_id,  # type: ignore[attr-defined]
+        status=row.status,  # type: ignore[attr-defined]
+        layout_template_id=row.layout_template_id,  # type: ignore[attr-defined]
+    )
 
 
 def _audit_body(row: object) -> dict[str, object]:

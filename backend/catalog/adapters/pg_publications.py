@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
-from backend.catalog.domain.publication import Publication, clean_layout, require_actor, require_subject
+from backend.catalog.domain.publication import (
+    Publication,
+    bound_page,
+    clean_layout,
+    require_actor,
+    require_subject,
+)
 
 T = TypeVar("T")
 
@@ -27,6 +33,29 @@ class PgPublications:
 
     def list_active(self) -> tuple[Publication, ...]:
         return _run(self._pool, _all_active)
+
+    def list_page(
+        self,
+        question_version_id: str | None = None,
+        answer_version_id: str | None = None,
+        subject_id: str | None = None,
+        status: Literal["active", "retired"] | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[tuple[Publication, ...], int]:
+        page_offset, page_limit = bound_page(offset, limit)
+        return _run(
+            self._pool,
+            lambda conn: _list_page(
+                conn,
+                question_version_id,
+                answer_version_id,
+                subject_id,
+                status,
+                page_offset,
+                page_limit,
+            ),
+        )
 
     def rows_for(self, question_version_id: str, answer_version_id: str) -> tuple[Publication, ...]:
         return _run(self._pool, lambda conn: _rows(conn, question_version_id, answer_version_id))
@@ -208,6 +237,54 @@ def _all_active(conn: Any) -> tuple[Publication, ...]:
         """
     ).fetchall()
     return tuple(_publication(row) for row in rows)
+
+
+def _list_page(
+    conn: Any,
+    question_version_id: str | None,
+    answer_version_id: str | None,
+    subject_id: str | None,
+    status: str | None,
+    offset: int,
+    limit: int,
+) -> tuple[tuple[Publication, ...], int]:
+    # Two statements. A window count disappears when OFFSET lands past the last row.
+    params = (
+        question_version_id,
+        question_version_id,
+        answer_version_id,
+        answer_version_id,
+        subject_id,
+        subject_id,
+        status,
+        status,
+    )
+    counted = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM publication
+        WHERE (%s::text IS NULL OR question_version_id = %s)
+          AND (%s::text IS NULL OR answer_version_id = %s)
+          AND (%s::text IS NULL OR subject_id = %s)
+          AND (%s::text IS NULL OR status = %s)
+        """,
+        params,
+    ).fetchone()
+    rows = conn.execute(
+        """
+        SELECT publication_id, question_version_id, answer_version_id,
+               layout_template_id, subject_id, status
+        FROM publication
+        WHERE (%s::text IS NULL OR question_version_id = %s)
+          AND (%s::text IS NULL OR answer_version_id = %s)
+          AND (%s::text IS NULL OR subject_id = %s)
+          AND (%s::text IS NULL OR status = %s)
+        ORDER BY publication_id
+        LIMIT %s OFFSET %s
+        """,
+        params + (limit, offset),
+    ).fetchall()
+    return tuple(_publication(row) for row in rows), int(counted[0])
 
 
 def _publication(row: tuple[object, ...]) -> Publication:
