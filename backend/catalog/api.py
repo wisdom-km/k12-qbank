@@ -47,3 +47,6 @@ class Publications(Protocol):
 
     def put(self, publication: Publication) -> None:
         """Insert one row. Callers check rows_for before writing over a retired binding."""
+
+    def retire_by_binding(self, q_vid: str, a_vid: str, actor: str | None) -> str:
+        """Return retired, already_retired, or not_found. An empty actor raises StoreFault."""

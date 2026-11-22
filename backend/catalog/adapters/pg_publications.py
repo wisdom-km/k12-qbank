@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from backend.catalog.domain.publication import Publication
+from backend.catalog.domain.publication import Publication, require_actor
 
 T = TypeVar("T")
 
@@ -27,6 +27,10 @@ class PgPublications:
 
     def rows_for(self, question_version_id: str, answer_version_id: str) -> tuple[Publication, ...]:
         return _run(self._pool, lambda conn: _rows(conn, question_version_id, answer_version_id))
+
+    def retire_by_binding(self, q_vid: str, a_vid: str, actor: str | None) -> str:
+        require_actor(actor)
+        return _run(self._pool, lambda conn: _retire(conn, q_vid, a_vid))
 
 
 def _run(pool: object, work: Callable[[Any], T]) -> T:
@@ -79,6 +83,35 @@ def _rows(conn: Any, question_version_id: str, answer_version_id: str) -> tuple[
         (question_version_id, answer_version_id),
     ).fetchall()
     return tuple(_publication(row) for row in rows)
+
+
+def _retire(conn: Any, q_vid: str, a_vid: str) -> str:
+    updated = conn.execute(
+        """
+        UPDATE publication
+        SET status = 'retired'
+        WHERE question_version_id = %s
+          AND answer_version_id = %s
+          AND status = 'active'
+        """,
+        (q_vid, a_vid),
+    )
+    if int(updated.rowcount) == 1:
+        return "retired"
+    found = conn.execute(
+        """
+        SELECT 1
+        FROM publication
+        WHERE question_version_id = %s
+          AND answer_version_id = %s
+          AND status = 'retired'
+        LIMIT 1
+        """,
+        (q_vid, a_vid),
+    ).fetchone()
+    if found is not None:
+        return "already_retired"
+    return "not_found"
 
 
 def _all_active(conn: Any) -> tuple[Publication, ...]:

@@ -6,6 +6,7 @@ a2 uses skipUnless so a run without K12_PG_DSN does not treat the SQL filter as 
 
 from __future__ import annotations
 
+import json
 import os
 import unittest
 from dataclasses import replace
@@ -13,10 +14,13 @@ from dataclasses import replace
 from backend.catalog.adapters.memory import MemoryApprovals
 from backend.catalog.adapters.memory_publications import MemoryPublications
 from backend.catalog.application.publish_version import publish_version
+from backend.catalog.application.retire_publication import retire_publication
 from backend.catalog.domain.publication import Publication
 from backend.catalog.domain.snapshot import ApprovalSnapshot
+from backend.identity.adapters.memory import MemoryAuditBook
 from backend.kernel.log_event import LogEvent
-from backend.kernel.result import Err, Ok
+from backend.kernel.logger import CompositeLogger
+from backend.kernel.result import Err, Ok, StoreFault
 
 _RETIRED_LINE = "publication retired, not recreated by publish_version"
 
@@ -155,6 +159,106 @@ class PublicationCases:
         self.assertFalse(stored.answer_approved)  # type: ignore[attr-defined]
         self.assertEqual(self.publications.rows_for(question_id, answer_id), ())  # type: ignore[attr-defined]
         self.assertEqual(self._count(), 0)  # type: ignore[attr-defined]
+
+    def test_retire_active_binding_marks_it_retired(self) -> None:
+        question_id, answer_id = "q-ret-live", "a-ret-live"
+        self._bind(question_id, answer_id, "geom-live")
+        code = self._retire_binding(question_id, answer_id, "teacher-synth")
+        self.assertEqual(code, "retired")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "retired")  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].publication_id, "pub-" + question_id + "-" + answer_id)  # type: ignore[attr-defined]
+        self.assertIsNone(self.publications.active_of(question_id, answer_id))  # type: ignore[attr-defined]
+
+    def test_retire_already_retired_is_idempotent_and_no_audit(self) -> None:
+        question_id, answer_id = "q-ret-again", "a-ret-again"
+        self._bind(question_id, answer_id, "geom-again")
+        first = self._retire_binding(question_id, answer_id, "teacher-synth")
+        self.assertEqual(first, "retired")  # type: ignore[attr-defined]
+        self.logger.events.clear()  # type: ignore[attr-defined]
+        second = self._retire_binding(question_id, answer_id, "teacher-synth")
+        self.assertEqual(second, "already_retired")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(self._count(), 1)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "retired")  # type: ignore[attr-defined]
+        self.assertEqual(self.logger.events, [])  # type: ignore[attr-defined]
+
+    def test_retire_nonexistent_binding_returns_not_found(self) -> None:
+        code = self._retire_binding("q-ret-missing", "a-ret-missing", "teacher-synth")
+        self.assertEqual(code, "not_found")  # type: ignore[attr-defined]
+        self.assertEqual(self._count(), 0)  # type: ignore[attr-defined]
+        self.assertEqual(self.logger.events, [])  # type: ignore[attr-defined]
+
+    def test_retire_rejects_empty_actor(self) -> None:
+        question_id, answer_id = "q-ret-actor", "a-ret-actor"
+        self._bind(question_id, answer_id, "geom-actor")
+        for actor in ("", None):
+            with self.assertRaises(StoreFault) as caught:  # type: ignore[attr-defined]
+                self._retire_binding(question_id, answer_id, actor)
+            self.assertEqual(caught.exception.code, "invalid_actor")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "active")  # type: ignore[attr-defined]
+        self.assertEqual(self.logger.events, [])  # type: ignore[attr-defined]
+
+    def test_retire_writes_audit_event_with_required_fields(self) -> None:
+        question_id, answer_id = "q-ret-audit", "a-ret-audit"
+        self._bind(question_id, answer_id, "geom-audit")
+        book = MemoryAuditBook()
+        logger = CompositeLogger([self.logger], book)  # type: ignore[list-item]
+        code = retire_publication(
+            self.publications,  # type: ignore[arg-type]
+            question_id,
+            answer_id,
+            "teacher-synth",
+            logger,
+            request_id="req-ret-audit",
+        )
+        self.assertEqual(code, "retired")  # type: ignore[attr-defined]
+        self.assertEqual(len(book.events), 1)  # type: ignore[attr-defined]
+        self.assertEqual(len(book.rows), 1)  # type: ignore[attr-defined]
+        event = book.events[0]
+        record = book.rows[0]
+        publication_id = "pub-" + question_id + "-" + answer_id
+        self.assertEqual(event.action, "publication_retired")  # type: ignore[attr-defined]
+        self.assertEqual(event.target_kind, "publication")  # type: ignore[attr-defined]
+        self.assertEqual(event.target_id, publication_id)  # type: ignore[attr-defined]
+        self.assertEqual(event.outcome, "ok")  # type: ignore[attr-defined]
+        self.assertEqual(event.actor_user_id, "teacher-synth")  # type: ignore[attr-defined]
+        self.assertTrue(event.audit)  # type: ignore[attr-defined]
+        self.assertEqual(record.action, "publication_retired")  # type: ignore[attr-defined]
+        self.assertEqual(record.target_kind, "publication")  # type: ignore[attr-defined]
+        self.assertEqual(record.target_id, publication_id)  # type: ignore[attr-defined]
+        self.assertEqual(record.outcome, "ok")  # type: ignore[attr-defined]
+        self.assertEqual(record.actor_user_id, "teacher-synth")  # type: ignore[attr-defined]
+        self.assertEqual(record.request_id, "req-ret-audit")  # type: ignore[attr-defined]
+        self.assertEqual(  # type: ignore[attr-defined]
+            json.loads(record.detail_json),
+            {
+                "question_version_id": question_id,
+                "answer_version_id": answer_id,
+                "subject_id": "geom-audit",
+                "before": {"status": "active"},
+                "after": {"status": "retired"},
+            },
+        )
+
+    def _bind(self, question_id: str, answer_id: str, subject_id: str) -> None:
+        self.publications.put(  # type: ignore[attr-defined]
+            _publication("pub-" + question_id + "-" + answer_id, question_id, answer_id, subject_id, "active")
+        )
+
+    def _retire_binding(self, question_id: str, answer_id: str, actor: str | None) -> str:
+        return retire_publication(
+            self.publications,  # type: ignore[arg-type]
+            question_id,
+            answer_id,
+            actor,
+            self.logger,  # type: ignore[arg-type]
+            request_id="req-" + question_id,
+        )
 
     def _publish(self, question_version_id: str) -> Ok[ApprovalSnapshot] | Err:
         return publish_version(
