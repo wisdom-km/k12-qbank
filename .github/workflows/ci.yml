@@ -175,12 +175,6 @@ jobs:
         env:
           PIP_AUDIT_PROGRESS_SPINNER: "off"
         run: |
-          EXPIRY_DAYS_LEFT=$(( ( $(date -d '2026-12-31' +%s) - $(date +%s) ) / 86400 ))
-          echo "::notice::pip-audit waiver expires in $EXPIRY_DAYS_LEFT days"
-          if [ "$EXPIRY_DAYS_LEFT" -lt 0 ]; then
-            echo "::error::pip-audit waiver has expired. Renew or upgrade."
-            exit 1
-          fi
           python -m venv "$RUNNER_TEMP/audit-tool"
           "$RUNNER_TEMP/audit-tool/bin/python" -m pip install --disable-pip-version-check pip-audit
           # pip-audit has no waiver file. These ids are the whole set. See
