@@ -50,3 +50,12 @@ class Publications(Protocol):
 
     def retire_by_binding(self, q_vid: str, a_vid: str, actor: str | None) -> str:
         """Return retired, already_retired, or not_found. An empty actor raises StoreFault."""
+
+    def publish_by_binding(
+        self,
+        question_version_id: str,
+        answer_version_id: str,
+        actor: str,
+        layout_template_id: str | None = None,
+    ) -> str:
+        """Return published, already_active, or not_approved. Subject comes from the approval row."""

@@ -114,7 +114,11 @@ def _loop(**kwargs: object) -> Loop:
         "answers": MemoryAnswers(),
     }
     values.update(kwargs)
-    return Loop(**values)  # type: ignore[arg-type]
+    loop = Loop(**values)  # type: ignore[arg-type]
+    attach = getattr(loop.publications, "attach_approvals", None)
+    if attach is not None:
+        attach(loop.approvals)
+    return loop
 
 
 def _runtime_sinks() -> list[Logger]:

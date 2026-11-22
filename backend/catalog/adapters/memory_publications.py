@@ -6,7 +6,7 @@ import threading
 from collections.abc import Sequence
 from dataclasses import replace
 
-from backend.catalog.domain.publication import Publication, require_actor
+from backend.catalog.domain.publication import Publication, clean_layout, require_actor, require_subject
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 
 
@@ -14,6 +14,11 @@ class MemoryPublications:
     def __init__(self) -> None:
         self._rows: dict[str, Publication] = {}
         self._lock = threading.Lock()
+        self._approvals: object | None = None
+
+    def attach_approvals(self, approvals: object) -> None:
+        """Memory has no shared transaction. Compose wires the approval book here."""
+        self._approvals = approvals
 
     def put(self, publication: Publication) -> None:
         with self._lock:
@@ -60,6 +65,40 @@ class MemoryPublications:
                 return "already_retired"
             return "not_found"
 
+    def publish_by_binding(
+        self,
+        question_version_id: str,
+        answer_version_id: str,
+        actor: str,
+        layout_template_id: str | None = None,
+    ) -> str:
+        require_actor(actor)
+        layout = clean_layout(layout_template_id)
+        with self._lock:
+            snap = _read_approval(self._approvals, question_version_id)
+            if snap is None or not _binding_approved(snap, answer_version_id):
+                return "not_approved"
+            require_subject(snap.subject_id)
+            chosen = [
+                row
+                for row in self._rows.values()
+                if row.question_version_id == question_version_id and row.answer_version_id == answer_version_id
+            ]
+            if any(row.status == "active" for row in chosen):
+                return "already_active"
+            seq = len(chosen) + 1
+            publication_id = f"pub-{question_version_id}-{answer_version_id}-{seq}"
+            # _lock is not reentrant. put() would take it again and deadlock.
+            self._rows[publication_id] = Publication(
+                publication_id=publication_id,
+                question_version_id=question_version_id,
+                answer_version_id=answer_version_id,
+                subject_id=snap.subject_id,
+                status="active",
+                layout_template_id=layout,
+            )
+            return "published"
+
     def fill_grandfather(self, snapshots: Sequence[ApprovalSnapshot]) -> None:
         """Same filter as the V007 INSERT. Memory tests call this. PostgreSQL runs the SQL."""
         for snap in snapshots:
@@ -74,3 +113,20 @@ class MemoryPublications:
                     status="active",
                 )
             )
+
+
+def _read_approval(approvals: object | None, question_version_id: str) -> ApprovalSnapshot | None:
+    if approvals is None:
+        return None
+    found = approvals.read_snapshot(question_version_id)  # type: ignore[attr-defined]
+    if found is None:
+        return None
+    return found
+
+
+def _binding_approved(snap: ApprovalSnapshot, answer_version_id: str) -> bool:
+    if snap.answer_version_id != answer_version_id:
+        return False
+    if not snap.question_approved or not snap.answer_approved:
+        return False
+    return not snap.retired
