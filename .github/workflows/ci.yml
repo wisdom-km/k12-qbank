@@ -186,13 +186,6 @@ jobs:
           # pip-audit has no waiver file. These ids are the whole set. See
           # docs/release/E1-waiver-rationale-2026-11-22.md and issue 70.
           ignore=(
-            --ignore-vuln PYSEC-2026-1941
-            --ignore-vuln PYSEC-2026-1942
-            --ignore-vuln PYSEC-2026-161
-            --ignore-vuln PYSEC-2026-2281
-            --ignore-vuln PYSEC-2026-2280
-            --ignore-vuln PYSEC-2026-249
-            --ignore-vuln PYSEC-2026-248
           )
           echo "===== requirements.txt ====="
           "$RUNNER_TEMP/audit-tool/bin/pip-audit" --strict --format json -r requirements.txt "${ignore[@]}"
