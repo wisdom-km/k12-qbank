@@ -330,6 +330,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/publications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Publications List */
+        get: operations["publications_list_api_admin_publications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/publications/retire": {
         parameters: {
             query?: never;
@@ -602,6 +619,32 @@ export interface components {
             old_secret: string;
             /** New Secret */
             new_secret: string;
+        };
+        /** PublicationItem */
+        PublicationItem: {
+            /** Publication Id */
+            publication_id: string;
+            /** Question Version Id */
+            question_version_id: string;
+            /** Answer Version Id */
+            answer_version_id: string;
+            /** Subject Id */
+            subject_id: string;
+            /** Status */
+            status: string;
+            /** Layout Template Id */
+            layout_template_id?: string | null;
+        };
+        /** PublicationListResponse */
+        PublicationListResponse: {
+            /** Items */
+            items: components["schemas"]["PublicationItem"][];
+            /** Total */
+            total: number;
+            /** Offset */
+            offset: number;
+            /** Limit */
+            limit: number;
         };
         /** PublishPublicationBody */
         PublishPublicationBody: {
@@ -1263,6 +1306,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publications_list_api_admin_publications_get: {
+        parameters: {
+            query?: {
+                question_version_id?: string | null;
+                answer_version_id?: string | null;
+                subject_id?: string | null;
+                status?: ("active" | "retired") | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationListResponse"];
                 };
             };
             /** @description Validation Error */

@@ -5,8 +5,15 @@ from __future__ import annotations
 import threading
 from collections.abc import Sequence
 from dataclasses import replace
+from typing import Literal
 
-from backend.catalog.domain.publication import Publication, clean_layout, require_actor, require_subject
+from backend.catalog.domain.publication import (
+    Publication,
+    bound_page,
+    clean_layout,
+    require_actor,
+    require_subject,
+)
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 
 
@@ -38,6 +45,27 @@ class MemoryPublications:
         with self._lock:
             rows = [row for row in self._rows.values() if row.status == "active"]
         return tuple(sorted(rows, key=lambda row: row.publication_id))
+
+    def list_page(
+        self,
+        question_version_id: str | None = None,
+        answer_version_id: str | None = None,
+        subject_id: str | None = None,
+        status: Literal["active", "retired"] | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[tuple[Publication, ...], int]:
+        page_offset, page_limit = bound_page(offset, limit)
+        with self._lock:
+            rows = list(self._rows.values())
+        chosen = [
+            row
+            for row in rows
+            if _matches(row, question_version_id, answer_version_id, subject_id, status)
+        ]
+        chosen.sort(key=lambda row: row.publication_id)
+        page = tuple(chosen[page_offset : page_offset + page_limit])
+        return page, len(chosen)
 
     def rows_for(self, question_version_id: str, answer_version_id: str) -> tuple[Publication, ...]:
         with self._lock:
@@ -113,6 +141,24 @@ class MemoryPublications:
                     status="active",
                 )
             )
+
+
+def _matches(
+    row: Publication,
+    question_version_id: str | None,
+    answer_version_id: str | None,
+    subject_id: str | None,
+    status: str | None,
+) -> bool:
+    if question_version_id is not None and row.question_version_id != question_version_id:
+        return False
+    if answer_version_id is not None and row.answer_version_id != answer_version_id:
+        return False
+    if subject_id is not None and row.subject_id != subject_id:
+        return False
+    if status is not None and row.status != status:
+        return False
+    return True
 
 
 def _read_approval(approvals: object | None, question_version_id: str) -> ApprovalSnapshot | None:

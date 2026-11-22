@@ -29,6 +29,17 @@ def require_subject(subject_id: str | None) -> None:
         raise StoreFault("invalid_subject")
 
 
+def bound_page(offset: int, limit: int) -> tuple[int, int]:
+    """Clamp a list page. The numbers match the audit list: offset below 0 becomes 0, limit below 1 becomes 1, limit above 200 becomes 200."""
+    if offset < 0:
+        offset = 0
+    if limit < 1:
+        limit = 1
+    elif limit > 200:
+        limit = 200
+    return offset, limit
+
+
 def clean_layout(layout_template_id: str | None) -> str | None:
     """A blank layout is stored as NULL. There is no layout catalog yet."""
     if not isinstance(layout_template_id, str):

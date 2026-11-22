@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Literal, Protocol
 
 from backend.catalog.domain.answer import AnswerDraft, parse_answer_draft, answer_not_publication
 from backend.catalog.domain.approval import copy_issue_snapshot, issuable_snapshot, issue_block
@@ -59,3 +59,14 @@ class Publications(Protocol):
         layout_template_id: str | None = None,
     ) -> str:
         """Return published, already_active, or not_approved. Subject comes from the approval row."""
+
+    def list_page(
+        self,
+        question_version_id: str | None = None,
+        answer_version_id: str | None = None,
+        subject_id: str | None = None,
+        status: Literal["active", "retired"] | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[tuple[Publication, ...], int]:
+        """One page of publication rows and the filtered total. The port does not look at a role."""
