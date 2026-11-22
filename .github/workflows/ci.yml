@@ -171,22 +171,30 @@ jobs:
           "$RUNNER_TEMP/app/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
           "$RUNNER_TEMP/app/bin/python" -m pip freeze > "$RUNNER_TEMP/freeze.txt"
 
-      - name: pip-audit info-only
+      - name: pip-audit enforce
         env:
           PIP_AUDIT_PROGRESS_SPINNER: "off"
         run: |
-          python -m venv "$RUNNER_TEMP/audit-tool"
-          "$RUNNER_TEMP/audit-tool/bin/python" -m pip install --disable-pip-version-check pip-audit
-          set +e
-          echo "===== requirements.txt ====="
-          "$RUNNER_TEMP/audit-tool/bin/pip-audit" --strict --format json -r requirements.txt
-          req=$?
-          echo "requirements_exit $req"
-          echo "===== pip freeze ====="
-          "$RUNNER_TEMP/audit-tool/bin/pip-audit" --strict --format json -r "$RUNNER_TEMP/freeze.txt"
-          fr=$?
-          echo "freeze_exit $fr"
-          if [ "$req" -gt 1 ] || [ "$fr" -gt 1 ]; then
+          EXPIRY_DAYS_LEFT=$(( ( $(date -d '2026-12-31' +%s) - $(date +%s) ) / 86400 ))
+          echo "::notice::pip-audit waiver expires in $EXPIRY_DAYS_LEFT days"
+          if [ "$EXPIRY_DAYS_LEFT" -lt 0 ]; then
+            echo "::error::pip-audit waiver has expired. Renew or upgrade."
             exit 1
           fi
-          exit 0
+          python -m venv "$RUNNER_TEMP/audit-tool"
+          "$RUNNER_TEMP/audit-tool/bin/python" -m pip install --disable-pip-version-check pip-audit
+          # pip-audit has no waiver file. These ids are the whole set. See
+          # docs/release/E1-waiver-rationale-2026-11-22.md and issue 70.
+          ignore=(
+            --ignore-vuln PYSEC-2026-1941
+            --ignore-vuln PYSEC-2026-1942
+            --ignore-vuln PYSEC-2026-161
+            --ignore-vuln PYSEC-2026-2281
+            --ignore-vuln PYSEC-2026-2280
+            --ignore-vuln PYSEC-2026-249
+            --ignore-vuln PYSEC-2026-248
+          )
+          echo "===== requirements.txt ====="
+          "$RUNNER_TEMP/audit-tool/bin/pip-audit" --strict --format json -r requirements.txt "${ignore[@]}"
+          echo "===== pip freeze ====="
+          "$RUNNER_TEMP/audit-tool/bin/pip-audit" --strict --format json -r "$RUNNER_TEMP/freeze.txt" "${ignore[@]}"
