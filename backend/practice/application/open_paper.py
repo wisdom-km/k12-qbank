@@ -5,12 +5,12 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
-from backend.catalog.api import ApprovalPort
+from backend.catalog.api import ApprovalPort, Publications
 from backend.kernel.logger import Logger
 from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 from backend.practice.api import AttemptView, IssuePaperCommand, OpenedPaper
-from backend.practice.application.issue_paper import prepare_issue
+from backend.practice.application.issue_paper import gate_active_publication, prepare_issue
 from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeStore
 from backend.practice.application.render_paper import render_paper
 from backend.practice.domain.confirm import PendingAnswer
@@ -29,6 +29,7 @@ def open_paper(
     *,
     actor_teacher_id: str,
     attempt_text: str,
+    publications: Publications,
 ) -> Ok[OpenedPaper] | Err:
     prepared = prepare_issue(
         command,
@@ -51,6 +52,9 @@ def open_paper(
             "attempt_missing",
             "the synthetic attempt text is empty",
         )
+    blocked = gate_active_publication(publications, paper, logger, request_id)
+    if blocked is not None:
+        return blocked
     attempt_id = "fixture-answer-" + paper.paper_id
     answer = PendingAnswer(
         fixture_answer_id=attempt_id,

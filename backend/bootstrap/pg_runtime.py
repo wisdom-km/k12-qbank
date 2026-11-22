@@ -38,6 +38,7 @@ def open_postgres() -> Loop:
     deps = make_deps(attempts, logger)
     approvals, practice, files = _catalog_stores(pool)
     from backend.catalog.adapters.pg_answers import PgAnswers
+    from backend.catalog.adapters.pg_publications import PgPublications
     from backend.catalog.adapters.pg_questions import PgQuestions
 
     return _loop(
@@ -52,6 +53,7 @@ def open_postgres() -> Loop:
         files=files,
         questions=PgQuestions(pool),
         answers=PgAnswers(pool),
+        publications=PgPublications(pool),
     )
 
 

@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from backend.catalog.adapters.memory import MemoryApprovals
+from backend.catalog.adapters.memory_publications import MemoryPublications
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.kernel.log_event import LogEvent
 from backend.kernel.result import Err, Ok
@@ -86,6 +87,7 @@ def approved() -> ApprovalSnapshot:
 class ConfirmRulesTest(unittest.TestCase):
     def setUp(self) -> None:
         self.approvals = MemoryApprovals()
+        self.publications = MemoryPublications()
         self.practice = GateStore()
         self.auth = MemoryAuth()
         self.logger = ListLogger()
@@ -376,6 +378,7 @@ class ConfirmRulesTest(unittest.TestCase):
             "req-subject",
             self.ids,
             actor_teacher_id="teacher-synth",
+            publications=self.publications,
         )
         actor = issue_paper(
             IssuePaperCommand("teacher-other", "student-synth", "math", "q-v1", "rev-1"),
@@ -386,6 +389,7 @@ class ConfirmRulesTest(unittest.TestCase):
             "req-actor",
             self.ids,
             actor_teacher_id="teacher-synth",
+            publications=self.publications,
         )
         self.assertIsInstance(mismatch, Err)
         self.assertIsInstance(actor, Err)
@@ -418,6 +422,7 @@ class ConfirmRulesTest(unittest.TestCase):
             "req-retired",
             self.ids,
             actor_teacher_id="teacher-synth",
+            publications=self.publications,
         )
         self.assertIsInstance(result, Err)
         assert isinstance(result, Err)
@@ -425,7 +430,9 @@ class ConfirmRulesTest(unittest.TestCase):
         self.assertEqual(self.practice.paper_count(), 0)
 
     def test_log_failure_does_not_undo_the_write(self) -> None:
-        self.approvals.put(approved())
+        snap = approved()
+        self.approvals.put(snap)
+        self.publications.fill_grandfather([snap])
         logger = RaiseAfterWrite("paper_created")
         result = issue_paper(
             IssuePaperCommand("teacher-synth", "student-synth", "math", "q-v1", "rev-1"),
@@ -436,6 +443,7 @@ class ConfirmRulesTest(unittest.TestCase):
             "req-log",
             self.ids,
             actor_teacher_id="teacher-synth",
+            publications=self.publications,
         )
         self.assertIsInstance(result, Ok)
         self.assertEqual(self.practice.paper_count(), 1)
@@ -478,7 +486,9 @@ class ConfirmRulesTest(unittest.TestCase):
         return paper
 
     def _issue_without_answer(self):
-        self.approvals.put(approved())
+        snap = approved()
+        self.approvals.put(snap)
+        self.publications.fill_grandfather([snap])
         result = issue_paper(
             IssuePaperCommand("teacher-synth", "student-synth", "math", "q-v1", "rev-1"),
             self.approvals,
@@ -488,6 +498,7 @@ class ConfirmRulesTest(unittest.TestCase):
             "req-issue",
             self.ids,
             actor_teacher_id="teacher-synth",
+            publications=self.publications,
         )
         self.assertIsInstance(result, Ok)
         assert isinstance(result, Ok)

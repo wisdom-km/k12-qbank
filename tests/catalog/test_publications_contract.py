@@ -6,12 +6,23 @@ a2 uses skipUnless so a run without K12_PG_DSN does not treat the SQL filter as 
 
 from __future__ import annotations
 
+import json
 import os
 import unittest
+from dataclasses import replace
 
+from backend.catalog.adapters.memory import MemoryApprovals
 from backend.catalog.adapters.memory_publications import MemoryPublications
+from backend.catalog.application.publish_version import publish_version
+from backend.catalog.application.retire_publication import retire_publication
 from backend.catalog.domain.publication import Publication
 from backend.catalog.domain.snapshot import ApprovalSnapshot
+from backend.identity.adapters.memory import MemoryAuditBook
+from backend.kernel.log_event import LogEvent
+from backend.kernel.logger import CompositeLogger
+from backend.kernel.result import Err, Ok, StoreFault
+
+_RETIRED_LINE = "publication retired, not recreated by publish_version"
 
 _STEM = "计算：(-3)+5"
 _RETIRED_REASON = (
@@ -39,6 +50,240 @@ class PublicationCases:
             ["q-d5-1", "q-d5-4"],
         )
 
+    def test_publish_version_creates_publication_on_first_both_approved(self) -> None:
+        question_id, answer_id = "q-ens-first", "a-ens-first"
+        self.approvals.put(  # type: ignore[attr-defined]
+            _snapshot(
+                question_id,
+                answer_id,
+                subject_id="geom-first",
+                question_approved=True,
+                answer_approved=False,
+                retired=False,
+            )
+        )
+        self.assertEqual(self._count(), 0)  # type: ignore[attr-defined]
+        result = self._publish(question_id)  # type: ignore[attr-defined]
+        self.assertIsInstance(result, Ok)  # type: ignore[attr-defined]
+        assert isinstance(result, Ok)
+        self.assertTrue(result.value.answer_approved)  # type: ignore[attr-defined]
+        self.assertEqual(result.value.subject_id, "geom-first")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(self._count(), 1)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "active")  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].publication_id, "pub-" + question_id + "-" + answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].subject_id, "geom-first")  # type: ignore[attr-defined]
+
+    def test_publish_version_is_idempotent_when_already_active(self) -> None:
+        question_id, answer_id = "q-ens-again", "a-ens-again"
+        self.approvals.put(  # type: ignore[attr-defined]
+            _snapshot(
+                question_id,
+                answer_id,
+                subject_id="geom-again",
+                question_approved=True,
+                answer_approved=False,
+                retired=False,
+            )
+        )
+        first = self._publish(question_id)  # type: ignore[attr-defined]
+        self.assertIsInstance(first, Ok)  # type: ignore[attr-defined]
+        again = self._publish(question_id)  # type: ignore[attr-defined]
+        self.assertIsInstance(again, Ok)  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(self._count(), 1)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "active")  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].publication_id, "pub-" + question_id + "-" + answer_id)  # type: ignore[attr-defined]
+
+    def test_publish_version_does_not_resurrect_retired(self) -> None:
+        question_id, answer_id = "q-ens-retire", "a-ens-retire"
+        self.approvals.put(  # type: ignore[attr-defined]
+            _snapshot(
+                question_id,
+                answer_id,
+                subject_id="geom-retire",
+                question_approved=True,
+                answer_approved=False,
+                retired=False,
+            )
+        )
+        created = self._publish(question_id)  # type: ignore[attr-defined]
+        self.assertIsInstance(created, Ok)  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self._retire(rows[0])  # type: ignore[attr-defined]
+        again = self._publish(question_id)  # type: ignore[attr-defined]
+        self.assertIsInstance(again, Ok)  # type: ignore[attr-defined]
+        assert isinstance(again, Ok)
+        left = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(self._count(), 1)  # type: ignore[attr-defined]
+        self.assertEqual(len(left), 1)  # type: ignore[attr-defined]
+        self.assertEqual(left[0].status, "retired")  # type: ignore[attr-defined]
+        self.assertIsNone(self.publications.active_of(question_id, answer_id))  # type: ignore[attr-defined]
+        self.assertFalse(again.value.retired)  # type: ignore[attr-defined]
+        warns = [
+            event
+            for event in self.logger.events  # type: ignore[attr-defined]
+            if event.level == "WARN" and event.outcome == _RETIRED_LINE
+        ]
+        self.assertEqual(len(warns), 1)  # type: ignore[attr-defined]
+        self.assertFalse(warns[0].audit)  # type: ignore[attr-defined]
+
+    def test_publish_version_does_not_create_when_only_one_side_approved(self) -> None:
+        question_id, answer_id = "q-ens-one", "a-ens-one"
+        self.approvals.put(  # type: ignore[attr-defined]
+            _snapshot(
+                question_id,
+                answer_id,
+                subject_id="geom-one",
+                question_approved=True,
+                answer_approved=False,
+                retired=False,
+            )
+        )
+        result = publish_version(
+            question_id,
+            _RefuseReplace(self.approvals),
+            self.logger,  # type: ignore[attr-defined]
+            "req-one-side",
+            publications=self.publications,  # type: ignore[arg-type]
+        )
+        self.assertIsInstance(result, Err)  # type: ignore[attr-defined]
+        assert isinstance(result, Err)
+        self.assertEqual(result.code, "version_conflict")  # type: ignore[attr-defined]
+        stored = self.approvals.read_snapshot(question_id)  # type: ignore[attr-defined]
+        assert stored is not None
+        self.assertTrue(stored.question_approved)  # type: ignore[attr-defined]
+        self.assertFalse(stored.answer_approved)  # type: ignore[attr-defined]
+        self.assertEqual(self.publications.rows_for(question_id, answer_id), ())  # type: ignore[attr-defined]
+        self.assertEqual(self._count(), 0)  # type: ignore[attr-defined]
+
+    def test_retire_active_binding_marks_it_retired(self) -> None:
+        question_id, answer_id = "q-ret-live", "a-ret-live"
+        self._bind(question_id, answer_id, "geom-live")
+        code = self._retire_binding(question_id, answer_id, "teacher-synth")
+        self.assertEqual(code, "retired")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "retired")  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].publication_id, "pub-" + question_id + "-" + answer_id)  # type: ignore[attr-defined]
+        self.assertIsNone(self.publications.active_of(question_id, answer_id))  # type: ignore[attr-defined]
+
+    def test_retire_already_retired_is_idempotent_and_no_audit(self) -> None:
+        question_id, answer_id = "q-ret-again", "a-ret-again"
+        self._bind(question_id, answer_id, "geom-again")
+        first = self._retire_binding(question_id, answer_id, "teacher-synth")
+        self.assertEqual(first, "retired")  # type: ignore[attr-defined]
+        self.logger.events.clear()  # type: ignore[attr-defined]
+        second = self._retire_binding(question_id, answer_id, "teacher-synth")
+        self.assertEqual(second, "already_retired")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(self._count(), 1)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "retired")  # type: ignore[attr-defined]
+        self.assertEqual(self.logger.events, [])  # type: ignore[attr-defined]
+
+    def test_retire_nonexistent_binding_returns_not_found(self) -> None:
+        code = self._retire_binding("q-ret-missing", "a-ret-missing", "teacher-synth")
+        self.assertEqual(code, "not_found")  # type: ignore[attr-defined]
+        self.assertEqual(self._count(), 0)  # type: ignore[attr-defined]
+        self.assertEqual(self.logger.events, [])  # type: ignore[attr-defined]
+
+    def test_retire_rejects_empty_actor(self) -> None:
+        question_id, answer_id = "q-ret-actor", "a-ret-actor"
+        self._bind(question_id, answer_id, "geom-actor")
+        for actor in ("", None):
+            with self.assertRaises(StoreFault) as caught:  # type: ignore[attr-defined]
+                self._retire_binding(question_id, answer_id, actor)
+            self.assertEqual(caught.exception.code, "invalid_actor")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "active")  # type: ignore[attr-defined]
+        self.assertEqual(self.logger.events, [])  # type: ignore[attr-defined]
+
+    def test_retire_writes_audit_event_with_required_fields(self) -> None:
+        question_id, answer_id = "q-ret-audit", "a-ret-audit"
+        self._bind(question_id, answer_id, "geom-audit")
+        book = MemoryAuditBook()
+        logger = CompositeLogger([self.logger], book)  # type: ignore[list-item]
+        code = retire_publication(
+            self.publications,  # type: ignore[arg-type]
+            question_id,
+            answer_id,
+            "teacher-synth",
+            logger,
+            request_id="req-ret-audit",
+        )
+        self.assertEqual(code, "retired")  # type: ignore[attr-defined]
+        self.assertEqual(len(book.events), 1)  # type: ignore[attr-defined]
+        self.assertEqual(len(book.rows), 1)  # type: ignore[attr-defined]
+        event = book.events[0]
+        record = book.rows[0]
+        publication_id = "pub-" + question_id + "-" + answer_id
+        self.assertEqual(event.action, "publication_retired")  # type: ignore[attr-defined]
+        self.assertEqual(event.target_kind, "publication")  # type: ignore[attr-defined]
+        self.assertEqual(event.target_id, publication_id)  # type: ignore[attr-defined]
+        self.assertEqual(event.outcome, "ok")  # type: ignore[attr-defined]
+        self.assertEqual(event.actor_user_id, "teacher-synth")  # type: ignore[attr-defined]
+        self.assertTrue(event.audit)  # type: ignore[attr-defined]
+        self.assertEqual(record.action, "publication_retired")  # type: ignore[attr-defined]
+        self.assertEqual(record.target_kind, "publication")  # type: ignore[attr-defined]
+        self.assertEqual(record.target_id, publication_id)  # type: ignore[attr-defined]
+        self.assertEqual(record.outcome, "ok")  # type: ignore[attr-defined]
+        self.assertEqual(record.actor_user_id, "teacher-synth")  # type: ignore[attr-defined]
+        self.assertEqual(record.request_id, "req-ret-audit")  # type: ignore[attr-defined]
+        self.assertEqual(  # type: ignore[attr-defined]
+            json.loads(record.detail_json),
+            {
+                "question_version_id": question_id,
+                "answer_version_id": answer_id,
+                "subject_id": "geom-audit",
+                "before": {"status": "active"},
+                "after": {"status": "retired"},
+            },
+        )
+
+    def _bind(self, question_id: str, answer_id: str, subject_id: str) -> None:
+        self.publications.put(  # type: ignore[attr-defined]
+            _publication("pub-" + question_id + "-" + answer_id, question_id, answer_id, subject_id, "active")
+        )
+
+    def _retire_binding(self, question_id: str, answer_id: str, actor: str | None) -> str:
+        return retire_publication(
+            self.publications,  # type: ignore[arg-type]
+            question_id,
+            answer_id,
+            actor,
+            self.logger,  # type: ignore[arg-type]
+            request_id="req-" + question_id,
+        )
+
+    def _publish(self, question_version_id: str) -> Ok[ApprovalSnapshot] | Err:
+        return publish_version(
+            question_version_id,
+            self.approvals,  # type: ignore[attr-defined]
+            self.logger,  # type: ignore[attr-defined]
+            "req-" + question_version_id,
+            publications=self.publications,  # type: ignore[arg-type]
+        )
+
+    def _count(self) -> int:
+        if isinstance(self.publications, MemoryPublications):
+            return len(self.publications._rows)
+        return _scalar(self.pool, "SELECT count(*) FROM publication", ())  # type: ignore[attr-defined]
+
+    def _retire(self, row: Publication) -> None:
+        if isinstance(self.publications, MemoryPublications):
+            self.publications.put(replace(row, status="retired"))
+            return
+        _execute(
+            self.pool,  # type: ignore[attr-defined]
+            "UPDATE publication SET status = 'retired' WHERE publication_id = %s",
+            (row.publication_id,),
+        )
+
     def test_active_of_returns_single_row_when_bound(self) -> None:
         row = _publication("pub-b", "q-b", "a-b", "math", "active")
         self.publications.put(row)  # type: ignore[attr-defined]
@@ -59,6 +304,8 @@ class PublicationCases:
 class MemoryPublicationTest(PublicationCases, unittest.TestCase):
     def setUp(self) -> None:
         self.publications = MemoryPublications()
+        self.approvals = MemoryApprovals()
+        self.logger = _ListLogger()
 
     def apply_grandfather(self) -> None:
         self.publications.fill_grandfather(_samples())
@@ -72,7 +319,11 @@ class PgPublicationTest(PublicationCases, unittest.TestCase):
 
         self.pool = _pool()
         _execute(self.pool, "TRUNCATE TABLE publication RESTART IDENTITY CASCADE")
+        from backend.catalog.adapters.pg_approvals import PgApprovals
+
         self.publications = PgPublications(self.pool)
+        self.approvals = PgApprovals(self.pool)
+        self.logger = _ListLogger()
 
     def apply_grandfather(self) -> None:
         _reapply_v007(self.pool)
@@ -188,13 +439,43 @@ def _reapply_v007(pool: object) -> None:
     migrate(os.environ["K12_PG_DSN"], repo_root(), "up")
 
 
-def _execute(pool: object, statement: str) -> None:
+class _ListLogger:
+    def __init__(self) -> None:
+        self.events: list[LogEvent] = []
+
+    def log(self, event: LogEvent) -> None:
+        self.events.append(event)
+
+
+class _RefuseReplace:
+    """The approval save does not commit, so the row stays question-only."""
+
+    def __init__(self, inner: object) -> None:
+        self._inner = inner
+
+    def read_snapshot(self, question_version_id: str) -> ApprovalSnapshot | None:
+        return self._inner.read_snapshot(question_version_id)  # type: ignore[attr-defined]
+
+    def put(self, snapshot: ApprovalSnapshot) -> None:
+        self._inner.put(snapshot)  # type: ignore[attr-defined]
+
+    def has_version_id(self, version_id: str) -> bool:
+        return bool(self._inner.has_version_id(version_id))  # type: ignore[attr-defined]
+
+    def insert_if_absent(self, snapshot: ApprovalSnapshot) -> bool:
+        return bool(self._inner.insert_if_absent(snapshot))  # type: ignore[attr-defined]
+
+    def replace_if_current(self, expected: ApprovalSnapshot, updated: ApprovalSnapshot) -> bool:
+        return False
+
+
+def _execute(pool: object, statement: str, params: tuple[object, ...] = ()) -> None:
     with pool.connection() as conn:  # type: ignore[attr-defined]
         with conn.transaction():
-            conn.execute(statement)
+            conn.execute(statement, params)
 
 
-def _scalar(pool: object, statement: str, params: tuple[object, ...]) -> int:
+def _scalar(pool: object, statement: str, params: tuple[object, ...] = ()) -> int:
     with pool.connection() as conn:  # type: ignore[attr-defined]
         row = conn.execute(statement, params).fetchone()
     return int(row[0])

@@ -9,6 +9,7 @@ from pathlib import Path
 from backend.catalog.adapters.answer_memory import MemoryAnswers
 from backend.catalog.adapters.draft_memory import MemoryDrafts
 from backend.catalog.adapters.memory import MemoryApprovals
+from backend.catalog.adapters.memory_publications import MemoryPublications
 from backend.catalog.application.import_answer import import_answer_draft
 from backend.catalog.application.import_draft import import_question_draft
 from backend.catalog.domain.answer import answer_not_publication
@@ -76,6 +77,7 @@ class ReviewImportTest(unittest.TestCase):
             logger,
             "req-issue",
             actor_teacher_id="teacher-synth",
+            publications=MemoryPublications(),
         )
         self.assertIsInstance(issued, Err)
         assert isinstance(issued, Err)

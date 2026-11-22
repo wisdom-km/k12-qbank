@@ -6,7 +6,8 @@ import time
 from collections.abc import Callable
 from dataclasses import replace
 
-from backend.catalog.api import ApprovalPort
+from backend.catalog.api import ApprovalPort, Publications
+from backend.catalog.application.ensure_publication import ensure_publication_on_both_approved
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.kernel.logger import Logger
 from backend.kernel.result import Err, Ok
@@ -14,6 +15,7 @@ from backend.kernel.use_log import emit, read_store
 
 
 _SAVE_ATTEMPTS = 8
+_RETIRED_PUBLICATION = "publication retired, not recreated by publish_version"
 
 
 class ApprovalWriter(ApprovalPort):
@@ -49,6 +51,8 @@ def publish_version(
     approvals: ApprovalWriter,
     logger: Logger,
     request_id: str,
+    *,
+    publications: Publications,
 ) -> Ok[ApprovalSnapshot] | Err:
     """Mark the question and the answer approved. A retired version stays retired."""
     started = time.perf_counter()
@@ -68,6 +72,7 @@ def publish_version(
         if snapshot.retired:
             return _refuse(logger, request_id, started, "retired", "the question version is retired")
         if snapshot.question_approved and snapshot.answer_approved:
+            _ensure_publication(publications, snapshot, logger, request_id, started)
             return Ok(snapshot)
         updated = replace(snapshot, question_approved=True, answer_approved=True)
         saved = read_store(
@@ -89,6 +94,7 @@ def publish_version(
                 outcome=updated.question_version_id,
                 started=started,
             )
+            _ensure_publication(publications, updated, logger, request_id, started)
             return Ok(updated)
     return _refuse(
         logger,
@@ -225,6 +231,33 @@ def _next_free_id(current: str, taken: Callable[[str], bool]) -> str:
     while taken(f"{current}-v{nxt}"):
         nxt += 1
     return f"{current}-v{nxt}"
+
+
+def _ensure_publication(
+    publications: Publications,
+    snapshot: ApprovalSnapshot,
+    logger: Logger,
+    request_id: str,
+    started: float,
+) -> None:
+    """subject_id comes from the approval row. A retired publication is not recreated."""
+    outcome = ensure_publication_on_both_approved(
+        publications,
+        snapshot.question_version_id,
+        snapshot.answer_version_id,
+        snapshot.subject_id,
+    )
+    if outcome != "retired_present":
+        return
+    emit(
+        logger,
+        level="WARN",
+        event="publication_not_recreated",
+        request_id=request_id,
+        module="catalog.publish",
+        outcome=_RETIRED_PUBLICATION,
+        started=started,
+    )
 
 
 def _refuse(logger: Logger, request_id: str, started: float, code: str, message: str) -> Err:

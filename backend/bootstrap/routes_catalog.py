@@ -27,7 +27,15 @@ def register_catalog(app: FastAPI) -> None:
 
     @app.post("/api/catalog/{question_version_id}/publish")
     def catalog_publish(question_version_id: str, request: Request) -> JSONResponse:
-        return _finish(request, publish_version(question_version_id, request.app.state.loop.approvals, request.app.state.loop.logger, request.state.request_id))
+        loop = request.app.state.loop
+        result = publish_version(
+            question_version_id,
+            loop.approvals,
+            loop.logger,
+            request.state.request_id,
+            publications=loop.publications,
+        )
+        return _finish(request, result)
 
     @app.post("/api/catalog/{question_version_id}/revise")
     def catalog_revise(question_version_id: str, body: ReviseBody, request: Request) -> JSONResponse:

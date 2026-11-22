@@ -7,6 +7,7 @@ import unittest
 
 from backend.catalog.adapters.memory import MemoryApprovals
 from backend.catalog.adapters.memory_publications import MemoryPublications
+from backend.catalog.application.retire_publication import retire_publication
 from backend.catalog.domain.publication import Publication
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.kernel.log_event import LogEvent
@@ -17,7 +18,9 @@ from backend.practice.adapters.memory_items import MemoryComposedWriter, MemoryP
 from backend.practice.adapters.pdf_page import StdPdf
 from backend.practice.api import ConfirmCommand, IssuePaperCommand
 from backend.practice.application.compose_multi import compose_multi_item_paper
+from backend.practice.domain.confirm import PendingAnswer
 from backend.practice.application.confirm_attempt import confirm_attempt
+from backend.practice.application.render_paper import render_paper
 from backend.practice.application.issue_paper import issue_paper
 from backend.practice.application.open_paper import open_paper
 from backend.practice.application.resolve_items import _resolve_items
@@ -50,6 +53,7 @@ class PracticeItemCases:
 
     def test_single_item_paper_still_opens(self) -> None:
         self.approvals.put(_snapshot("q-d4-a", "a-d4-a"))  # type: ignore[attr-defined]
+        self._activate("q-d4-a", "a-d4-a")
         issued = issue_paper(
             _command("q-d4-a"),
             self.approvals,  # type: ignore[arg-type]
@@ -59,6 +63,7 @@ class PracticeItemCases:
             "req-d4-a",
             lambda: "paper-d4-a",
             actor_teacher_id=_TEACHER,
+            publications=self.publications,  # type: ignore[attr-defined]
         )
         self.assertIsInstance(issued, Ok)  # type: ignore[attr-defined]
         paper = issued.value  # type: ignore[union-attr]
@@ -175,6 +180,7 @@ class PracticeItemCases:
 
     def test_single_item_paper_remains_intact_after_multi_feature_landed(self) -> None:
         self.approvals.put(_snapshot("q-d4-g", "a-d4-g", item_order=("sq-1",)))  # type: ignore[attr-defined]
+        self._activate("q-d4-g", "a-d4-g")
         opened = open_paper(
             _command("q-d4-g"),
             self.approvals,  # type: ignore[arg-type]
@@ -187,6 +193,7 @@ class PracticeItemCases:
             lambda: "paper-d4-g",
             actor_teacher_id=_TEACHER,
             attempt_text="5",
+            publications=self.publications,  # type: ignore[attr-defined]
         )
         self.assertIsInstance(opened, Ok)  # type: ignore[attr-defined]
         view = opened.value  # type: ignore[union-attr]
@@ -244,6 +251,83 @@ class PracticeItemCases:
         self.assertEqual(refused.code, "no_active_publication")  # type: ignore[union-attr]
         self._assert_absent(paper_id)
 
+    def test_retire_does_not_affect_existing_papers(self) -> None:
+        paper_id = "paper-d6-b4"
+        self.approvals.put(_snapshot("q-d6-b4a", "a-d6-b4a", item_order=("sq-1",)))  # type: ignore[attr-defined]
+        self.approvals.put(_snapshot("q-d6-b4b", "a-d6-b4b", item_order=("sq-2",)))  # type: ignore[attr-defined]
+        self._activate("q-d6-b4a", "a-d6-b4a")
+        self._activate("q-d6-b4b", "a-d6-b4b")
+        composed = self._compose(
+            paper_id,
+            (
+                _item(paper_id, 1, "q-d6-b4a", "a-d6-b4a"),
+                _item(paper_id, 2, "q-d6-b4b", "a-d6-b4b"),
+            ),
+        )
+        self.assertIsInstance(composed, Ok)  # type: ignore[attr-defined]
+        assert isinstance(composed, Ok)
+        frozen_question = composed.value.question_version_id
+        frozen_answer = composed.value.answer_version_id
+        code = retire_publication(
+            self.publications,  # type: ignore[arg-type]
+            "q-d6-b4a",
+            "a-d6-b4a",
+            _TEACHER,
+            self.logger,
+            request_id="req-d6-b4",
+        )
+        self.assertEqual(code, "retired")  # type: ignore[attr-defined]
+        drawn = render_paper(
+            paper_id,
+            self.approvals,  # type: ignore[arg-type]
+            self.auth,
+            self.practice,  # type: ignore[arg-type]
+            self.files,
+            self.renderer,
+            self.logger,
+            "req-d6-b4-render",
+            actor_teacher_id=_TEACHER,
+            items=self.items,  # type: ignore[arg-type]
+        )
+        self.assertIsInstance(drawn, Ok)  # type: ignore[attr-defined]
+        assert isinstance(drawn, Ok)
+        self.practice.put_answer(  # type: ignore[attr-defined]
+            PendingAnswer(
+                fixture_answer_id="fix-d6-b4",
+                paper_id=paper_id,
+                sub_question_id="sq-1",
+                review_version_id=composed.value.review_version_id,
+                student_id=_STUDENT,
+                status="pending",
+                answer_text="2",
+            )
+        )
+        confirmed = confirm_attempt(
+            ConfirmCommand(
+                operation_key="op-d6-b4",
+                paper_id=paper_id,
+                sub_question_id="sq-1",
+                teacher_id=_TEACHER,
+                review_version_id=composed.value.review_version_id,
+                decision="adopt",
+                fixture_answer_id="fix-d6-b4",
+            ),
+            self.auth,
+            self.practice,  # type: ignore[arg-type]
+            self.logger,
+            "req-d6-b4-confirm",
+            lambda: "conf-d6-b4",
+            actor_teacher_id=_TEACHER,
+        )
+        self.assertIsInstance(confirmed, Ok)  # type: ignore[attr-defined]
+        stored = self.practice.get_paper(paper_id)  # type: ignore[attr-defined]
+        assert stored is not None
+        self.assertEqual(stored.question_version_id, frozen_question)  # type: ignore[attr-defined]
+        self.assertEqual(stored.answer_version_id, frozen_answer)  # type: ignore[attr-defined]
+        self.assertEqual(drawn.value.question_version_id, frozen_question)  # type: ignore[attr-defined]
+        self.assertEqual(drawn.value.answer_version_id, frozen_answer)  # type: ignore[attr-defined]
+        self.assertIsNone(self.publications.active_of("q-d6-b4a", "a-d6-b4a"))  # type: ignore[attr-defined]
+
     def test_single_item_rejects_without_active_publication(self) -> None:
         self.approvals.put(_snapshot("q-d5-h", "a-d5-h"))  # type: ignore[attr-defined]
         refused = issue_paper(
@@ -264,10 +348,10 @@ class PracticeItemCases:
             any(event.outcome == "no_active_publication" for event in self.logger.events)
         )  # type: ignore[attr-defined]
 
-    def test_old_paper_opens_even_when_publication_missing(self) -> None:
+    def test_open_paper_rejects_without_active_publication(self) -> None:
         self.approvals.put(_snapshot("q-d5-i", "a-d5-i", item_order=("sq-1",)))  # type: ignore[attr-defined]
         self.assertIsNone(self.publications.active_of("q-d5-i", "a-d5-i"))  # type: ignore[attr-defined]
-        opened = open_paper(
+        refused = open_paper(
             _command("q-d5-i"),
             self.approvals,  # type: ignore[arg-type]
             self.auth,
@@ -279,31 +363,11 @@ class PracticeItemCases:
             lambda: "paper-d5-i",
             actor_teacher_id=_TEACHER,
             attempt_text="5",
+            publications=self.publications,  # type: ignore[attr-defined]
         )
-        self.assertIsInstance(opened, Ok)  # type: ignore[attr-defined]
-        view = opened.value  # type: ignore[union-attr]
-        self.assertIsNone(view.render_code)
-        self.assertEqual(view.paper.status, "可打印")
-        confirmed = confirm_attempt(
-            ConfirmCommand(
-                operation_key="op-d5-i",
-                paper_id=view.paper.paper_id,
-                sub_question_id="sq-1",
-                teacher_id=_TEACHER,
-                review_version_id=view.paper.review_version_id,
-                decision="adopt",
-                fixture_answer_id=view.fixture_answer_id,
-            ),
-            self.auth,
-            self.practice,  # type: ignore[arg-type]
-            self.logger,
-            "req-d5-i-confirm",
-            lambda: "conf-d5-i",
-            actor_teacher_id=_TEACHER,
-        )
-        self.assertIsInstance(confirmed, Ok)  # type: ignore[attr-defined]
-        self.assertEqual(confirmed.value.decision, "adopt")  # type: ignore[union-attr]
-        self.assertIsNone(self.publications.active_of("q-d5-i", "a-d5-i"))  # type: ignore[attr-defined]
+        self.assertIsInstance(refused, Err)  # type: ignore[attr-defined]
+        self.assertEqual(refused.code, "no_active_publication")  # type: ignore[union-attr]
+        self.assertIsNone(self.practice.get_paper("paper-d5-i"))  # type: ignore[attr-defined]
 
     def _activate(self, question_version_id: str, answer_version_id: str) -> None:
         self.publications.put(  # type: ignore[attr-defined]

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 from pathlib import Path
 
@@ -15,6 +15,7 @@ from backend.bootstrap.stdout_log import StdoutLogger
 from backend.catalog.adapters.answer_memory import MemoryAnswers
 from backend.catalog.adapters.draft_memory import MemoryDrafts
 from backend.catalog.adapters.memory import MemoryApprovals
+from backend.catalog.adapters.memory_publications import MemoryPublications
 from backend.identity.adapters.argon2_hasher import Argon2Hasher
 from backend.identity.adapters.authorizer import GrantAuthorizer
 from backend.identity.adapters.log_audit import LogAudit
@@ -48,6 +49,7 @@ class Loop:
     opener: object | None = None
     questions: object | None = None
     answers: object | None = None
+    publications: object = field(default_factory=MemoryPublications)
 
 
 def compose() -> Loop:
