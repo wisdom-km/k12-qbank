@@ -33,6 +33,15 @@ class MemoryPublications:
             rows = [row for row in self._rows.values() if row.status == "active"]
         return tuple(sorted(rows, key=lambda row: row.publication_id))
 
+    def rows_for(self, question_version_id: str, answer_version_id: str) -> tuple[Publication, ...]:
+        with self._lock:
+            rows = [
+                row
+                for row in self._rows.values()
+                if row.question_version_id == question_version_id and row.answer_version_id == answer_version_id
+            ]
+        return tuple(sorted(rows, key=lambda row: row.publication_id))
+
     def fill_grandfather(self, snapshots: Sequence[ApprovalSnapshot]) -> None:
         """Same filter as the V007 INSERT. Memory tests call this. PostgreSQL runs the SQL."""
         for snap in snapshots:

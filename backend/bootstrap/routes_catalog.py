@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from backend.bootstrap.http_errors import error_response
-from backend.catalog.api import ApprovalSnapshot, Publication
+from backend.catalog.api import ApprovalSnapshot
 from backend.catalog.application.publish_version import publish_version, retire_version, revise_text
 from backend.kernel.result import Err
 
@@ -28,15 +28,13 @@ def register_catalog(app: FastAPI) -> None:
     @app.post("/api/catalog/{question_version_id}/publish")
     def catalog_publish(question_version_id: str, request: Request) -> JSONResponse:
         loop = request.app.state.loop
-        before = loop.approvals.read_snapshot(question_version_id)
         result = publish_version(
             question_version_id,
             loop.approvals,
             loop.logger,
             request.state.request_id,
+            publications=loop.publications,
         )
-        if not isinstance(result, Err) and not _already_issuable(before):
-            _mirror_grandfather(loop.publications, result.value)
         return _finish(request, result)
 
     @app.post("/api/catalog/{question_version_id}/revise")
@@ -82,31 +80,3 @@ def _snapshot_body(snapshot: ApprovalSnapshot) -> dict[str, object]:
         "asset_ids": list(snapshot.asset_ids),
         "layout_template_id": snapshot.layout_template_id,
     }
-
-
-def _already_issuable(snapshot: ApprovalSnapshot | None) -> bool:
-    """True when this approval was already a grandfather source. A repeat publish must not revive a retired publication."""
-    return (
-        snapshot is not None
-        and snapshot.question_approved
-        and snapshot.answer_approved
-        and not snapshot.retired
-    )
-
-
-def _mirror_grandfather(publications: object, snapshot: ApprovalSnapshot) -> None:
-    """Write the V007 grandfather row when catalog publish first approves both sides."""
-    if not snapshot.question_approved or not snapshot.answer_approved or snapshot.retired:
-        return
-    found = publications.active_of(snapshot.question_version_id, snapshot.answer_version_id)  # type: ignore[attr-defined]
-    if found is not None:
-        return
-    publications.put(  # type: ignore[attr-defined]
-        Publication(
-            publication_id="pub-" + snapshot.question_version_id + "-" + snapshot.answer_version_id,
-            question_version_id=snapshot.question_version_id,
-            answer_version_id=snapshot.answer_version_id,
-            subject_id=snapshot.subject_id,
-            status="active",
-        )
-    )

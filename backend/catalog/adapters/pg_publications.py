@@ -25,6 +25,9 @@ class PgPublications:
     def list_active(self) -> tuple[Publication, ...]:
         return _run(self._pool, _all_active)
 
+    def rows_for(self, question_version_id: str, answer_version_id: str) -> tuple[Publication, ...]:
+        return _run(self._pool, lambda conn: _rows(conn, question_version_id, answer_version_id))
+
 
 def _run(pool: object, work: Callable[[Any], T]) -> T:
     with pool.connection() as conn:  # type: ignore[attr-defined]
@@ -62,6 +65,20 @@ def _one(conn: Any, question_version_id: str, answer_version_id: str) -> Publica
     if row is None:
         return None
     return _publication(row)
+
+
+def _rows(conn: Any, question_version_id: str, answer_version_id: str) -> tuple[Publication, ...]:
+    rows = conn.execute(
+        f"""
+        SELECT {_COLUMNS}
+        FROM publication
+        WHERE question_version_id = %s
+          AND answer_version_id = %s
+        ORDER BY publication_id
+        """,
+        (question_version_id, answer_version_id),
+    ).fetchall()
+    return tuple(_publication(row) for row in rows)
 
 
 def _all_active(conn: Any) -> tuple[Publication, ...]:
