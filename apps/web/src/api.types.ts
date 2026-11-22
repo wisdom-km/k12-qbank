@@ -347,6 +347,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/publications/{publication_id}/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Publications Asset List */
+        get: operations["publications_asset_list_api_admin_publications__publication_id__assets_get"];
+        put?: never;
+        /** Publications Asset Attach */
+        post: operations["publications_asset_attach_api_admin_publications__publication_id__assets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/publications/{publication_id}/assets/{publication_asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Publications Asset Remove */
+        delete: operations["publications_asset_remove_api_admin_publications__publication_id__assets__publication_asset_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/publications/retire": {
         parameters: {
             query?: never;
@@ -556,6 +591,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AttachPublicationAssetBody */
+        AttachPublicationAssetBody: {
+            /** File Id */
+            file_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "pdf";
+            /** Checksum */
+            checksum: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Mime Type */
+            mime_type: string;
+        };
+        /** AttachPublicationAssetResponse */
+        AttachPublicationAssetResponse: {
+            /** Result */
+            result: string;
+            /** Publication Asset Id */
+            publication_asset_id?: string | null;
+        };
         /** ConfirmBody */
         ConfirmBody: {
             /** Operation Key */
@@ -620,6 +678,35 @@ export interface components {
             /** New Secret */
             new_secret: string;
         };
+        /** PublicationAssetItem */
+        PublicationAssetItem: {
+            /** Publication Asset Id */
+            publication_asset_id: string;
+            /** Publication Id */
+            publication_id: string;
+            /** File Id */
+            file_id: string;
+            /** Kind */
+            kind: string;
+            /** Checksum */
+            checksum: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Mime Type */
+            mime_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string;
+        };
+        /** PublicationAssetListResponse */
+        PublicationAssetListResponse: {
+            /** Items */
+            items: components["schemas"]["PublicationAssetItem"][];
+        };
         /** PublicationItem */
         PublicationItem: {
             /** Publication Id */
@@ -654,6 +741,11 @@ export interface components {
             answer_version_id: string;
             /** Layout Template Id */
             layout_template_id?: string | null;
+        };
+        /** RemovePublicationAssetResponse */
+        RemovePublicationAssetResponse: {
+            /** Result */
+            result: string;
         };
         /** RetirePublicationBody */
         RetirePublicationBody: {
@@ -1342,6 +1434,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publications_asset_list_api_admin_publications__publication_id__assets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                publication_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationAssetListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publications_asset_attach_api_admin_publications__publication_id__assets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                publication_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachPublicationAssetBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachPublicationAssetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publications_asset_remove_api_admin_publications__publication_id__assets__publication_asset_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                publication_id: string;
+                publication_asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovePublicationAssetResponse"];
                 };
             };
             /** @description Validation Error */
