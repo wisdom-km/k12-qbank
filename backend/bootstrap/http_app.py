@@ -10,10 +10,11 @@ from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.bootstrap.compose import Loop, attach_identity, compose, repo_root
 from backend.bootstrap.ready import ReadyWindow, database_ready
-from backend.bootstrap.run_mode import choose_persist
+from backend.bootstrap.run_mode import choose_persist, cors_origins
 from backend.bootstrap.stdout_log import StdoutLogger
 from backend.bootstrap.http_errors import error_response
 from backend.bootstrap.http_gate import gate
@@ -38,6 +39,11 @@ def create_app(
     persist: bool = False,
 ) -> FastAPI:
     """Build the HTTP app. persist=True connects and migrates. A passed loop never does."""
+    origins = cors_origins(
+        os.environ.get("K12_ENV", ""),
+        os.environ.get("K12_CORS_ORIGINS"),
+        StdoutLogger(),
+    )
     wired = _wire(loop, persist)
     if seed:
         load_fixture(wired)
@@ -50,6 +56,7 @@ def create_app(
     app.state.ready_limit = ReadyWindow()
     app.state.ready_probe = _ready_probe(wired, persist)
     _middleware(app, wired)
+    _cors(app, origins)
     register_observability(app)
     register_session(app)
     register_admin(app)
@@ -167,12 +174,22 @@ def _headers(response: object, request_id: str) -> None:
         headers["Permissions-Policy"] = _PERMISSIONS
 
 
-def _default_app() -> FastAPI:
-    persist = choose_persist(
-        os.environ.get("K12_ENV", ""),
-        os.environ.get("K12_PG_DSN", ""),
-        StdoutLogger(),
+def _cors(app: FastAPI, origins: tuple[str, ...]) -> None:
+    """Credentials stay on. Methods and headers are the ones the page already sends."""
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(origins),
+        allow_credentials=True,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Accept", "Content-Type", "X-K12-CSRF"],
     )
+
+
+def _default_app() -> FastAPI:
+    logger = StdoutLogger()
+    env = os.environ.get("K12_ENV", "")
+    persist = choose_persist(env, os.environ.get("K12_PG_DSN", ""), logger)
+    cors_origins(env, os.environ.get("K12_CORS_ORIGINS"), logger)
     if persist:
         return create_app(persist=True)
     return create_app()

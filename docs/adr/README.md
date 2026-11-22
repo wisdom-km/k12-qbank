@@ -8,6 +8,8 @@
 
 2026-11-18：0032 到 0039 已采纳。它们不改 0012、0013、0014、0015、0020、0021、0026、0028、0029、0030 的正文。0039 是 catalog 与 practice 的落库决定，迁移还没写。
 
+2026-11-22：0040 已采纳。生产 CORS 白名单由 `K12_CORS_ORIGINS` 驱动。不改 0032 正文。
+
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
 | [0001](0001-long-lived-tier.md) | 按长期项目做 | accepted | 全库 |
@@ -49,3 +51,4 @@
 | [0037](0037-read-audit.md) | 读审计 | accepted | identity |
 | [0038](0038-last-admin.md) | 至少一个活跃管理员 | accepted | identity |
 | [0039](0039-catalog-persistence.md) | catalog 与 practice 的首个持久适配器 | accepted | catalog, practice |
+| [0040](0040-cors-origins.md) | 生产 CORS 白名单由 K12_CORS_ORIGINS 驱动 | accepted | kernel |
