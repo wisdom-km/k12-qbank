@@ -47,6 +47,48 @@ jobs:
       - name: Page tests
         run: npm test --prefix apps/web
 
+      - name: SBOM from requirements.txt via a clean install and pip freeze
+        run: |
+          python -m venv "$RUNNER_TEMP/app"
+          "$RUNNER_TEMP/app/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
+          "$RUNNER_TEMP/app/bin/python" -m pip freeze > "$RUNNER_TEMP/freeze.txt"
+          python - "$RUNNER_TEMP/freeze.txt" <<'PY'
+          import sys
+          from pathlib import Path
+          def pins(path):
+              rows = []
+              for line in Path(path).read_text(encoding="utf-8").splitlines():
+                  line = line.strip()
+                  if line and not line.startswith("#"):
+                      rows.append(line)
+              return rows
+          locked = pins("requirements.txt")
+          frozen = pins(sys.argv[1])
+          if locked != frozen:
+              raise SystemExit(
+                  "pip freeze does not match requirements.txt\n"
+                  f"only in lock: {sorted(set(locked) - set(frozen))}\n"
+                  f"only in freeze: {sorted(set(frozen) - set(locked))}"
+              )
+          PY
+          python -m venv "$RUNNER_TEMP/sbom-tool"
+          "$RUNNER_TEMP/sbom-tool/bin/python" -m pip install --disable-pip-version-check cyclonedx-bom
+          "$RUNNER_TEMP/sbom-tool/bin/cyclonedx-py" environment \
+            "$RUNNER_TEMP/app/bin/python" \
+            --output-reproducible \
+            --no-validate \
+            --spec-version 1.6 \
+            --output-format JSON \
+            --output-file bom.json
+
+      - name: Upload bom.json
+        uses: actions/upload-artifact@v7
+        with:
+          name: bom.json
+          path: bom.json
+          if-no-files-found: error
+          retention-days: 90
+
   review-import:
     name: review-import
     runs-on: ubuntu-latest
