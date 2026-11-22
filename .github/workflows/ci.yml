@@ -24,7 +24,7 @@ jobs:
         with:
           python-version-file: .python-version
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -47,13 +47,55 @@ jobs:
       - name: Page tests
         run: npm test --prefix apps/web
 
+      - name: SBOM from requirements.txt via a clean install and pip freeze
+        run: |
+          python -m venv "$RUNNER_TEMP/app"
+          "$RUNNER_TEMP/app/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
+          "$RUNNER_TEMP/app/bin/python" -m pip freeze > "$RUNNER_TEMP/freeze.txt"
+          python - "$RUNNER_TEMP/freeze.txt" <<'PY'
+          import sys
+          from pathlib import Path
+          def pins(path):
+              rows = []
+              for line in Path(path).read_text(encoding="utf-8").splitlines():
+                  line = line.strip()
+                  if line and not line.startswith("#"):
+                      rows.append(line)
+              return rows
+          locked = pins("requirements.txt")
+          frozen = pins(sys.argv[1])
+          if locked != frozen:
+              raise SystemExit(
+                  "pip freeze does not match requirements.txt\n"
+                  f"only in lock: {sorted(set(locked) - set(frozen))}\n"
+                  f"only in freeze: {sorted(set(frozen) - set(locked))}"
+              )
+          PY
+          python -m venv "$RUNNER_TEMP/sbom-tool"
+          "$RUNNER_TEMP/sbom-tool/bin/python" -m pip install --disable-pip-version-check cyclonedx-bom
+          "$RUNNER_TEMP/sbom-tool/bin/cyclonedx-py" environment \
+            "$RUNNER_TEMP/app/bin/python" \
+            --output-reproducible \
+            --no-validate \
+            --spec-version 1.6 \
+            --output-format JSON \
+            --output-file bom.json
+
+      - name: Upload bom.json
+        uses: actions/upload-artifact@v7
+        with:
+          name: bom.json
+          path: bom.json
+          if-no-files-found: error
+          retention-days: 90
+
   review-import:
     name: review-import
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
 
@@ -112,3 +154,47 @@ jobs:
         env:
           K12_PG_DSN: postgresql://k12:changeme@localhost:5432/k12
         run: python -m unittest tests.test_migrate_lock -v
+
+  deps-audit:
+    name: deps-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
+      - name: Install the lockfile and freeze it
+        run: |
+          python -m venv "$RUNNER_TEMP/app"
+          "$RUNNER_TEMP/app/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
+          "$RUNNER_TEMP/app/bin/python" -m pip freeze > "$RUNNER_TEMP/freeze.txt"
+
+      - name: pip-audit enforce
+        env:
+          PIP_AUDIT_PROGRESS_SPINNER: "off"
+        run: |
+          EXPIRY_DAYS_LEFT=$(( ( $(date -d '2026-12-31' +%s) - $(date +%s) ) / 86400 ))
+          echo "::notice::pip-audit waiver expires in $EXPIRY_DAYS_LEFT days"
+          if [ "$EXPIRY_DAYS_LEFT" -lt 0 ]; then
+            echo "::error::pip-audit waiver has expired. Renew or upgrade."
+            exit 1
+          fi
+          python -m venv "$RUNNER_TEMP/audit-tool"
+          "$RUNNER_TEMP/audit-tool/bin/python" -m pip install --disable-pip-version-check pip-audit
+          # pip-audit has no waiver file. These ids are the whole set. See
+          # docs/release/E1-waiver-rationale-2026-11-22.md and issue 70.
+          ignore=(
+            --ignore-vuln PYSEC-2026-1941
+            --ignore-vuln PYSEC-2026-1942
+            --ignore-vuln PYSEC-2026-161
+            --ignore-vuln PYSEC-2026-2281
+            --ignore-vuln PYSEC-2026-2280
+            --ignore-vuln PYSEC-2026-249
+            --ignore-vuln PYSEC-2026-248
+          )
+          echo "===== requirements.txt ====="
+          "$RUNNER_TEMP/audit-tool/bin/pip-audit" --strict --format json -r requirements.txt "${ignore[@]}"
+          echo "===== pip freeze ====="
+          "$RUNNER_TEMP/audit-tool/bin/pip-audit" --strict --format json -r "$RUNNER_TEMP/freeze.txt" "${ignore[@]}"
