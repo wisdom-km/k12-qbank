@@ -682,6 +682,124 @@
         }
       }
     },
+    "/api/admin/publications": {
+      "get": {
+        "summary": "Publications List",
+        "operationId": "publications_list_api_admin_publications_get",
+        "parameters": [
+          {
+            "name": "question_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Question Version Id"
+            }
+          },
+          {
+            "name": "answer_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Answer Version Id"
+            }
+          },
+          {
+            "name": "subject_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "active",
+                    "retired"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/publications/retire": {
       "post": {
         "summary": "Publications Retire",
@@ -1285,6 +1403,81 @@
           "new_secret"
         ],
         "title": "PasswordBody"
+      },
+      "PublicationItem": {
+        "properties": {
+          "publication_id": {
+            "type": "string",
+            "title": "Publication Id"
+          },
+          "question_version_id": {
+            "type": "string",
+            "title": "Question Version Id"
+          },
+          "answer_version_id": {
+            "type": "string",
+            "title": "Answer Version Id"
+          },
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "layout_template_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layout Template Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "publication_id",
+          "question_version_id",
+          "answer_version_id",
+          "subject_id",
+          "status"
+        ],
+        "title": "PublicationItem"
+      },
+      "PublicationListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "PublicationListResponse"
       },
       "PublishPublicationBody": {
         "properties": {
