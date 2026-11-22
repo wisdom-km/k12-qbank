@@ -245,6 +245,88 @@ class PublicationCases:
             },
         )
 
+    def test_publish_by_binding_creates_new_active_when_absent(self) -> None:
+        question_id, answer_id = "q-pub-new", "a-pub-new"
+        self._approve(question_id, answer_id, "geom-pub")
+        code = self.publications.publish_by_binding(  # type: ignore[attr-defined]
+            question_id,
+            answer_id,
+            "teacher-synth",
+            "  layout-a  ",
+        )
+        self.assertEqual(code, "published")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "active")  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].publication_id, f"pub-{question_id}-{answer_id}-1")  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].subject_id, "geom-pub")  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].layout_template_id, "layout-a")  # type: ignore[attr-defined]
+
+    def test_publish_by_binding_is_idempotent_when_already_active(self) -> None:
+        question_id, answer_id = "q-pub-again", "a-pub-again"
+        self._approve(question_id, answer_id, "geom-again")
+        first = self.publications.publish_by_binding(question_id, answer_id, "teacher-synth", "   ")  # type: ignore[attr-defined]
+        second = self.publications.publish_by_binding(question_id, answer_id, "teacher-synth", "other")  # type: ignore[attr-defined]
+        self.assertEqual(first, "published")  # type: ignore[attr-defined]
+        self.assertEqual(second, "already_active")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].publication_id, f"pub-{question_id}-{answer_id}-1")  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "active")  # type: ignore[attr-defined]
+        self.assertIsNone(rows[0].layout_template_id)  # type: ignore[attr-defined]
+
+    def test_publish_by_binding_rejects_when_not_both_approved(self) -> None:
+        question_id, answer_id = "q-pub-one", "a-pub-one"
+        self._approve(question_id, answer_id, "geom-one", answer_approved=False)
+        code = self.publications.publish_by_binding(question_id, answer_id, "teacher-synth")  # type: ignore[attr-defined]
+        self.assertEqual(code, "not_approved")  # type: ignore[attr-defined]
+        self.assertEqual(self.publications.rows_for(question_id, answer_id), ())  # type: ignore[attr-defined]
+        retired_id, retired_answer = "q-pub-retired-approval", "a-pub-retired-approval"
+        self._approve(retired_id, retired_answer, "geom-retired", retired=True)
+        retired_code = self.publications.publish_by_binding(retired_id, retired_answer, "teacher-synth")  # type: ignore[attr-defined]
+        self.assertEqual(retired_code, "not_approved")  # type: ignore[attr-defined]
+        self.assertEqual(self.publications.rows_for(retired_id, retired_answer), ())  # type: ignore[attr-defined]
+        self._approve("q-pub-blank", "a-pub-blank", "   ")
+        with self.assertRaises(StoreFault) as caught:  # type: ignore[attr-defined]
+            self.publications.publish_by_binding("q-pub-blank", "a-pub-blank", "teacher-synth")  # type: ignore[attr-defined]
+        self.assertEqual(caught.exception.code, "invalid_subject")  # type: ignore[attr-defined]
+        self.assertEqual(self.publications.rows_for("q-pub-blank", "a-pub-blank"), ())  # type: ignore[attr-defined]
+
+    def test_publish_by_binding_increments_sequence_after_retire(self) -> None:
+        question_id, answer_id = "q-pub-seq", "a-pub-seq"
+        self._approve(question_id, answer_id, "geom-seq")
+        first = self.publications.publish_by_binding(question_id, answer_id, "teacher-synth")  # type: ignore[attr-defined]
+        retired = self.publications.retire_by_binding(question_id, answer_id, "teacher-synth")  # type: ignore[attr-defined]
+        second = self.publications.publish_by_binding(question_id, answer_id, "teacher-synth")  # type: ignore[attr-defined]
+        self.assertEqual(first, "published")  # type: ignore[attr-defined]
+        self.assertEqual(retired, "retired")  # type: ignore[attr-defined]
+        self.assertEqual(second, "published")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        by_status = {row.status: row for row in rows}
+        self.assertEqual(set(by_status), {"retired", "active"})  # type: ignore[attr-defined]
+        self.assertEqual(by_status["retired"].publication_id, f"pub-{question_id}-{answer_id}-1")  # type: ignore[attr-defined]
+        self.assertEqual(by_status["active"].publication_id, f"pub-{question_id}-{answer_id}-2")  # type: ignore[attr-defined]
+
+    def _approve(
+        self,
+        question_id: str,
+        answer_id: str,
+        subject_id: str,
+        *,
+        answer_approved: bool = True,
+        retired: bool = False,
+    ) -> None:
+        self.approvals.put(  # type: ignore[attr-defined]
+            _snapshot(
+                question_id,
+                answer_id,
+                subject_id=subject_id,
+                question_approved=True,
+                answer_approved=answer_approved,
+                retired=retired,
+            )
+        )
+
     def _bind(self, question_id: str, answer_id: str, subject_id: str) -> None:
         self.publications.put(  # type: ignore[attr-defined]
             _publication("pub-" + question_id + "-" + answer_id, question_id, answer_id, subject_id, "active")
@@ -305,6 +387,7 @@ class MemoryPublicationTest(PublicationCases, unittest.TestCase):
     def setUp(self) -> None:
         self.publications = MemoryPublications()
         self.approvals = MemoryApprovals()
+        self.publications.attach_approvals(self.approvals)
         self.logger = _ListLogger()
 
     def apply_grandfather(self) -> None:

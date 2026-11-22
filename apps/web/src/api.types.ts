@@ -330,6 +330,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/publications/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publications Retire */
+        post: operations["publications_retire_api_admin_publications_retire_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/publications/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publications Publish */
+        post: operations["publications_publish_api_admin_publications_publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/catalog/{question_version_id}": {
         parameters: {
             query?: never;
@@ -568,6 +602,22 @@ export interface components {
             old_secret: string;
             /** New Secret */
             new_secret: string;
+        };
+        /** PublishPublicationBody */
+        PublishPublicationBody: {
+            /** Question Version Id */
+            question_version_id: string;
+            /** Answer Version Id */
+            answer_version_id: string;
+            /** Layout Template Id */
+            layout_template_id?: string | null;
+        };
+        /** RetirePublicationBody */
+        RetirePublicationBody: {
+            /** Question Version Id */
+            question_version_id: string;
+            /** Answer Version Id */
+            answer_version_id: string;
         };
         /** ReviseBody */
         ReviseBody: {
@@ -1201,6 +1251,72 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publications_retire_api_admin_publications_retire_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetirePublicationBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publications_publish_api_admin_publications_publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishPublicationBody"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

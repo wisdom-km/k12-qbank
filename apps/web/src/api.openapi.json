@@ -682,6 +682,78 @@
         }
       }
     },
+    "/api/admin/publications/retire": {
+      "post": {
+        "summary": "Publications Retire",
+        "operationId": "publications_retire_api_admin_publications_retire_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetirePublicationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/publications/publish": {
+      "post": {
+        "summary": "Publications Publish",
+        "operationId": "publications_publish_api_admin_publications_publish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishPublicationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/catalog/{question_version_id}": {
       "get": {
         "summary": "Catalog Get",
@@ -1213,6 +1285,53 @@
           "new_secret"
         ],
         "title": "PasswordBody"
+      },
+      "PublishPublicationBody": {
+        "properties": {
+          "question_version_id": {
+            "type": "string",
+            "title": "Question Version Id"
+          },
+          "answer_version_id": {
+            "type": "string",
+            "title": "Answer Version Id"
+          },
+          "layout_template_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layout Template Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question_version_id",
+          "answer_version_id"
+        ],
+        "title": "PublishPublicationBody"
+      },
+      "RetirePublicationBody": {
+        "properties": {
+          "question_version_id": {
+            "type": "string",
+            "title": "Question Version Id"
+          },
+          "answer_version_id": {
+            "type": "string",
+            "title": "Answer Version Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question_version_id",
+          "answer_version_id"
+        ],
+        "title": "RetirePublicationBody"
       },
       "ReviseBody": {
         "properties": {

@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import time
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from backend.bootstrap.http_errors import error_response, run_use
+from backend.catalog.application.publish_publication import publish_publication
+from backend.catalog.application.retire_publication import retire_publication
 from backend.identity.application.grants import grant_teacher, list_grants, revoke_grant
+from backend.identity.application.guard import admin_only
 from backend.identity.application.passwords import reset_teacher_password
 from backend.identity.application.queries import list_audit_events
 from backend.identity.application.students import archive_student, create_student, list_students
@@ -18,7 +23,8 @@ from backend.identity.application.teachers import (
     enable_teacher,
     list_teachers,
 )
-from backend.kernel.result import Err
+from backend.kernel.result import Err, StoreFault
+from backend.kernel.use_log import emit
 
 
 class TeacherBody(BaseModel):
@@ -40,6 +46,17 @@ class GrantBody(BaseModel):
     teacher_id: str
     student_id: str
     subject_id: str
+
+
+class RetirePublicationBody(BaseModel):
+    question_version_id: str
+    answer_version_id: str
+
+
+class PublishPublicationBody(BaseModel):
+    question_version_id: str
+    answer_version_id: str
+    layout_template_id: str | None = None
 
 
 def register_admin(app: FastAPI) -> None:
@@ -94,6 +111,99 @@ def register_admin(app: FastAPI) -> None:
     @app.get("/api/admin/audit")
     def audit(request: Request, limit: int = 50, offset: int = 0, action: str = "", actor_user_id: str = "") -> JSONResponse:
         return _audit(request, limit, offset, action, actor_user_id)
+
+    @app.post("/api/admin/publications/retire")
+    def publications_retire(body: RetirePublicationBody, request: Request) -> JSONResponse:
+        refused = admin_only(request.state.actor)
+        if refused is not None:
+            return error_response(request.state.request_id, refused)
+        actor = request.state.actor.user_id
+        started = time.perf_counter()
+        try:
+            code = retire_publication(
+                request.app.state.loop.publications,
+                body.question_version_id,
+                body.answer_version_id,
+                actor,
+                request.app.state.loop.logger,
+                request_id=request.state.request_id,
+            )
+        except StoreFault as fault:
+            if fault.code != "invalid_actor":
+                raise
+            emit(
+                request.app.state.loop.logger,
+                level="ERROR",
+                event="route_actor_missing",
+                request_id=request.state.request_id,
+                module="catalog.publication",
+                outcome="invalid_actor",
+                started=started,
+            )
+            return error_response(request.state.request_id, Err("store_failed", "store_failed"), status=500)
+        if code == "not_found":
+            return error_response(
+                request.state.request_id,
+                Err("not_found", "the publication binding does not exist"),
+            )
+        return JSONResponse({"outcome": code})
+
+    @app.post("/api/admin/publications/publish")
+    def publications_publish(body: PublishPublicationBody, request: Request) -> JSONResponse:
+        refused = admin_only(request.state.actor)
+        if refused is not None:
+            return error_response(request.state.request_id, refused)
+        actor = request.state.actor.user_id
+        started = time.perf_counter()
+        try:
+            code = publish_publication(
+                request.app.state.loop.publications,
+                body.question_version_id,
+                body.answer_version_id,
+                actor,
+                request.app.state.loop.logger,
+                layout_template_id=body.layout_template_id,
+                request_id=request.state.request_id,
+            )
+        except StoreFault as fault:
+            if fault.code == "invalid_actor":
+                emit(
+                    request.app.state.loop.logger,
+                    level="ERROR",
+                    event="route_actor_missing",
+                    request_id=request.state.request_id,
+                    module="catalog.publication",
+                    outcome="invalid_actor",
+                    started=started,
+                )
+                return error_response(request.state.request_id, Err("store_failed", "store_failed"), status=500)
+            if fault.code == "invalid_subject":
+                emit(
+                    request.app.state.loop.logger,
+                    level="ERROR",
+                    event="route_subject_missing",
+                    request_id=request.state.request_id,
+                    module="catalog.publication",
+                    outcome="invalid_subject",
+                    started=started,
+                )
+                return error_response(request.state.request_id, Err("store_failed", "store_failed"), status=500)
+            raise
+        if code == "not_approved":
+            return error_response(
+                request.state.request_id,
+                Err("not_approved", "the question and answer are not both approved"),
+            )
+        if code == "published":
+            rows = request.app.state.loop.publications.rows_for(
+                body.question_version_id,
+                body.answer_version_id,
+            )
+            active = [row for row in rows if row.status == "active"]
+            return JSONResponse(
+                {"outcome": "published", "publication_id": active[0].publication_id}
+            )
+        return JSONResponse({"outcome": "already_active"})
 
 
 def _teacher_create(body: TeacherBody, request: Request) -> JSONResponse:

@@ -18,14 +18,15 @@
 
 2026-11-21：端口、内存适配器、PostgreSQL 适配器和出卷前检查已接上。契约见 `tests/catalog/test_publications_contract.py` 和 `tests/practice/test_practice_item_contract.py`。空库核对见 `docs/evidence/publication-table-2026-11-21.md`。
 
-2026-11-22：HTTP 出卷传入 `publications`。`retire_by_binding` 落地，只在真正撤销时写审计。端口不校验角色。retire HTTP 路由仍不做。
+2026-11-22：HTTP 出卷传入 `publications`。`retire_by_binding` 落地，只在真正撤销时写审计。端口不校验角色。
+
+2026-11-22：管理员路由 `POST /api/admin/publications/retire` 与 `POST /api/admin/publications/publish`。路由第一句是 `admin_only`，401 和 CSRF 仍在 `http_gate`。显式 publish 的 `subject_id` 从 approvals 读，空串是 `invalid_subject`。`layout_template_id` trim 后非空才写入。`publication_id` 是 `pub-{question}-{answer}-{seq}`。只在 outcome 为 `published` 时写 `publication_published`。端口仍不校验角色。issue #66 仍开，等 PR。
 
 ## 还不做
 
-- retire HTTP 路由、重新激活。端口 `retire_by_binding` 已落地。
 - `publication_asset`。
-- `layout_template_id` 绑定到出卷。
-- HTTP 出卷仍走 `open_paper`。D6 已把 `publications` 传入这条路径。issue #65 由 D6 PR Fixes。
-- retire_by_binding 端口不校验调用方角色，只在 actor 非空时记审计。路由层的 require_admin 必须由 D7 的 retire HTTP 路由带上。跟踪见 issue #66。
+- `layout_template_id` 绑定到出卷。显式 publish 只保存字符串。
+- 把 retired 行改回 active。再次 publish 另插一条 active，序号加一。
+- 端口里的角色校验。路由用 `admin_only`。issue #66 仍开。
 - knowledge 的 PostgreSQL 表、`figure_geometry`、`answer_decision`。
 - M-14 的外部接收方。issue #47 仍开着，本批不关闭、不改标签。
