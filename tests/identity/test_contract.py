@@ -82,7 +82,7 @@ class IdentityCases:
         calls = (
             lambda db: create_teacher(db, teacher, "other.one", TEACH_SECRET, self.world.deps, "r"),
             lambda db: disable_teacher(db, teacher, "teacher-1", self.world.deps, "r"),
-            lambda db: create_student(db, teacher, "Sample", "g7", "math", self.world.deps, "r"),
+            lambda db: create_student(db, teacher, "synth-deny", "g7", "math", self.world.deps, "r"),
             lambda db: archive_student(db, teacher, "student-1", self.world.deps, "r"),
             lambda db: grant_teacher(db, teacher, "teacher-1", "student-1", "math", self.world.deps, "r"),
             lambda db: revoke_grant(db, teacher, "teacher-1", "student-1", "math", self.world.deps, "r"),
@@ -371,8 +371,57 @@ class IdentityCases:
     def _teacher(self, admin: Actor, username: str) -> Ok[object] | Err:
         return self.world.run(lambda db: create_teacher(db, admin, username, TEACH_SECRET, self.world.deps, "teacher"))
 
+    def test_create_student_without_a_name(self) -> None:
+        admin = self.boot()
+        result = self.world.run(
+            lambda db: create_student(db, admin, "synth-0042", "g7", "math", self.world.deps, "noname")
+        )
+        self.assertIsInstance(result, Ok)
+        self.assertEqual(result.value.external_id, "synth-0042")  # type: ignore[attr-defined]
+        self.assertEqual(result.value.name, "")  # type: ignore[attr-defined]
+        self.assertNotIn("synth-0042", self.world.audit_text())
+
+    def test_duplicate_external_id_conflicts(self) -> None:
+        admin = self.boot()
+        first = self.world.run(
+            lambda db: create_student(db, admin, "synth-0043", "g7", "math", self.world.deps, "dup1")
+        )
+        second = self.world.run(
+            lambda db: create_student(db, admin, "synth-0043", "g7", "math", self.world.deps, "dup2")
+        )
+        self.assertIsInstance(first, Ok)
+        self.assertEqual(second.code, "external_id_taken")  # type: ignore[attr-defined]
+        self.assertNotIn("synth-0043", self.world.audit_text())
+
+    def test_synthetic_students_receive_placeholder_external_ids(self) -> None:
+        from backend.bootstrap.synthetic import ACTOR_TEACHER_ID, SYNTH_SECRET
+        from backend.identity.application.synthetic_seed import seed_synthetic
+
+        admin = self.boot()
+        seeded = self.world.run(
+            lambda db: seed_synthetic(
+                db,
+                self.world.deps,
+                user_id=ACTOR_TEACHER_ID,
+                username=ACTOR_TEACHER_ID,
+                secret=SYNTH_SECRET,
+                student_ids=("student-synth", "student-synth-2"),
+                subject_id="math",
+            )
+        )
+        self.assertIsInstance(seeded, Ok)
+        listed = self.world.run(lambda db: list_students(db, admin))
+        self.assertIsInstance(listed, Ok)
+        found = {row.student_id: row.external_id for row in listed.value}  # type: ignore[attr-defined]
+        self.assertEqual(found["student-synth"], "synth-0001")
+        self.assertEqual(found["student-synth-2"], "synth-0002")
+
     def _student(self, admin: Actor, name: str) -> Ok[object] | Err:
-        result = self.world.run(lambda db: create_student(db, admin, name, "g7", "math", self.world.deps, "student"))
+        self._student_seq = getattr(self, "_student_seq", 0) + 1
+        external_id = "synth-case-" + str(self._student_seq).zfill(4)
+        result = self.world.run(
+            lambda db: create_student(db, admin, external_id, "g7", "math", self.world.deps, "student", name)
+        )
         self.assertIsInstance(result, Ok)
         return result
 

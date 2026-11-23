@@ -22,6 +22,7 @@ _STATUS = {
     "paper_not_found": 404,
     "file_missing": 404,
     "username_taken": 409,
+    "external_id_taken": 409,
     "slot_conflict": 409,
     "already_granted": 409,
     "not_granted": 409,

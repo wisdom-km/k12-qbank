@@ -25,6 +25,13 @@ def subject_ok(value: str) -> bool:
     return bool(_SUBJECT.fullmatch(value))
 
 
+_EXTERNAL = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+
+def external_id_ok(value: str) -> bool:
+    return bool(_EXTERNAL.fullmatch(value.strip()))
+
+
 def label_ok(value: str, limit: int) -> bool:
     text = value.strip()
     return bool(text) and len(text) <= limit
