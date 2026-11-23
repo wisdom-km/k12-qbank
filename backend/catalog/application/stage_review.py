@@ -74,6 +74,9 @@ def _snapshot(question: QuestionDraft, answer: AnswerDraft, subject_id: str) -> 
         answer_text=_plain(answer.content),
         type=question.type,
         structure=question.structure,
+        options=tuple(
+            f"{option.key}. {_plain(option.content)}".strip() for option in question.options
+        ),
     )
 
 

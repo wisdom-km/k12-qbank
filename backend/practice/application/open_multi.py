@@ -27,6 +27,7 @@ def open_multi_paper(
     question_version_ids: Sequence[str],
     qr_printed: bool,
     printed_external_id: str,
+    slots_per_page: int = 1,
     approvals: ApprovalPort,
     auth: Authorizer,
     store: PracticeStore,
@@ -39,7 +40,7 @@ def open_multi_paper(
     attempt_text: str,
     publications: Publications,
 ) -> Ok[OpenedPaper] | Err:
-    """Copy each approved stem and answer, then draw one page per item."""
+    """Copy each approved stem and answer, then draw the packed pages."""
     started = time.perf_counter()
     if len(question_version_ids) < 2:
         return _refuse(logger, request_id, started, "not_multi", "a multi-item paper needs at least two items")
@@ -74,6 +75,7 @@ def open_multi_paper(
                 answer_version_id=snapshot.answer_version_id,
                 stem_text=snapshot.stem,
                 answer_text=snapshot.answer_text,
+                option_text="\n".join(snapshot.options),
             )
         )
     composed = compose_multi_item_paper(
@@ -87,6 +89,7 @@ def open_multi_paper(
         writer=writer,
         qr_printed=qr_printed,
         printed_external_id=printed_external_id,
+        slots_per_page=slots_per_page,
     )
     if isinstance(composed, Err):
         return _refuse(logger, request_id, started, composed.code, composed.message)

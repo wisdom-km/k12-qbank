@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.bootstrap.compose import Loop, attach_identity, compose, repo_root
 from backend.bootstrap.ready import ReadyWindow, database_ready
-from backend.bootstrap.run_mode import choose_persist, cors_origins
+from backend.bootstrap.run_mode import choose_persist, cors_origins, require_pdf_font
 from backend.bootstrap.stdout_log import StdoutLogger
 from backend.bootstrap.http_errors import error_response
 from backend.bootstrap.http_gate import gate
@@ -190,6 +190,7 @@ def _default_app() -> FastAPI:
     env = os.environ.get("K12_ENV", "")
     persist = choose_persist(env, os.environ.get("K12_PG_DSN", ""), logger)
     cors_origins(env, os.environ.get("K12_CORS_ORIGINS"), logger)
+    require_pdf_font(env, logger)
     if persist:
         return create_app(persist=True)
     return create_app()

@@ -7,8 +7,9 @@ from collections.abc import Sequence
 from backend.catalog.api import ApprovalPort, Publications
 from backend.kernel.result import Err, Ok
 from backend.practice.application.ports import ComposedPaperStore
-from backend.practice.domain.item import PracticeItem
+from backend.practice.domain.item import PracticeItem, stored_item
 from backend.practice.domain.page_face import formula_from_stem
+from backend.practice.domain.page_layout import pack_items
 from backend.practice.domain.paper import Paper, freeze_paper
 
 
@@ -24,6 +25,7 @@ def compose_multi_item_paper(
     writer: ComposedPaperStore,
     qr_printed: bool = False,
     printed_external_id: str = "",
+    slots_per_page: int = 1,
 ) -> Ok[Paper] | Err:
     """Freeze two or more items. The paper column keeps items[0] for old readers."""
     shape = _shape_error(paper_id, items)
@@ -56,10 +58,13 @@ def compose_multi_item_paper(
         formula=formula_from_stem(first.stem),
         qr_printed=qr_printed,
         printed_external_id=printed_external_id,
+        slots_per_page=slots_per_page,
     )
     if isinstance(paper, Err):
         return paper
-    stored = tuple(_stored(paper_id, item) for item in items)
+    stored = tuple(stored_item(paper_id, item) for item in items)
+    if slots_per_page > 1:
+        stored = pack_items(stored, slots_per_page)
     writer.place_composed(paper, stored)
     return Ok(paper)
 
@@ -89,13 +94,4 @@ def _shape_error(paper_id: str, items: Sequence[PracticeItem]) -> Err | None:
     return None
 
 
-def _stored(paper_id: str, item: PracticeItem) -> PracticeItem:
-    return PracticeItem(
-        paper_id=paper_id,
-        order_no=item.order_no,
-        question_version_id=item.question_version_id,
-        answer_version_id=item.answer_version_id,
-        score=item.score,
-        stem_text=item.stem_text,
-        answer_text=item.answer_text,
-    )
+

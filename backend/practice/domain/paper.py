@@ -27,6 +27,7 @@ class Paper:
     formula: str = ""
     qr_printed: bool = False
     printed_external_id: str = ""
+    slots_per_page: int = 1
 
 
 def freeze_paper(
@@ -44,6 +45,7 @@ def freeze_paper(
     formula: str = "",
     qr_printed: bool = False,
     printed_external_id: str = "",
+    slots_per_page: int = 1,
 ) -> Paper | Err:
     """Copy the version ids and the formula onto the paper. Empty ids are refused."""
     if not question_version_id.strip() or not answer_version_id.strip():
@@ -68,6 +70,7 @@ def freeze_paper(
         formula=formula,
         qr_printed=qr_printed,
         printed_external_id=printed_external_id,
+        slots_per_page=slots_per_page,
     )
 
 

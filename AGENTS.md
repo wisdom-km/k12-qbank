@@ -48,7 +48,7 @@
 | 第一次连接 PostgreSQL | ADR 0012 和 [docs/adr/0028-postgres-and-memory.md](docs/adr/0028-postgres-and-memory.md)。这次有行要写的是 identity 和审计，迁移见 [docs/adr/0029-sql-migrations.md](docs/adr/0029-sql-migrations.md)。题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。发布、知识点和多题练习见 [docs/adr/0015-publication-and-practice.md](docs/adr/0015-publication-and-practice.md)。解题方法和错因见 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。没有行的表不建。不用 SQLite |
 | 学情保留和删除 | [docs/adr/0020-learning-data-retention.md](docs/adr/0020-learning-data-retention.md)。不写天数。这一步不实现删除 |
 | 真实阶段前的集成验证 | [docs/adr/0021-integration-proof.md](docs/adr/0021-integration-proof.md)。PostgreSQL 适配器、文件存储和真实老师登录要同一次走完 AC-01、AC-02、AC-04。这一步不连接数据库 |
-| 中文字体 | [docs/adr/0022-cjk-font-license.md](docs/adr/0022-cjk-font-license.md) 记下 OFL 不在允许名单。[docs/adr/0024-system-kaiti.md](docs/adr/0024-system-kaiti.md) 采纳本机楷体。字体文件不进仓库 |
+| 中文字体 | [docs/adr/0022-cjk-font-license.md](docs/adr/0022-cjk-font-license.md) 记下 OFL 不在允许名单。[docs/adr/0024-system-kaiti.md](docs/adr/0024-system-kaiti.md) 的修订：卷面印完整题干，字体由部署环境提供，缺字体显式报错。字体文件不进仓库 |
 | 网页 API 类型 | [docs/adr/0023-openapi-types.md](docs/adr/0023-openapi-types.md)。默认进程关闭 OpenAPI。类型由 `scripts/check_api_types.py` 核对 |
 
 ## 命令

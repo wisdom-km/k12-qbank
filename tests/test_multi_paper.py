@@ -9,6 +9,13 @@ from unittest import mock
 
 from http_client import signed_client
 
+from backend.practice.domain.page_layout import slot_answer_box
+
+def _box(slot_no: int) -> bytes:
+    left, bottom, width, height = slot_answer_box(4, slot_no, 1)
+    return f"{left} {bottom} {width} {height} re S".encode("ascii")
+
+
 ISSUE = {
     "teacher_id": "teacher-synth",
     "student_id": "student-synth",
@@ -19,7 +26,7 @@ ISSUE = {
 
 
 class MultiPaperHttpTest(unittest.TestCase):
-    def test_two_approved_items_print_one_page_each_and_keep_the_snapshot(self) -> None:
+    def test_two_approved_items_share_one_page_and_keep_the_snapshot(self) -> None:
         with mock.patch.dict(os.environ, {"K12_PAPER_QR": "on"}):
             with signed_client() as client:
                 self._publish(client, "q-v1")
@@ -48,20 +55,28 @@ class MultiPaperHttpTest(unittest.TestCase):
                 self.assertNotIn("printed_external_id", opened.text)
                 self.assertEqual(body["student_id"], "student-synth")
                 pdf = client.get("/api/practice/files/" + body["file_id"]).content
-                self.assertIn(b"/Count 2", pdf)
-                self.assertIn(b"page 2", pdf)
-                self.assertIn(b"pages 2", pdf)
+                self.assertIn(b"/Count 1", pdf)
+                self.assertIn(b"page 1", pdf)
+                self.assertIn(b"pages 1", pdf)
+                self.assertNotIn(b"page 2", pdf)
                 self.assertIn(b"synth-0001", pdf)
                 self.assertNotIn(b"student-synth", pdf)
                 self.assertNotIn(b"synth-ans-keep", pdf)
                 self.assertNotIn(str(body["paper_id"]).encode(), pdf)
-                self.assertIn(b"72 220 451 220 re S", pdf)
-                self.assertIn(b"formula \\(-3\\)+5", pdf)
-                self.assertIn("formula 2\u00d73".encode("cp1252"), pdf)
+                self.assertIn(_box(1), pdf)
+                self.assertIn(_box(2), pdf)
+                self.assertIn(b"\\(-3\\)+5", pdf)
+                self.assertIn("2\u00d73".encode("cp1252"), pdf)
+                self.assertIn(b"<8BA1>", pdf)
                 on_marks = pdf.count(b" re f")
                 frozen = client.app.state.loop.items.items_of(body["paper_id"])
                 self.assertEqual([item.stem_text for item in frozen], ["计算：(-3)+5", "计算：2\u00d73"])
                 self.assertEqual(frozen[1].answer_text, "synth-ans-keep")
+                self.assertEqual([item.page_no for item in frozen], [1, 1])
+                self.assertEqual([item.slot_no for item in frozen], [1, 2])
+                self.assertEqual([item.slot_span for item in frozen], [1, 1])
+                stored_paper = client.app.state.loop.practice.get_paper(body["paper_id"])
+                self.assertEqual(stored_paper.slots_per_page, 4)
                 live = client.app.state.loop.approvals.read_snapshot("q-v1")
                 assert live is not None
                 client.app.state.loop.approvals.put(replace(live, stem="计算：9+9", answer_text="18"))
@@ -104,7 +119,7 @@ class MultiPaperHttpTest(unittest.TestCase):
                 self.assertEqual(quiet.status_code, 200, quiet.text)
                 self.assertFalse(quiet.json()["qr_printed"])
                 quiet_pdf = client.get("/api/practice/files/" + quiet.json()["file_id"]).content
-                self.assertIn(b"/Count 2", quiet_pdf)
+                self.assertIn(b"/Count 1", quiet_pdf)
                 self.assertLess(quiet_pdf.count(b" re f"), on_marks)
 
     def _publish(self, client: object, question_version_id: str) -> None:

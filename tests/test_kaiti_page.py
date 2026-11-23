@@ -2,31 +2,22 @@
 
 from __future__ import annotations
 
-import os
 import struct
 import unittest
 from pathlib import Path
 
 from backend.kernel.result import Err
-from backend.practice.adapters.pdf_font import _face_origin
+from backend.practice.adapters.pdf_font import _face_origin, load_system_face
 from backend.practice.adapters.pdf_page import StdPdf
 from backend.practice.domain.page_face import PaperPage
 
 ROOT = Path(__file__).resolve().parents[1]
 _MESSAGE = "this synthetic page cannot encode the formula"
-_FACES = (
-    ("simkai.ttf", "KaiTi"),
-    ("msyh.ttc", "MicrosoftYaHei"),
-    ("simhei.ttf", "SimHei"),
-)
-
-
 def _installed_face() -> str | None:
-    folder = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
-    for filename, name in _FACES:
-        if (folder / filename).is_file():
-            return name
-    return None
+    face = load_system_face()
+    if face is None:
+        return None
+    return face.name
 
 
 def _page(formula: str) -> PaperPage:
@@ -82,8 +73,7 @@ class KaitiPageTest(unittest.TestCase):
         if face is None:
             self.assertIsInstance(drawn, Err)
             assert isinstance(drawn, Err)
-            self.assertEqual(drawn.code, "not_rendered")
-            self.assertEqual(drawn.message, _MESSAGE)
+            self.assertEqual(drawn.code, "pdf_font_missing")
             return
         self.assertIsInstance(drawn, bytes)
         assert isinstance(drawn, bytes)
@@ -92,7 +82,8 @@ class KaitiPageTest(unittest.TestCase):
         self.assertIn(b"/Encoding /WinAnsiEncoding", drawn)
         self.assertIn(f"/BaseFont /K12QBK+{face}".encode("ascii"), drawn)
         self.assertIn(b"/FontFile2", drawn)
-        self.assertNotIn(b"Noto", drawn)
+        if "Noto" not in face:
+            self.assertNotIn(b"Noto", drawn)
         ttf = _embedded_ttf(drawn)
         self.assertEqual(ttf[:4], b"\x00\x01\x00\x00")
         glyph = _cmap_glyph(ttf, ord("解"))

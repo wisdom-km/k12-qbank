@@ -24,6 +24,7 @@ class PreparedIssue:
     paper: Paper
     answer_text: str
     stem: str = ""
+    option_text: str = ""
 
 
 def prepare_issue(
@@ -87,12 +88,14 @@ def prepare_issue(
         formula=formula_from_stem(snapshot.stem if snapshot is not None else ""),
         qr_printed=command.qr_printed,
         printed_external_id=command.printed_external_id,
+        slots_per_page=command.slots_per_page,
     )
     if isinstance(paper, Err):
         return _refuse_issue(logger, request_id, started, paper.code, paper.message)
     answer_text = snapshot.answer_text if snapshot is not None else ""
     stem = snapshot.stem if snapshot is not None else ""
-    return Ok(PreparedIssue(paper=paper, answer_text=answer_text, stem=stem))
+    option_text = "" if snapshot is None else "\n".join(snapshot.options)
+    return Ok(PreparedIssue(paper=paper, answer_text=answer_text, stem=stem, option_text=option_text))
 
 
 def gate_active_publication(

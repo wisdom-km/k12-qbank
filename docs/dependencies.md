@@ -53,7 +53,7 @@
 | vitest | 5.1.1 | 四个页面测试。不进页面运行 | MIT |
 | jsdom | 29.1.1 | 页面测试的浏览器环境。不进页面运行 | MIT |
 
-没有加入 reportlab 或 WeasyPrint。合成 PDF 仍由标准库写成一页 Helvetica，字体编码是 WinAnsi。中文用本机楷体、微软雅黑或黑体，见 ADR 0024。字体文件不进仓库。
+没有加入 reportlab 或 WeasyPrint。合成 PDF 仍由标准库写成一页 Helvetica，字体编码是 WinAnsi。中文用部署环境提供的字体，见 ADR 0024。字体文件不进仓库。
 
 锁文件里还有这些构建期传递依赖。它们不进入 Python 进程。Apache-2.0 的 `baseline-browser-mapping` 和 BSD-3-Clause 的 `source-map-js` 在允许的许可证名单里。下面这些不在 MIT、BSD、Apache-2.0 名单里，待人审。这项决定不挡住其余修复，也没有为它增删包。
 

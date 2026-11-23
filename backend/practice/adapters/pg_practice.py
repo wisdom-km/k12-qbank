@@ -24,7 +24,7 @@ T = TypeVar("T")
 _PAPER = """
 paper_id, teacher_id, student_id, subject_id, question_version_id, answer_version_id,
 asset_ids, layout_template_id, review_version_id, file_id, status, item_order, file_checksum, formula,
-qr_printed, printed_external_id
+qr_printed, printed_external_id, slots_per_page
 """
 _ANSWER = """
 fixture_answer_id, paper_id, sub_question_id, review_version_id, student_id, status, answer_text
@@ -191,7 +191,7 @@ def _save_paper(conn: Any, paper: Paper) -> None:
     conn.execute(
         f"""
         INSERT INTO papers ({_PAPER})
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (paper_id) DO UPDATE SET
             teacher_id = EXCLUDED.teacher_id,
             student_id = EXCLUDED.student_id,
@@ -207,7 +207,8 @@ def _save_paper(conn: Any, paper: Paper) -> None:
             file_checksum = EXCLUDED.file_checksum,
             formula = EXCLUDED.formula,
             qr_printed = EXCLUDED.qr_printed,
-            printed_external_id = EXCLUDED.printed_external_id
+            printed_external_id = EXCLUDED.printed_external_id,
+            slots_per_page = EXCLUDED.slots_per_page
         """,
         _paper_params(paper),
     )
@@ -359,6 +360,7 @@ def _paper_params(paper: Paper) -> tuple[object, ...]:
         paper.formula,
         paper.qr_printed,
         paper.printed_external_id,
+        paper.slots_per_page,
     )
 
 
@@ -380,6 +382,7 @@ def _paper_row(row: tuple[object, ...]) -> Paper:
         formula=str(row[13]),
         qr_printed=bool(row[14]),
         printed_external_id=str(row[15]),
+        slots_per_page=int(row[16]),  # type: ignore[arg-type]
     )
 
 

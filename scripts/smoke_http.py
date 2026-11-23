@@ -51,12 +51,13 @@ def main() -> int:
     pdf = _open(base + "/api/practice/files/" + str(opened["file_id"])).read()
     paper_id = str(opened["paper_id"]).encode()
     if (
-        b"formula \\(-3\\)+5" not in pdf
+        b"\\(-3\\)+5" not in pdf
+        or b"<8BA1>" not in pdf
         or b"synth-0001" not in pdf
         or b"page 1" not in pdf
         or b"pages 1" not in pdf
     ):
-        print("SMOKE HTTP FAIL: pdf missing formula, external id, or page")
+        print("SMOKE HTTP FAIL: pdf missing stem, external id, or page")
         return 1
     if b"student-synth" in pdf or b"name-rule omit" in pdf or paper_id in pdf or b"answer " in pdf:
         print("SMOKE HTTP FAIL: pdf prints the internal id, a name rule, the paper id, or an answer")

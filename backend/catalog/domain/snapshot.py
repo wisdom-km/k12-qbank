@@ -20,6 +20,7 @@ class ApprovalSnapshot:
     answer_text: str = ""
     type: str = ""
     structure: str = ""
+    options: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -33,3 +33,11 @@ ADR 0022 记下 Noto Sans CJK 的许可证是 SIL Open Font License 1.1，不在
 ## 状态
 
 采纳。2026-11-18。用户选定楷体，可用微软雅黑或黑体。不把字体文件放进仓库。不取代「拉丁字符用 Helvetica」。
+
+## 修订（2026-11-24，R4b）
+
+卷面改印完整题干和选择题的全部选项。汉字不再为了绕开字体而留在练习项里。字体由部署环境提供，查找顺序是 `K12_PDF_FONT_PATH`、Linux 上的 Noto CJK 常见路径、Windows 上的微软雅黑或宋体。字体文件仍不进仓库。
+
+缺字体时显式报错：`K12_ENV=production` 启动退出；development 出卷返回 `pdf_font_missing`。任何环境都不许只印公式、丢掉汉字。
+
+拉丁字符仍用 Helvetica。根号这类写不出的字符仍是 `not_rendered`。

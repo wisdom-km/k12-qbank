@@ -6,6 +6,18 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class SlotFace:
+    """One question drawn in a fixed slot. The box comes from slot_answer_box."""
+
+    order_no: int
+    slot_no: int
+    slot_span: int
+    stem: str
+    options: tuple[str, ...]
+    answer_box: tuple[int, int, int, int]
+
+
+@dataclass(frozen=True)
 class PaperPage:
     """What a synthetic student page may show.
 
@@ -26,6 +38,7 @@ class PaperPage:
     printed_external_id: str = ""
     qr_printed: bool = False
     stem: str = ""
+    slots: tuple[SlotFace, ...] = ()
 
 
 def formula_from_stem(stem: str) -> str:

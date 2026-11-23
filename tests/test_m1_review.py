@@ -75,7 +75,8 @@ class ReviewLoopTest(unittest.TestCase):
         self.assertNotIn(str(second["paper_id"]).encode(), one)
         self.assertNotIn(str(first["paper_id"]).encode(), two)
         for pdf, row in ((one, first), (two, second)):
-            self.assertIn(b"formula \\(-3\\)+5", pdf)
+            self.assertIn(b"\\(-3\\)+5", pdf)
+            self.assertIn(b"<8BA1>", pdf)
             self.assertIn(b"synth-0001", pdf)
             self.assertNotIn(b"student-synth", pdf)
             self.assertNotIn(b"name-rule omit", pdf)

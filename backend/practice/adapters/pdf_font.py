@@ -1,8 +1,8 @@
-"""Subset the installed KaiTi face for one PDF page.
+"""Subset one installed CJK face for one PDF page.
 
-The font file stays in the Windows Fonts folder. This module reads simkai.ttf,
-then Microsoft YaHei, then SimHei, and returns only the glyphs this page uses.
-It does not copy the font into the repository.
+The font file stays on the machine. Search order is K12_PDF_FONT_PATH, then
+the usual Linux Noto CJK paths, then Microsoft YaHei or SimSun under
+%WINDIR%\\Fonts. This module does not copy a font into the repository.
 """
 
 from __future__ import annotations
@@ -12,10 +12,24 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 
-_FACES = (
-    ("simkai.ttf", "KaiTi"),
+MISSING_FONT = (
+    "no CJK font for the paper. Set K12_PDF_FONT_PATH to a .ttf or .ttc file, "
+    "or install fonts-noto-cjk (apt-get install fonts-noto-cjk), "
+    "or install Microsoft YaHei (msyh.ttc) or SimSun (simsun.ttc)."
+)
+
+_LINUX = (
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+)
+
+_WINDOWS = (
     ("msyh.ttc", "MicrosoftYaHei"),
-    ("simhei.ttf", "SimHei"),
+    ("msyh.ttf", "MicrosoftYaHei"),
+    ("simsun.ttc", "SimSun"),
+    ("simsun.ttf", "SimSun"),
 )
 
 
@@ -42,20 +56,44 @@ class PageFont:
 
 
 def load_system_face() -> SystemFace | None:
+    """Return the first face that opens. A missing path falls through."""
+    explicit = os.environ.get("K12_PDF_FONT_PATH", "").strip()
+    if explicit:
+        found = _read_face(Path(explicit), _safe_name(Path(explicit).stem, "Custom"))
+        if found is not None:
+            return found
+    for raw in _LINUX:
+        path = Path(raw)
+        found = _read_face(path, _safe_name(path.stem, "CJK"))
+        if found is not None:
+            return found
     windir = os.environ.get("WINDIR", r"C:\Windows")
     folder = (Path(windir) / "Fonts").resolve()
     if not folder.is_dir():
         return None
-    for filename, name in _FACES:
+    for filename, name in _WINDOWS:
         path = (folder / filename).resolve()
-        if path.parent != folder or not path.is_file():
+        if path.parent != folder:
             continue
-        data = path.read_bytes()
-        origin = _face_origin(data)
-        if origin is None:
-            continue
-        return SystemFace(name, data, origin)
+        found = _read_face(path, name)
+        if found is not None:
+            return found
     return None
+
+
+def _safe_name(stem: str, fallback: str) -> str:
+    cleaned = "".join(char for char in stem if char.isascii() and (char.isalnum() or char in "-_"))
+    return cleaned or fallback
+
+
+def _read_face(path: Path, name: str) -> SystemFace | None:
+    if not path.is_file():
+        return None
+    data = path.read_bytes()
+    origin = _face_origin(data)
+    if origin is None:
+        return None
+    return SystemFace(name, data, origin)
 
 
 def subset_page_font(face: SystemFace, codes: set[int]) -> PageFont | None:

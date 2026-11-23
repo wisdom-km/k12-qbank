@@ -1,14 +1,13 @@
 """Synthetic PDF. Latin text stays on the built-in Helvetica face.
 
-The page shows the printed student number, the page numbers, the formula,
-corner marks, a fixed answer box, and an optional QR code.
-It does not print a name, a class, or the internal student id. The Chinese
-label in front of the formula stays off the page (ADR 0024). The question
-and the answer stay on the practice item. The QR code is
+A page with slots prints the question number, the full stem, and the options.
+A page without slots keeps the older formula line. Both print the student
+number, the page numbers, corner marks, answer boxes, and an optional QR code.
+Neither prints a name, a class, or the internal student id. The QR code is
 drawn as rectangles. Its payload is not a literal string in the file.
-Latin text uses WinAnsiEncoding. Chinese uses the installed KaiTi, Microsoft
-YaHei, or SimHei face and embeds only this document's glyphs.
-A character neither face can take is a stable render error.
+Latin text uses WinAnsiEncoding. Chinese uses the face from pdf_font and
+embeds only this document's glyphs. A missing face is pdf_font_missing.
+A character the loaded face cannot draw is not_rendered.
 """
 
 from __future__ import annotations
@@ -16,10 +15,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from backend.kernel.result import Err
-from backend.practice.adapters.pdf_font import PageFont, load_system_face, subset_page_font
+from backend.practice.adapters.pdf_font import MISSING_FONT, PageFont, load_system_face, subset_page_font
 from backend.practice.domain.page_face import PaperPage
-from backend.practice.domain.page_layout import alignment_marks, answer_box, qr_origin
+from backend.practice.domain.page_layout import alignment_marks, answer_box, placed_slot_lines, qr_origin
 from backend.practice.domain.qr_code import encode_qr, qr_payload
+
+
+class _FontMissing(Exception):
+    """CJK text is on the page and no face opened."""
 
 
 class StdPdf:
@@ -29,23 +32,32 @@ class StdPdf:
         return self.render_document((page,))
 
     def render_document(self, pages: Sequence[PaperPage]) -> bytes | Err:
-        prepared: list[tuple[tuple[str, ...], list[str]]] = []
+        slotted = any(page.slots for page in pages)
+        prepared: list[tuple[tuple[tuple[str, int, int], ...], list[str]]] = []
         for page in pages:
             try:
-                prepared.append((_lines(page), _graphics(page)))
+                if slotted:
+                    prepared.append((_slot_lines(page), _slot_graphics(page)))
+                else:
+                    prepared.append((_legacy_positions(_lines(page)), _graphics(page)))
             except (ValueError, RuntimeError):
                 return Err("not_rendered", "this synthetic page cannot encode the formula")
         try:
-            if any(_has_cjk(line) for lines, _ in prepared for line in lines):
+            if any(_has_cjk(text) for lines, _ in prepared for text, _x, _y in lines):
                 return _pdf_cjk(prepared)
-            encoded = [tuple(_pdf_text(line) for line in lines) for lines, _ in prepared]
+            encoded = [
+                tuple((_pdf_text(text), x, y) for text, x, y in lines) for lines, _ in prepared
+            ]
             marks = [graphics for _, graphics in prepared]
             return _pdf(encoded, marks)
+        except _FontMissing:
+            return Err("pdf_font_missing", MISSING_FONT)
         except UnicodeEncodeError:
             return Err("not_rendered", "this synthetic page cannot encode the formula")
 
 
 def _lines(page: PaperPage) -> tuple[str, ...]:
+    """Legacy face. The formula is the only question text. Slots use _slot_lines."""
     lines: list[str] = []
     if page.printed_external_id:
         lines.append(page.printed_external_id)
@@ -56,17 +68,64 @@ def _lines(page: PaperPage) -> tuple[str, ...]:
     return tuple(lines)
 
 
+def _legacy_positions(lines: tuple[str, ...]) -> tuple[tuple[str, int, int], ...]:
+    y = 780
+    placed: list[tuple[str, int, int]] = []
+    for line in lines:
+        placed.append((line, 48, y))
+        y -= 18
+    return tuple(placed)
+
+
+def _slot_lines(page: PaperPage) -> tuple[tuple[str, int, int], ...]:
+    rows: list[tuple[str, int, int]] = list(_legacy_positions(_header(page)))
+    for slot in page.slots:
+        rows.extend(
+            placed_slot_lines(slot.order_no, slot.slot_no, slot.slot_span, slot.stem, slot.options)
+        )
+    return tuple(rows)
+
+
+def _header(page: PaperPage) -> tuple[str, ...]:
+    lines: list[str] = []
+    if page.printed_external_id:
+        lines.append(page.printed_external_id)
+    lines.append("page " + str(page.page_number))
+    lines.append("pages " + str(page.page_count))
+    return tuple(lines)
+
+
 def _graphics(page: PaperPage) -> list[str]:
+    commands = _marks()
+    left, bottom, width, height = answer_box(max(page.page_number, 1))
+    commands.append(f"{left} {bottom} {width} {height} re S")
+    commands.extend(_qr(page))
+    return commands
+
+
+def _slot_graphics(page: PaperPage) -> list[str]:
+    commands = _marks()
+    for slot in page.slots:
+        left, bottom, width, height = slot.answer_box
+        commands.append(f"{left} {bottom} {width} {height} re S")
+    commands.extend(_qr(page))
+    return commands
+
+
+def _marks() -> list[str]:
     commands = ["0 0 0 rg", "0 0 0 RG", "1.5 w"]
     for left, bottom, width, height in alignment_marks():
         commands.append(f"{left} {bottom} {width} {height} re f")
-    left, bottom, width, height = answer_box(max(page.page_number, 1))
-    commands.append(f"{left} {bottom} {width} {height} re S")
+    return commands
+
+
+def _qr(page: PaperPage) -> list[str]:
     if not page.qr_printed:
-        return commands
+        return []
     matrix = encode_qr(qr_payload(page.paper_id, page.page_number))
     origin_x, origin_y, module = qr_origin()
     size = len(matrix)
+    commands: list[str] = []
     for row, cells in enumerate(matrix):
         for col, dark in enumerate(cells):
             if not dark:
@@ -99,7 +158,7 @@ def _pdf_text(text: str) -> str:
     return raw.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
-def _pdf(pages: list[tuple[str, ...]], graphics: list[list[str]]) -> bytes:
+def _pdf(pages: list[tuple[tuple[str, int, int], ...]], graphics: list[list[str]]) -> bytes:
     contents = [_latin_stream(lines, marks) for lines, marks in zip(pages, graphics)]
     font_at = 3 + 2 * len(contents)
     resources = f"<< /Font << /F1 {font_at} 0 R >> >>".encode("ascii")
@@ -107,21 +166,19 @@ def _pdf(pages: list[tuple[str, ...]], graphics: list[list[str]]) -> bytes:
     return _assemble(contents, resources, trailing)
 
 
-def _latin_stream(lines: tuple[str, ...], graphics: list[str]) -> bytes:
+def _latin_stream(lines: tuple[tuple[str, int, int], ...], graphics: list[str]) -> bytes:
     commands = list(graphics)
     commands.extend(["BT", "/F1 12 Tf"])
-    y = 780
-    for line in lines:
-        commands.append(f"1 0 0 1 48 {y} Tm ({line}) Tj")
-        y -= 18
+    for line, x, y in lines:
+        commands.append(f"1 0 0 1 {x} {y} Tm ({line}) Tj")
     commands.append("ET")
     return ("\n".join(commands) + "\n").encode("latin-1")
 
 
-def _pdf_cjk(prepared: list[tuple[tuple[str, ...], list[str]]]) -> bytes:
+def _pdf_cjk(prepared: list[tuple[tuple[tuple[str, int, int], ...], list[str]]]) -> bytes:
     codes: set[int] = set()
     for lines, _ in prepared:
-        for line in lines:
+        for line, _x, _y in lines:
             for char in line:
                 if _is_cjk(char):
                     codes.add(ord(char))
@@ -129,7 +186,7 @@ def _pdf_cjk(prepared: list[tuple[tuple[str, ...], list[str]]]) -> bytes:
                     _pdf_text(char)
     face = load_system_face()
     if face is None:
-        raise UnicodeEncodeError("cp1252", "cjk", 0, 1, "no system face")
+        raise _FontMissing()
     font = subset_page_font(face, codes)
     if font is None:
         raise UnicodeEncodeError("cp1252", "cjk", 0, 1, "glyph missing")
@@ -139,19 +196,19 @@ def _pdf_cjk(prepared: list[tuple[tuple[str, ...], list[str]]]) -> bytes:
     return _assemble(contents, resources, _cjk_fonts(font, codes, font_at))
 
 
-def _cjk_stream(lines: tuple[str, ...], graphics: list[str], font: PageFont) -> bytes:
+def _cjk_stream(
+    lines: tuple[tuple[str, int, int], ...], graphics: list[str], font: PageFont
+) -> bytes:
     commands = list(graphics)
     commands.append("BT")
-    y = 780
-    for line in lines:
-        commands.append(f"1 0 0 1 48 {y} Tm")
+    for line, x, y in lines:
+        commands.append(f"1 0 0 1 {x} {y} Tm")
         for kind, run in _runs(line):
             if kind == "cjk":
                 glyphs = "".join(f"{font.glyph_id[ord(char)]:04X}" for char in run)
                 commands.append(f"/F2 12 Tf <{glyphs}> Tj")
             else:
                 commands.append(f"/F1 12 Tf ({_pdf_text(run)}) Tj")
-        y -= 18
     commands.append("ET")
     return ("\n".join(commands) + "\n").encode("latin-1")
 
