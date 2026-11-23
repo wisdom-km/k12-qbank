@@ -1,8 +1,10 @@
 """Synthetic PDF. Latin text stays on the built-in Helvetica face.
 
-The page shows the printed student number, the page numbers, the frozen stem
-or formula, corner marks, a fixed answer box, and an optional QR code.
-It does not print a name, a class, or the internal student id. The QR code is
+The page shows the printed student number, the page numbers, the formula,
+corner marks, a fixed answer box, and an optional QR code.
+It does not print a name, a class, or the internal student id. The Chinese
+label in front of the formula stays off the page (ADR 0024). The question
+and the answer stay on the practice item. The QR code is
 drawn as rectangles. Its payload is not a literal string in the file.
 Latin text uses WinAnsiEncoding. Chinese uses the installed KaiTi, Microsoft
 YaHei, or SimHei face and embeds only this document's glyphs.
@@ -49,8 +51,6 @@ def _lines(page: PaperPage) -> tuple[str, ...]:
         lines.append(page.printed_external_id)
     lines.append("page " + str(page.page_number))
     lines.append("pages " + str(page.page_count))
-    if page.stem:
-        lines.append(page.stem)
     if page.formula:
         lines.append("formula " + page.formula)
     return tuple(lines)
