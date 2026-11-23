@@ -307,6 +307,86 @@ class PublicationCases:
         self.assertEqual(by_status["retired"].publication_id, f"pub-{question_id}-{answer_id}-1")  # type: ignore[attr-defined]
         self.assertEqual(by_status["active"].publication_id, f"pub-{question_id}-{answer_id}-2")  # type: ignore[attr-defined]
 
+    def test_retire_twice_different_publications_succeeds(self) -> None:
+        question_id, answer_id = "q-74-twice", "a-74-twice"
+        self._approve(question_id, answer_id, "subj-74")
+        first_publish = self.publications.publish_by_binding(  # type: ignore[attr-defined]
+            question_id, answer_id, "actor-74"
+        )
+        self.assertEqual(first_publish, "published")  # type: ignore[attr-defined]
+        book = MemoryAuditBook()
+        logger = CompositeLogger([self.logger], book)  # type: ignore[list-item]
+        first = retire_publication(
+            self.publications,  # type: ignore[arg-type]
+            question_id,
+            answer_id,
+            "actor-74",
+            logger,
+            request_id="req-74-a",
+        )
+        self.assertEqual(first, "retired")  # type: ignore[attr-defined]
+        second_publish = self.publications.publish_by_binding(  # type: ignore[attr-defined]
+            question_id, answer_id, "actor-74"
+        )
+        self.assertEqual(second_publish, "published")  # type: ignore[attr-defined]
+        second = retire_publication(
+            self.publications,  # type: ignore[arg-type]
+            question_id,
+            answer_id,
+            "actor-74",
+            logger,
+            request_id="req-74-b",
+        )
+        self.assertEqual(second, "retired")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        ids = [f"pub-{question_id}-{answer_id}-1", f"pub-{question_id}-{answer_id}-2"]
+        self.assertEqual([row.publication_id for row in rows], ids)  # type: ignore[attr-defined]
+        self.assertEqual([row.status for row in rows], ["retired", "retired"])  # type: ignore[attr-defined]
+        audited = [row.target_id for row in book.rows]
+        self.assertEqual(audited, ids)  # type: ignore[attr-defined]
+        self.assertNotEqual(audited[0], audited[1])  # type: ignore[attr-defined]
+
+    def test_single_active_still_enforced(self) -> None:
+        question_id, answer_id = "q-74-one", "a-74-one"
+        self._approve(question_id, answer_id, "subj-74-one")
+        first = self.publications.publish_by_binding(question_id, answer_id, "actor-74")  # type: ignore[attr-defined]
+        second = self.publications.publish_by_binding(question_id, answer_id, "actor-74")  # type: ignore[attr-defined]
+        self.assertEqual(first, "published")  # type: ignore[attr-defined]
+        self.assertEqual(second, "already_active")  # type: ignore[attr-defined]
+        rows = self.publications.rows_for(question_id, answer_id)  # type: ignore[attr-defined]
+        self.assertEqual(len(rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].status, "active")  # type: ignore[attr-defined]
+        self.assertEqual(rows[0].publication_id, f"pub-{question_id}-{answer_id}-1")  # type: ignore[attr-defined]
+
+    def test_retire_already_retired_still_idempotent(self) -> None:
+        question_id, answer_id = "q-74-again", "a-74-again"
+        self._approve(question_id, answer_id, "subj-74-again")
+        published = self.publications.publish_by_binding(question_id, answer_id, "actor-74")  # type: ignore[attr-defined]
+        self.assertEqual(published, "published")  # type: ignore[attr-defined]
+        book = MemoryAuditBook()
+        logger = CompositeLogger([self.logger], book)  # type: ignore[list-item]
+        first = retire_publication(
+            self.publications,  # type: ignore[arg-type]
+            question_id,
+            answer_id,
+            "actor-74",
+            logger,
+            request_id="req-74-once",
+        )
+        self.assertEqual(first, "retired")  # type: ignore[attr-defined]
+        self.assertEqual(len(book.rows), 1)  # type: ignore[attr-defined]
+        second = retire_publication(
+            self.publications,  # type: ignore[arg-type]
+            question_id,
+            answer_id,
+            "actor-74",
+            logger,
+            request_id="req-74-twice",
+        )
+        self.assertEqual(second, "already_retired")  # type: ignore[attr-defined]
+        self.assertEqual(len(book.rows), 1)  # type: ignore[attr-defined]
+        self.assertEqual(book.rows[0].target_id, f"pub-{question_id}-{answer_id}-1")  # type: ignore[attr-defined]
+
     def _approve(
         self,
         question_id: str,
@@ -515,7 +595,7 @@ def _reapply_v007(pool: object) -> None:
         with conn.transaction():
             conn.execute("TRUNCATE TABLE approvals RESTART IDENTITY CASCADE")
             # publication_asset references publication. Drop the child first, then let the runner apply both.
-            conn.execute("DELETE FROM schema_migrations WHERE version IN ('V007', 'V008')")
+            conn.execute("DELETE FROM schema_migrations WHERE version IN ('V007', 'V008', 'V009')")
             conn.execute("DROP TABLE IF EXISTS publication_asset")
             conn.execute("DROP TABLE IF EXISTS publication")
     approvals = PgApprovals(pool)

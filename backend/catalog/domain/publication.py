@@ -17,6 +17,24 @@ IMAGE_MIMES = frozenset({"image/png", "image/jpeg", "image/webp"})
 PDF_MIMES = frozenset({"application/pdf"})
 
 
+class RetireCode(str):
+    """One of retired, already_retired, not_found. The id is set only for retired."""
+
+    def __new__(
+        cls,
+        code: str,
+        publication_id: str | None = None,
+        subject_id: str | None = None,
+    ) -> RetireCode:
+        value = str.__new__(cls, code)
+        value.publication_id = publication_id
+        value.subject_id = subject_id
+        return value
+
+    publication_id: str | None
+    subject_id: str | None
+
+
 @dataclass(frozen=True)
 class Publication:
     publication_id: str

@@ -28,6 +28,8 @@ M-14：`GET /api/admin/errors` 只读近 24 小时的 ERROR。`K12_ERROR_WEBHOOK
 
 2026-11-23：V008 建 `publication_asset`。端口 `attach_asset`、`remove_asset`、`list_assets`。管理员路由是 `POST`、`DELETE`、`GET /api/admin/publications/{publication_id}/assets`。路由第一句是 `admin_only`。真正挂上写 `publication_asset_attached`，真正卸下写 `publication_asset_removed`。列出资产不写审计。字节上传仍未做。迁移锁仍由运行器持有，不写进 SQL 文件。
 
+2026-11-23：V009 用部分唯一索引 `publication_one_active` 换下 `publication_binding_unique`。同一绑定可以有多条 `retired`，至多一条 `active`。retire 审计的 `target_id` 来自 `UPDATE … RETURNING publication_id`。
+
 契约测试指：每个端口一套测试，假适配器和真实适配器都跑。草稿形状的 schema 测试算 core 测试，不算这一列。identity 与审计的一次本机走查写在 `docs/evidence/identity-audit-2026-11-18.md`。catalog 与 practice 的一次本机走查写在 `docs/evidence/catalog-practice-pg-2026-11-18.md`。这两页都不是试用，也不是 AC-01。`test_http_loop` 是本机合成 HTTP，不是端到端。
 
 改了某一格，同一个 PR 里改本表，并勾选 PR 模板里的对应项。

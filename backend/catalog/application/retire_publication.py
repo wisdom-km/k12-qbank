@@ -6,6 +6,7 @@ import json
 import time
 
 from backend.catalog.api import Publications
+from backend.catalog.domain.publication import RetireCode
 from backend.kernel.log_event import LogEvent
 from backend.kernel.logger import Logger
 
@@ -21,13 +22,13 @@ def retire_publication(
     """Return retired, already_retired, or not_found. request_id stays off the port."""
     code = publications.retire_by_binding(q_vid, a_vid, actor)
     if code != "retired":
-        return code
-    rows = [row for row in publications.rows_for(q_vid, a_vid) if row.status == "retired"]
-    row = rows[0]
+        return str(code)
+    if not isinstance(code, RetireCode) or code.publication_id is None or code.subject_id is None:
+        raise RuntimeError("retire did not name the publication row")
     detail = {
-        "question_version_id": row.question_version_id,
-        "answer_version_id": row.answer_version_id,
-        "subject_id": row.subject_id,
+        "question_version_id": q_vid,
+        "answer_version_id": a_vid,
+        "subject_id": code.subject_id,
         "before": {"status": "active"},
         "after": {"status": "retired"},
     }
@@ -42,10 +43,10 @@ def retire_publication(
             duration_ms=0,
             actor_user_id="" if actor is None else actor,
             target_kind="publication",
-            target_id=row.publication_id,
+            target_id=code.publication_id,
             audit=True,
             action="publication_retired",
             detail=json.dumps(detail, ensure_ascii=False),
         )
     )
-    return code
+    return "retired"

@@ -12,6 +12,7 @@ from backend.catalog.domain.publication import (
     AttachResult,
     Publication,
     RemoveResult,
+    RetireCode,
     asset_file_refusal,
     asset_id_for,
     bound_page,
@@ -194,11 +195,18 @@ def _retire(conn: Any, q_vid: str, a_vid: str) -> str:
         WHERE question_version_id = %s
           AND answer_version_id = %s
           AND status = 'active'
+        RETURNING publication_id, subject_id
         """,
         (q_vid, a_vid),
-    )
-    if int(updated.rowcount) == 1:
-        return "retired"
+    ).fetchall()
+    if len(updated) == 1:
+        return RetireCode(
+            "retired",
+            publication_id=str(updated[0][0]),
+            subject_id=str(updated[0][1]),
+        )
+    if len(updated) > 1:
+        raise RuntimeError("more than one active publication matched this binding")
     found = conn.execute(
         """
         SELECT 1
@@ -211,8 +219,8 @@ def _retire(conn: Any, q_vid: str, a_vid: str) -> str:
         (q_vid, a_vid),
     ).fetchone()
     if found is not None:
-        return "already_retired"
-    return "not_found"
+        return RetireCode("already_retired")
+    return RetireCode("not_found")
 
 
 def _publish(conn: Any, q_vid: str, a_vid: str, layout: str | None) -> str:

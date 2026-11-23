@@ -44,3 +44,11 @@ ADR 0013 规定题目草稿怎么入库。ADR 0014 规定参考答案。正式�
 ## 状态
 
 采纳。2026-11-17。不取代 ADR 0006。补上发布记录、知识点和多题练习的列。
+
+## 修订 2026-11-23
+
+`publication_binding_unique`（`question_version_id`、`answer_version_id`、`status`）已由部分唯一索引 `publication_one_active` 替换。同一个绑定可以保留多条 `retired`，作为先后发布的历史。库只保证至多一条 `status = 'active'`。
+
+第二次 retire 的审计 `target_id` 取这次 `UPDATE … RETURNING publication_id` 的那一行，不再取 retired 列表里按 `publication_id` 排序的第一行。
+
+这一段是 [issue #74](https://github.com/wisdom-km/k12-qbank/issues/74) Part B。列清单没有改。`publication_asset` 仍挂在原来的 `publication_id` 上。
