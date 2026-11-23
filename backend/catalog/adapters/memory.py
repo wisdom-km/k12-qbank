@@ -21,6 +21,11 @@ class MemoryApprovals:
         with self._lock:
             return self._items.get(question_version_id)
 
+    def list_snapshots(self) -> tuple[ApprovalSnapshot, ...]:
+        with self._lock:
+            rows = sorted(self._items.values(), key=lambda item: item.question_version_id)
+        return tuple(rows)
+
     def require_snapshot(self, question_version_id: str) -> ApprovalSnapshot:
         found = self.read_snapshot(question_version_id)
         if found is None:

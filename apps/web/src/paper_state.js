@@ -2,6 +2,7 @@
 
 export const initialPaperState = {
   session: null,
+  items: [],
   item: null,
   studentId: "student-synth",
   paper: null,
@@ -28,7 +29,11 @@ export function paperReducer(state, action) {
 }
 
 export function createPaperStore(start = initialPaperState) {
-  let current = { ...start, papers: (start.papers || []).map((row) => ({ ...row })) };
+  let current = {
+    ...start,
+    papers: (start.papers || []).map((row) => ({ ...row })),
+    items: (start.items || []).map((row) => ({ ...row })),
+  };
   function set(key) {
     return (value) => {
       current = paperReducer(current, { type: "set", key, value });

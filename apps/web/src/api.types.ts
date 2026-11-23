@@ -467,6 +467,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catalog List */
+        get: operations["catalog_list_api_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/catalog/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Catalog Import */
+        post: operations["catalog_import_api_admin_catalog_drafts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/catalog/{question_version_id}": {
         parameters: {
             query?: never;
@@ -665,6 +699,28 @@ export interface components {
             /** Publication Asset Id */
             publication_asset_id?: string | null;
         };
+        /** CatalogItem */
+        CatalogItem: {
+            /** Question Version Id */
+            question_version_id: string;
+            /** Subject Id */
+            subject_id: string;
+            /** Stem */
+            stem: string;
+            /** Answer Text */
+            answer_text: string;
+            /** Question Approved */
+            question_approved: boolean;
+            /** Answer Approved */
+            answer_approved: boolean;
+            /** Retired */
+            retired: boolean;
+        };
+        /** CatalogListResponse */
+        CatalogListResponse: {
+            /** Items */
+            items: components["schemas"]["CatalogItem"][];
+        };
         /** ConfirmBody */
         ConfirmBody: {
             /** Operation Key */
@@ -684,6 +740,28 @@ export interface components {
              * @default
              */
             teacher_id: string;
+        };
+        /** DraftImportBody */
+        DraftImportBody: {
+            /** Subject Id */
+            subject_id: string;
+            /** Questions */
+            questions: {
+                [key: string]: unknown;
+            };
+            /** Answers */
+            answers: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** DraftImportResponse */
+        DraftImportResponse: {
+            /** Staged */
+            staged: string[];
+            /** Kept */
+            kept: string[];
+            /** Skipped */
+            skipped: string[];
         };
         /** GrantBody */
         GrantBody: {
@@ -1737,6 +1815,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_list_api_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogListResponse"];
+                };
+            };
+        };
+    };
+    catalog_import_api_admin_catalog_drafts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftImportBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftImportResponse"];
                 };
             };
             /** @description Validation Error */

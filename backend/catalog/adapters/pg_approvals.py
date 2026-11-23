@@ -32,6 +32,9 @@ class PgApprovals:
     def read_snapshot(self, question_version_id: str) -> ApprovalSnapshot | None:
         return _run(self._pool, lambda conn: _read(conn, question_version_id))
 
+    def list_snapshots(self) -> tuple[ApprovalSnapshot, ...]:
+        return _run(self._pool, _list)
+
     def require_snapshot(self, question_version_id: str) -> ApprovalSnapshot:
         found = self.read_snapshot(question_version_id)
         if found is None:
@@ -133,6 +136,11 @@ def _remember(conn: Any, snapshot: ApprovalSnapshot) -> None:
     if not insert_approved_question(conn, snapshot):
         return
     insert_approved_answer(conn, snapshot)
+
+
+def _list(conn: Any) -> tuple[ApprovalSnapshot, ...]:
+    rows = conn.execute(f"SELECT {_COLUMNS} FROM approvals ORDER BY question_version_id").fetchall()
+    return tuple(_snapshot(row) for row in rows)
 
 
 def _read(conn: Any, question_version_id: str) -> ApprovalSnapshot | None:

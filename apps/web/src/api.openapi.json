@@ -1106,6 +1106,62 @@
         }
       }
     },
+    "/api/catalog": {
+      "get": {
+        "summary": "Catalog List",
+        "operationId": "catalog_list_api_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/catalog/drafts": {
+      "post": {
+        "summary": "Catalog Import",
+        "operationId": "catalog_import_api_admin_catalog_drafts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftImportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftImportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/catalog/{question_version_id}": {
       "get": {
         "summary": "Catalog Get",
@@ -1555,6 +1611,65 @@
         ],
         "title": "AttachPublicationAssetResponse"
       },
+      "CatalogItem": {
+        "properties": {
+          "question_version_id": {
+            "type": "string",
+            "title": "Question Version Id"
+          },
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "stem": {
+            "type": "string",
+            "title": "Stem"
+          },
+          "answer_text": {
+            "type": "string",
+            "title": "Answer Text"
+          },
+          "question_approved": {
+            "type": "boolean",
+            "title": "Question Approved"
+          },
+          "answer_approved": {
+            "type": "boolean",
+            "title": "Answer Approved"
+          },
+          "retired": {
+            "type": "boolean",
+            "title": "Retired"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question_version_id",
+          "subject_id",
+          "stem",
+          "answer_text",
+          "question_approved",
+          "answer_approved",
+          "retired"
+        ],
+        "title": "CatalogItem"
+      },
+      "CatalogListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CatalogListResponse"
+      },
       "ConfirmBody": {
         "properties": {
           "operation_key": {
@@ -1597,6 +1712,66 @@
           "fixture_answer_id"
         ],
         "title": "ConfirmBody"
+      },
+      "DraftImportBody": {
+        "properties": {
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "questions": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Questions"
+          },
+          "answers": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Answers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject_id",
+          "questions",
+          "answers"
+        ],
+        "title": "DraftImportBody"
+      },
+      "DraftImportResponse": {
+        "properties": {
+          "staged": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Staged"
+          },
+          "kept": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Kept"
+          },
+          "skipped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "staged",
+          "kept",
+          "skipped"
+        ],
+        "title": "DraftImportResponse"
       },
       "GrantBody": {
         "properties": {

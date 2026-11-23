@@ -37,6 +37,9 @@ class ApprovalPort(Protocol):
     def read_snapshot(self, question_version_id: str) -> ApprovalSnapshot | None:
         """Return the version, or None when it does not exist."""
 
+    def list_snapshots(self) -> tuple[ApprovalSnapshot, ...]:
+        """Every stored version, ordered by question_version_id."""
+
 
 class Publications(Protocol):
     def active_of(self, question_version_id: str, answer_version_id: str) -> Publication | None:
