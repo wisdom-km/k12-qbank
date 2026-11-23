@@ -14,7 +14,7 @@ _USER = """
 user_id, username, role, status, password_hash, password_algo, created_at, updated_at, disabled_at, must_change_password
 """
 _STUDENT = """
-student_id, name, grade, subject_id, status, created_by, created_at, updated_at
+student_id, external_id, name, grade, subject_id, status, created_by, created_at, updated_at
 """
 _GRANT = """
 grant_id, teacher_id, student_id, subject_id, granted_by, granted_at, revoked_at
@@ -99,18 +99,36 @@ class PgStudents:
     def by_id(self, student_id: str) -> Student | None:
         return _one(self._conn, f"SELECT {_STUDENT} FROM students WHERE student_id = %s", (student_id,), _student)
 
+    def by_external_id(self, external_id: str) -> Student | None:
+        return _one(
+            self._conn,
+            f"SELECT {_STUDENT} FROM students WHERE external_id = %s",
+            (external_id,),
+            _student,
+        )
+
     def insert(self, student: Student) -> None:
-        self._conn.execute(
-            f"INSERT INTO students ({_STUDENT}) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+        _write(
+            self._conn,
+            f"INSERT INTO students ({_STUDENT}) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            _student_params(student),
+        )
+
+    def update(self, student: Student) -> None:
+        _write(
+            self._conn,
+            """
+            UPDATE students
+            SET external_id = %s, name = %s, grade = %s, subject_id = %s, updated_at = %s
+            WHERE student_id = %s
+            """,
             (
-                student.student_id,
-                student.name,
+                student.external_id,
+                student.name or None,
                 student.grade,
                 student.subject_id,
-                student.status,
-                student.created_by,
-                student.created_at,
                 student.updated_at,
+                student.student_id,
             ),
         )
 
@@ -361,6 +379,8 @@ def _write(conn: Any, statement: str, params: tuple[object, ...]) -> None:
             raise Conflict("username_taken") from exc
         if name == "teacher_grants_one_active":
             raise Conflict("already_granted") from exc
+        if name == "students_external_id_key":
+            raise Conflict("external_id_taken") from exc
         raise
 
 
@@ -407,16 +427,32 @@ def _user(row: tuple[object, ...]) -> User:
     )
 
 
+def _student_params(student: Student) -> tuple[object, ...]:
+    return (
+        student.student_id,
+        student.external_id,
+        student.name or None,
+        student.grade,
+        student.subject_id,
+        student.status,
+        student.created_by,
+        student.created_at,
+        student.updated_at,
+    )
+
+
 def _student(row: tuple[object, ...]) -> Student:
+    name = row[2]
     return Student(
         student_id=str(row[0]),
-        name=str(row[1]),
-        grade=str(row[2]),
-        subject_id=str(row[3]),
-        status=str(row[4]),
-        created_by=str(row[5]),
-        created_at=row[6],  # type: ignore[arg-type]
-        updated_at=row[7],  # type: ignore[arg-type]
+        external_id=str(row[1]),
+        name="" if name is None else str(name),
+        grade=str(row[3]),
+        subject_id=str(row[4]),
+        status=str(row[5]),
+        created_by=str(row[6]),
+        created_at=row[7],  # type: ignore[arg-type]
+        updated_at=row[8],  # type: ignore[arg-type]
     )
 
 

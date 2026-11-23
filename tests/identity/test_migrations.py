@@ -15,7 +15,7 @@ class MigrationFilesTest(unittest.TestCase):
         found = discover(ROOT)
         self.assertEqual(
             [item.version for item in found],
-            ["V001", "V002", "V003", "V004", "V005", "V006", "V007", "V008", "V009"],
+            ["V001", "V002", "V003", "V004", "V005", "V006", "V007", "V008", "V009", "V010"],
         )
         self.assertTrue(found[0].down.is_file())
         up = "\n".join(sql_statements(found[0].up.read_text(encoding="utf-8")))
@@ -139,6 +139,24 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertIn("ADD CONSTRAINT publication_binding_unique", down9_sql)
         self.assertIn("UNIQUE (question_version_id, answer_version_id, status)", down9_sql)
         self.assertNotIn("schema_migrations", down9_sql)
+        self.assertTrue(found[9].down.is_file())
+        up10 = found[9].up.read_text(encoding="utf-8")
+        down10 = found[9].down.read_text(encoding="utf-8")
+        up10_sql = "\n".join(sql_statements(up10))
+        down10_sql = "\n".join(sql_statements(down10))
+        self.assertIn("ADD COLUMN external_id text", up10_sql)
+        self.assertIn("students_external_id_key", up10_sql)
+        self.assertIn("UNIQUE (external_id)", up10_sql)
+        self.assertIn("synth-", up10_sql)
+        self.assertIn("ALTER COLUMN name DROP NOT NULL", up10_sql)
+        self.assertNotIn("pg_advisory", up10_sql)
+        self.assertNotIn("schema_migrations", up10_sql)
+        self.assertIn("Stored external_id values are discarded", down10)
+        self.assertIn("SET name = ''", down10_sql)
+        self.assertIn("ALTER COLUMN name SET NOT NULL", down10_sql)
+        self.assertIn("DROP COLUMN IF EXISTS external_id", down10_sql)
+        self.assertNotIn("pg_advisory", down10_sql)
+        self.assertNotIn("schema_migrations", down10_sql)
         sample = "DO $$\nBEGIN\n    RAISE EXCEPTION 'keep; this';\nEND\n$$;\nSELECT 1;\n"
         parts = sql_statements(sample)
         self.assertEqual(len(parts), 2)

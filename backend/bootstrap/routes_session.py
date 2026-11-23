@@ -15,6 +15,8 @@ from backend.identity.application.client_hash import client_hashes
 from backend.identity.application.login import login, logout
 from backend.identity.application.passwords import change_own_password
 from backend.identity.application.sessions import list_own_sessions
+from backend.bootstrap.routes_admin import _student_body
+from backend.identity.application.students import get_visible_student, list_visible_students
 from backend.identity.application.synthetic_seed import session_students
 from backend.kernel.result import Err, Ok
 
@@ -49,6 +51,14 @@ def register_session(app: FastAPI) -> None:
     @app.get("/api/account/sessions")
     def own_sessions(request: Request) -> JSONResponse:
         return _own_sessions(request)
+
+    @app.get("/api/students")
+    def students_visible(request: Request) -> JSONResponse:
+        return _students_visible(request)
+
+    @app.get("/api/students/{student_id}")
+    def student_visible(student_id: str, request: Request) -> JSONResponse:
+        return _student_visible(student_id, request)
 
 
 def _sign_in(body: LoginBody, request: Request) -> JSONResponse:
@@ -114,6 +124,20 @@ def _own_sessions(request: Request) -> JSONResponse:
         return error_response(request.state.request_id, result)
     rows = [_public_session(row) for row in result.value]  # type: ignore[attr-defined]
     return JSONResponse({"sessions": rows})
+
+
+def _students_visible(request: Request) -> JSONResponse:
+    result = run_use(request, lambda db: list_visible_students(db, request.state.actor))
+    if isinstance(result, Err):
+        return error_response(request.state.request_id, result)
+    return JSONResponse({"students": [_student_body(row) for row in result.value]})
+
+
+def _student_visible(student_id: str, request: Request) -> JSONResponse:
+    result = run_use(request, lambda db: get_visible_student(db, request.state.actor, student_id))
+    if isinstance(result, Err):
+        return error_response(request.state.request_id, result)
+    return JSONResponse(_student_body(result.value))
 
 
 def _public_session(row: object) -> dict[str, str]:

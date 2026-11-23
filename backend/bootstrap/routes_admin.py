@@ -29,7 +29,7 @@ from backend.identity.application.grants import grant_teacher, list_grants, revo
 from backend.identity.application.guard import admin_only
 from backend.identity.application.passwords import reset_teacher_password
 from backend.identity.application.queries import list_audit_events
-from backend.identity.application.students import archive_student, create_student, list_students
+from backend.identity.application.students import archive_student, create_student, list_students, update_student
 from backend.identity.application.sessions import revoke_all_sessions_for
 from backend.identity.application.teachers import (
     create_teacher,
@@ -51,9 +51,10 @@ class SecretBody(BaseModel):
 
 
 class StudentBody(BaseModel):
-    name: str
+    external_id: str
     grade: str
     subject_id: str
+    name: str | None = None
 
 
 class GrantBody(BaseModel):
@@ -101,6 +102,10 @@ def register_admin(app: FastAPI) -> None:
     @app.get("/api/admin/students")
     def students_list(request: Request) -> JSONResponse:
         return _students(request)
+
+    @app.post("/api/admin/students/{student_id}")
+    def students_update(student_id: str, body: StudentBody, request: Request) -> JSONResponse:
+        return _student_update(student_id, body, request)
 
     @app.post("/api/admin/students/{student_id}/archive")
     def students_archive(student_id: str, request: Request) -> JSONResponse:
@@ -393,7 +398,9 @@ def _student_create(body: StudentBody, request: Request) -> JSONResponse:
     deps = request.app.state.deps
     result = run_use(
         request,
-        lambda db: create_student(db, actor, body.name, body.grade, body.subject_id, deps, request.state.request_id),
+        lambda db: create_student(
+            db, actor, body.external_id, body.grade, body.subject_id, deps, request.state.request_id, body.name
+        ),
     )
     return _student_result(request, result)
 
@@ -403,6 +410,26 @@ def _students(request: Request) -> JSONResponse:
     if isinstance(result, Err):
         return error_response(request.state.request_id, result)
     return JSONResponse({"students": [_student_body(row) for row in result.value]})
+
+
+def _student_update(student_id: str, body: StudentBody, request: Request) -> JSONResponse:
+    actor = request.state.actor
+    deps = request.app.state.deps
+    result = run_use(
+        request,
+        lambda db: update_student(
+            db,
+            actor,
+            student_id,
+            body.external_id,
+            body.grade,
+            body.subject_id,
+            deps,
+            request.state.request_id,
+            body.name,
+        ),
+    )
+    return _student_result(request, result)
 
 
 def _student_archive(student_id: str, request: Request) -> JSONResponse:
@@ -490,9 +517,11 @@ def _user_body(user: object) -> dict[str, object]:
 
 
 def _student_body(student: object) -> dict[str, object]:
+    name = student.name  # type: ignore[attr-defined]
     return {
         "student_id": student.student_id,  # type: ignore[attr-defined]
-        "name": student.name,  # type: ignore[attr-defined]
+        "external_id": student.external_id,  # type: ignore[attr-defined]
+        "name": name or None,
         "grade": student.grade,  # type: ignore[attr-defined]
         "subject_id": student.subject_id,  # type: ignore[attr-defined]
         "status": student.status,  # type: ignore[attr-defined]

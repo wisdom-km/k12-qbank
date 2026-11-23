@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { call, callWithId } from "./auth.js";
 
-const EMPTY = { username: "", secret: "", name: "", grade: "", subjectId: "", teacherId: "", studentId: "" };
+const EMPTY = { username: "", secret: "", externalId: "", name: "", grade: "", subjectId: "", teacherId: "", studentId: "" };
 
 export function AdminPage() {
   const [teachers, setTeachers] = useState([]);
@@ -80,13 +80,14 @@ export function AdminPage() {
       </section>
       <section>
         <h2>学生</h2>
-        <label>姓名<input name="student-name" value={form.name} onChange={setField("name")} /></label>
+        <label>学号<input name="student-external-id" value={form.externalId} onChange={setField("externalId")} /></label>
+        <label>姓名（可选）<input name="student-name" value={form.name} onChange={setField("name")} /></label>
         <label>年级<input name="student-grade" value={form.grade} onChange={setField("grade")} /></label>
         <label>学科<input name="student-subject" value={form.subjectId} onChange={setField("subjectId")} /></label>
-        <button type="button" onClick={() => write("/api/admin/students", { name: form.name, grade: form.grade, subject_id: form.subjectId }, { name: "", grade: "", subjectId: "" })}>
+        <button type="button" onClick={() => write("/api/admin/students", { external_id: form.externalId, name: form.name.trim() ? form.name.trim() : null, grade: form.grade, subject_id: form.subjectId }, { externalId: "", name: "", grade: "", subjectId: "" })}>
           创建学生
         </button>
-        <People rows={students} idKey="student_id" label={(row) => row.student_id + " · " + row.status} onArchive={(id) => write("/api/admin/students/" + id + "/archive", {})} />
+        <People rows={students} idKey="student_id" label={(row) => (row.external_id || row.student_id) + " · " + row.status} onArchive={(id) => write("/api/admin/students/" + id + "/archive", {})} />
       </section>
       <section>
         <h2>授权</h2>

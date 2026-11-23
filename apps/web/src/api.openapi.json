@@ -233,6 +233,59 @@
         }
       }
     },
+    "/api/students": {
+      "get": {
+        "summary": "Students Visible",
+        "operationId": "students_visible_api_students_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/students/{student_id}": {
+      "get": {
+        "summary": "Student Visible",
+        "operationId": "student_visible_api_students__student_id__get",
+        "parameters": [
+          {
+            "name": "student_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Student Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/teachers": {
       "get": {
         "summary": "Teachers List",
@@ -431,6 +484,53 @@
             }
           },
           "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/students/{student_id}": {
+      "post": {
+        "summary": "Students Update",
+        "operationId": "students_update_api_admin_students__student_id__post",
+        "parameters": [
+          {
+            "name": "student_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Student Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentBody"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
@@ -1841,9 +1941,9 @@
       },
       "StudentBody": {
         "properties": {
-          "name": {
+          "external_id": {
             "type": "string",
-            "title": "Name"
+            "title": "External Id"
           },
           "grade": {
             "type": "string",
@@ -1852,11 +1952,22 @@
           "subject_id": {
             "type": "string",
             "title": "Subject Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
           }
         },
         "type": "object",
         "required": [
-          "name",
+          "external_id",
           "grade",
           "subject_id"
         ],

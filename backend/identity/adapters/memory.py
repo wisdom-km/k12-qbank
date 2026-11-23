@@ -61,7 +61,22 @@ class MemoryStudents:
     def by_id(self, student_id: str) -> Student | None:
         return self._rows.get(student_id)
 
+    def by_external_id(self, external_id: str) -> Student | None:
+        for student in self._rows.values():
+            if student.external_id == external_id:
+                return student
+        return None
+
     def insert(self, student: Student) -> None:
+        taken = self.by_external_id(student.external_id)
+        if taken is not None:
+            raise Conflict("external_id_taken")
+        self._rows[student.student_id] = student
+
+    def update(self, student: Student) -> None:
+        taken = self.by_external_id(student.external_id)
+        if taken is not None and taken.student_id != student.student_id:
+            raise Conflict("external_id_taken")
         self._rows[student.student_id] = student
 
     def set_status(self, student_id: str, status: str, at: datetime) -> None:

@@ -52,12 +52,27 @@ def session_students(db: object, teacher_id: str) -> tuple[str, ...]:
     return tuple(found)
 
 
+_PLACEHOLDER = {
+    "student-synth": "synth-0001",
+    "student-synth-2": "synth-0002",
+}
+
+
+def _placeholder(student_id: str) -> str:
+    known = _PLACEHOLDER.get(student_id)
+    if known is not None:
+        return known
+    safe = "".join(char if char.isalnum() else "-" for char in student_id)
+    return "synth-" + safe[:48]
+
+
 def _student(db: object, student_id: str, subject_id: str, created_by: str, now: object) -> None:
     if db.students.by_id(student_id) is not None:  # type: ignore[attr-defined]
         return
     db.students.insert(  # type: ignore[attr-defined]
         Student(
             student_id=student_id,
+            external_id=_placeholder(student_id),
             name=student_id,
             grade="g7",
             subject_id=subject_id,

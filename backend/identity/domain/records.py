@@ -23,6 +23,7 @@ class User:
 @dataclass(frozen=True)
 class Student:
     student_id: str
+    external_id: str
     name: str
     grade: str
     subject_id: str
