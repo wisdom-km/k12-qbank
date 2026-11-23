@@ -15,7 +15,7 @@ class MigrationFilesTest(unittest.TestCase):
         found = discover(ROOT)
         self.assertEqual(
             [item.version for item in found],
-            ["V001", "V002", "V003", "V004", "V005", "V006", "V007", "V008"],
+            ["V001", "V002", "V003", "V004", "V005", "V006", "V007", "V008", "V009"],
         )
         self.assertTrue(found[0].down.is_file())
         up = "\n".join(sql_statements(found[0].up.read_text(encoding="utf-8")))
@@ -118,6 +118,32 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertIn("DROP TABLE publication_asset", down8_sql)
         self.assertNotIn("DROP TABLE publication;", down8_sql)
         self.assertNotIn("schema_migrations", down8_sql)
+        self.assertTrue(found[8].down.is_file())
+        up9 = found[8].up.read_text(encoding="utf-8")
+        down9 = found[8].down.read_text(encoding="utf-8")
+        up9_sql = "\n".join(sql_statements(up9))
+        down9_parts = sql_statements(down9)
+        down9_sql = "\n".join(down9_parts)
+        self.assertIn("DROP CONSTRAINT IF EXISTS publication_binding_unique", up9_sql)
+        self.assertIn("CREATE UNIQUE INDEX IF NOT EXISTS publication_one_active", up9_sql)
+        self.assertIn("ON publication (question_version_id, answer_version_id)", up9_sql)
+        self.assertIn("WHERE status = 'active'", up9_sql)
+        self.assertNotIn("pg_advisory", up9_sql)
+        self.assertNotIn("schema_migrations", up9_sql)
+        self.assertNotIn("UPDATE ", up9_sql)
+        self.assertNotIn("DELETE ", up9_sql)
+        self.assertEqual(len(down9_parts), 3)
+        self.assertIn("DROP INDEX IF EXISTS publication_one_active", down9_sql)
+        self.assertIn("RAISE EXCEPTION", down9_parts[1])
+        self.assertIn("publication_binding_unique cannot be restored", down9_parts[1])
+        self.assertIn("ADD CONSTRAINT publication_binding_unique", down9_sql)
+        self.assertIn("UNIQUE (question_version_id, answer_version_id, status)", down9_sql)
+        self.assertNotIn("schema_migrations", down9_sql)
+        sample = "DO $$\nBEGIN\n    RAISE EXCEPTION 'keep; this';\nEND\n$$;\nSELECT 1;\n"
+        parts = sql_statements(sample)
+        self.assertEqual(len(parts), 2)
+        self.assertIn("keep; this", parts[0])
+        self.assertEqual(parts[1], "SELECT 1")
 
     def test_domain_and_application_do_not_import_the_driver(self) -> None:
         base = ROOT / "backend" / "identity"

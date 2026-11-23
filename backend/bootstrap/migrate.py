@@ -103,22 +103,60 @@ def _apply(conn: object, item: Migration, direction: str) -> None:
 
 
 def _split(body: str) -> list[str]:
+    """Split on semicolons. Single quotes and dollar quotes stay intact.
+
+    V009 down uses a DO block whose RAISE contains no statement boundary.
+    """
     parts: list[str] = []
     current: list[str] = []
     quoted = False
-    for char in body:
+    dollar: str | None = None
+    index = 0
+    while index < len(body):
+        if dollar is not None:
+            if body.startswith(dollar, index):
+                current.append(dollar)
+                index += len(dollar)
+                dollar = None
+                continue
+            current.append(body[index])
+            index += 1
+            continue
+        char = body[index]
         if char == "'":
             quoted = not quoted
             current.append(char)
+            index += 1
             continue
+        if char == "$" and not quoted:
+            tag = _dollar_tag(body, index)
+            if tag is not None:
+                dollar = tag
+                current.append(tag)
+                index += len(tag)
+                continue
         if char == ";" and not quoted:
             text = "".join(current).strip()
             if text:
                 parts.append(text)
             current = []
+            index += 1
             continue
         current.append(char)
+        index += 1
     tail = "".join(current).strip()
     if tail:
         parts.append(tail)
     return parts
+
+
+def _dollar_tag(body: str, start: int) -> str | None:
+    """Return `$tag$` when body[start] opens a PostgreSQL dollar quote."""
+    if start >= len(body) or body[start] != "$":
+        return None
+    end = start + 1
+    while end < len(body) and (body[end].isalnum() or body[end] == "_"):
+        end += 1
+    if end < len(body) and body[end] == "$":
+        return body[start : end + 1]
+    return None

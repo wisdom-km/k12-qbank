@@ -13,6 +13,7 @@ from backend.catalog.domain.publication import (
     AttachResult,
     Publication,
     RemoveResult,
+    RetireCode,
     asset_file_refusal,
     asset_id_for,
     bound_page,
@@ -100,10 +101,14 @@ class MemoryPublications:
             if active:
                 row = active[0]
                 self._rows[row.publication_id] = replace(row, status="retired")
-                return "retired"
+                return RetireCode(
+                    "retired",
+                    publication_id=row.publication_id,
+                    subject_id=row.subject_id,
+                )
             if any(row.status == "retired" for row in chosen):
-                return "already_retired"
-            return "not_found"
+                return RetireCode("already_retired")
+            return RetireCode("not_found")
 
     def publish_by_binding(
         self,
