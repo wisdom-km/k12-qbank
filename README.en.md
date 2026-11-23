@@ -50,7 +50,7 @@ The review tool is the producer. It copies the two JSON Schema files from `backe
 
 Job `review-import` installs the review tool's main and imports both drafts from a synthetic page. The fixture is not a textbook page.
 
-The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). The local synthetic path uses FastAPI and React. An empty `K12_PG_DSN` does not connect. A set value connects and migrates identity, audit, catalog, and practice. Page bytes use `K12_FILE_DIR`. `K12_ENV` defaults to development. production exits when the DSN or `K12_FILE_DIR` is empty. V004 creates `questions` and `answers`. V005 creates the five child tables. `figure_geometry` and `answer_decision` are still not created. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
+The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. See [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md). The local synthetic path uses FastAPI and React. An empty `K12_PG_DSN` does not connect. A set value connects and migrates identity, audit, catalog, and practice. Page bytes use `K12_FILE_DIR`. `K12_ENV` defaults to development. production exits when the DSN or `K12_FILE_DIR` is empty. V004 creates `questions` and `answers`. V005 creates the five child tables. `figure_geometry` and `answer_decision` are still not created. Do not add an empty migration for those two tables until there are rows to write. The Android device, the install channel, where the service runs, the recognition and model vendor, backup timing, how a handwritten name is masked, and the detailed permissions for a second subject still have no trial data. Institution decisions DEC-01 through DEC-06 are still blank. The Android UI is still a candidate. See [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) and [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md).
 
 ## Current implementation
 
@@ -58,18 +58,18 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | --- | --- |
 | Docs (PRD, architecture, rules, ADRs, gates) | Done |
 | Business code `catalog` / `practice` | On synthetic questions it refuses an unapproved issue, writes a one-page PDF, and confirms one answer by operation key |
-| Teaching service | Local synthetic HTTP now has a session. The default process does not connect. There is no public release. The pages are `/login`, `/`, and `/admin` |
-| Login | Page `/login`. A signed-out visit to `/` or `/admin` goes to the login page. The session cookie is `k12_sid`. Writes send `X-K12-CSRF` |
+| Teaching service | Local synthetic HTTP now has a session. The default process does not connect. There is no public release. The pages are `/login`, `/`, `/admin`, and `/account` |
+| Login | Page `/login`. A signed-out visit to `/`, `/admin`, or `/account` goes to the login page. The session cookie is `k12_sid`. Writes send `X-K12-CSRF` |
 | Admin | Page `/admin`. An admin creates teachers and students, grants and revokes, and reads audit and errors. A teacher sees permission_denied |
 | PostgreSQL connected | The process connects and migrates identity, audit, catalog, and practice only when `K12_PG_DSN` is set. Page bytes use `K12_FILE_DIR`. `K12_ENV` defaults to development; production exits when the DSN or the page-byte directory is empty. The default process and the unit tests do not connect. The CI `postgres` job runs migrate up, down, and up, plus the identity and catalog/practice contracts and the migration lock |
 | Run mode | `K12_ENV` defaults to development. production exits when the DSN or `K12_FILE_DIR` is empty. development with an empty DSN stays in memory |
-| Catalog PG | A set `K12_PG_DSN` writes the V002 runtime tables, V004 `questions` and `answers`, and the five V005 child tables. `figure_geometry` and `answer_decision` are still not built |
-| Practice PG | A set `K12_PG_DSN` writes papers, attempts, and confirmations. Page bytes use `K12_FILE_DIR` |
+| Catalog PG | A set `K12_PG_DSN` writes the V002 runtime tables, V004 `questions` and `answers`, the five V005 child tables, V007 `publication`, and V008 `publication_asset`, and applies V009 `publication_one_active`. `figure_geometry` and `answer_decision` are still not built. Asset byte upload is still not done |
+| Practice PG | A set `K12_PG_DSN` writes papers, paper_pages, attempts, confirmations, file metadata, and V006 `practice_item`. Page bytes use `K12_FILE_DIR`. The issue HTTP body still sends one question |
 | Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL connects and migrates when `K12_PG_DSN` is set |
 | Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
 | Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. A running approval can also write V004 `answers` plus V005 `answer_part` and `answer_asset`. `answer_decision` is still not created |
 | Contract check | JSON Schema in `backend/catalog/contracts/`. No new package. See [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
-| Publication, knowledge, multi-item papers | Columns are in ADR 0015. The knowledge ports have an in-memory adapter. Publication and multi-item tables are not created. A paper still holds one question |
+| Publication, knowledge, multi-item papers | Columns are in ADR 0015. The knowledge ports have an in-memory adapter. Knowledge tables are not created. V006 creates `practice_item`. V007 creates `publication`. V008 creates `publication_asset`. V009 adds `publication_one_active`. `compose_multi_item_paper` can freeze several items. The issue HTTP body still sends one question, and the renderer still draws one page |
 | Methods and error causes | Columns are in [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md). The method ports have an in-memory adapter. An error cause is a suggestion. Tables are not created |
 
 ## Commands
@@ -115,7 +115,7 @@ Remote checks are the [Actions job named check](https://github.com/wisdom-km/k12
 | [PRD.md](PRD.md) | What to build, and what is explicitly out of scope |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, invariants, logging, and gates. Port, data, and log-event tables are in [docs/arch/](docs/arch/) |
 | [RULES.md](RULES.md) | Commits, tests, and the forbidden list |
-| [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | The first loop: local synthetic web. PostgreSQL and Android are not in yet |
+| [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | The first loop: local synthetic web. With `K12_PG_DSN` set, identity, audit, catalog, and practice migrate. Android is not in yet |
 | [docs/implementation-matrix.md](docs/implementation-matrix.md) | Where each of the six slices stands: ports, adapters, and tests |
 
 ## License
