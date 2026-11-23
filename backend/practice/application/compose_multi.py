@@ -22,6 +22,8 @@ def compose_multi_item_paper(
     approvals: ApprovalPort,
     publications: Publications,
     writer: ComposedPaperStore,
+    qr_printed: bool = False,
+    printed_external_id: str = "",
 ) -> Ok[Paper] | Err:
     """Freeze two or more items. The paper column keeps items[0] for old readers."""
     shape = _shape_error(paper_id, items)
@@ -52,6 +54,8 @@ def compose_multi_item_paper(
         review_version_id=review_version_id,
         item_order=tuple(first.item_order),
         formula=formula_from_stem(first.stem),
+        qr_printed=qr_printed,
+        printed_external_id=printed_external_id,
     )
     if isinstance(paper, Err):
         return paper
@@ -92,4 +96,6 @@ def _stored(paper_id: str, item: PracticeItem) -> PracticeItem:
         question_version_id=item.question_version_id,
         answer_version_id=item.answer_version_id,
         score=item.score,
+        stem_text=item.stem_text,
+        answer_text=item.answer_text,
     )

@@ -3,6 +3,7 @@
 export const initialPaperState = {
   session: null,
   items: [],
+  chosen: [],
   item: null,
   studentId: "student-synth",
   paper: null,
@@ -33,6 +34,7 @@ export function createPaperStore(start = initialPaperState) {
     ...start,
     papers: (start.papers || []).map((row) => ({ ...row })),
     items: (start.items || []).map((row) => ({ ...row })),
+    chosen: (start.chosen || []).slice(),
   };
   function set(key) {
     return (value) => {

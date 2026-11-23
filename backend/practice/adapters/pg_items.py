@@ -6,13 +6,15 @@ from collections.abc import Callable, Sequence
 from typing import Any, TypeVar
 
 from backend.practice.domain.item import PracticeItem
+from backend.practice.domain.page_face import formula_from_stem
 from backend.practice.domain.paper import Paper
 
 T = TypeVar("T")
 
 _PAPER = """
 paper_id, teacher_id, student_id, subject_id, question_version_id, answer_version_id,
-asset_ids, layout_template_id, review_version_id, file_id, status, item_order, file_checksum, formula
+asset_ids, layout_template_id, review_version_id, file_id, status, item_order, file_checksum, formula,
+qr_printed, printed_external_id
 """
 
 
@@ -49,7 +51,8 @@ def _run(pool: object, work: Callable[[Any], T]) -> T:
 def _items(conn: Any, paper_id: str) -> tuple[PracticeItem, ...]:
     rows = conn.execute(
         """
-        SELECT paper_id, order_no, question_version_id, answer_version_id, score
+        SELECT paper_id, order_no, question_version_id, answer_version_id, score,
+               stem_text, answer_text
         FROM practice_item
         WHERE paper_id = %s
         ORDER BY order_no ASC
@@ -65,8 +68,9 @@ def _replace_items(conn: Any, paper_id: str, items: tuple[PracticeItem, ...]) ->
         conn.execute(
             """
             INSERT INTO practice_item (
-                paper_id, order_no, question_version_id, answer_version_id, score
-            ) VALUES (%s, %s, %s, %s, %s)
+                paper_id, order_no, question_version_id, answer_version_id, score,
+                stem_text, answer_text
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 item.paper_id,
@@ -74,6 +78,8 @@ def _replace_items(conn: Any, paper_id: str, items: tuple[PracticeItem, ...]) ->
                 item.question_version_id,
                 item.answer_version_id,
                 item.score,
+                item.stem_text,
+                item.answer_text,
             ),
         )
 
@@ -82,7 +88,7 @@ def _insert_paper(conn: Any, paper: Paper) -> None:
     conn.execute(
         f"""
         INSERT INTO papers ({_PAPER})
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             paper.paper_id,
@@ -99,6 +105,8 @@ def _insert_paper(conn: Any, paper: Paper) -> None:
             list(paper.item_order),
             paper.file_checksum,
             paper.formula,
+            paper.qr_printed,
+            paper.printed_external_id,
         ),
     )
 
@@ -120,7 +128,7 @@ def _insert_pages(conn: Any, paper: Paper, items: tuple[PracticeItem, ...]) -> N
                 count,
                 item.question_version_id,
                 item.answer_version_id,
-                paper.formula,
+                formula_from_stem(item.stem_text) if item.stem_text else paper.formula,
                 paper.student_id,
                 list(paper.item_order),
                 list(paper.asset_ids),
@@ -137,6 +145,8 @@ def _item(row: tuple[object, ...]) -> PracticeItem:
         question_version_id=str(row[2]),
         answer_version_id=str(row[3]),
         score=None if score is None else int(score),  # type: ignore[arg-type]
+        stem_text=str(row[5]),
+        answer_text=str(row[6]),
     )
 
 
@@ -147,4 +157,6 @@ def _stored(paper_id: str, item: PracticeItem) -> PracticeItem:
         question_version_id=item.question_version_id,
         answer_version_id=item.answer_version_id,
         score=item.score,
+        stem_text=item.stem_text,
+        answer_text=item.answer_text,
     )

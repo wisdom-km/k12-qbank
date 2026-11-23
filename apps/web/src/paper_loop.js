@@ -93,13 +93,7 @@ export function createPaperActions(io) {
       try {
         const opened = await io.call("/api/practice/papers", {
           method: "POST",
-          body: JSON.stringify({
-            teacher_id: snap.session.actor_teacher_id,
-            student_id: snap.studentId,
-            subject_id: snap.item.subject_id,
-            question_version_id: snap.item.question_version_id,
-            review_version_id: io.reviewVersionId,
-          }),
+          body: JSON.stringify(issueBody(snap, io.reviewVersionId)),
         });
         const posted = acceptResponse(token, generation.current, opened);
         if (!posted.apply || !posted.body) return;
@@ -244,6 +238,26 @@ export function createPaperActions(io) {
   }
 
   return { load, issue, handOut, choosePaper, selectQuestion, confirm, retry };
+}
+
+function issueBody(snap, reviewVersionId) {
+  const chosen = snap.chosen || [];
+  const body = {
+    teacher_id: snap.session.actor_teacher_id,
+    student_id: snap.studentId,
+    subject_id: snap.item.subject_id,
+    question_version_id: snap.item.question_version_id,
+    review_version_id: reviewVersionId,
+  };
+  if (chosen.length >= 2) {
+    body.items = chosen.map((id) => ({ question_version_id: id }));
+    body.question_version_id = chosen[0];
+    const first = (snap.items || []).find((row) => row.question_version_id === chosen[0]);
+    if (first && first.subject_id) body.subject_id = first.subject_id;
+  } else if (chosen.length === 1) {
+    body.question_version_id = chosen[0];
+  }
+  return body;
 }
 
 function pickQuestion(items, preferred) {

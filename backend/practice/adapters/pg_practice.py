@@ -23,7 +23,8 @@ T = TypeVar("T")
 
 _PAPER = """
 paper_id, teacher_id, student_id, subject_id, question_version_id, answer_version_id,
-asset_ids, layout_template_id, review_version_id, file_id, status, item_order, file_checksum, formula
+asset_ids, layout_template_id, review_version_id, file_id, status, item_order, file_checksum, formula,
+qr_printed, printed_external_id
 """
 _ANSWER = """
 fixture_answer_id, paper_id, sub_question_id, review_version_id, student_id, status, answer_text
@@ -190,7 +191,7 @@ def _save_paper(conn: Any, paper: Paper) -> None:
     conn.execute(
         f"""
         INSERT INTO papers ({_PAPER})
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (paper_id) DO UPDATE SET
             teacher_id = EXCLUDED.teacher_id,
             student_id = EXCLUDED.student_id,
@@ -204,11 +205,15 @@ def _save_paper(conn: Any, paper: Paper) -> None:
             status = EXCLUDED.status,
             item_order = EXCLUDED.item_order,
             file_checksum = EXCLUDED.file_checksum,
-            formula = EXCLUDED.formula
+            formula = EXCLUDED.formula,
+            qr_printed = EXCLUDED.qr_printed,
+            printed_external_id = EXCLUDED.printed_external_id
         """,
         _paper_params(paper),
     )
-    _save_page(conn, paper)
+    found = conn.execute("SELECT 1 FROM paper_pages WHERE paper_id = %s LIMIT 1", (paper.paper_id,)).fetchone()
+    if found is None:
+        _save_page(conn, paper)
 
 
 def _save_page(conn: Any, paper: Paper) -> None:
@@ -352,6 +357,8 @@ def _paper_params(paper: Paper) -> tuple[object, ...]:
         list(paper.item_order),
         paper.file_checksum,
         paper.formula,
+        paper.qr_printed,
+        paper.printed_external_id,
     )
 
 
@@ -371,6 +378,8 @@ def _paper_row(row: tuple[object, ...]) -> Paper:
         item_order=_texts(row[11]),
         file_checksum=None if row[12] is None else str(row[12]),
         formula=str(row[13]),
+        qr_printed=bool(row[14]),
+        printed_external_id=str(row[15]),
     )
 
 

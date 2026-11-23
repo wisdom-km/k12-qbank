@@ -14,6 +14,8 @@ class PracticeItem:
     question_version_id: str
     answer_version_id: str
     score: int | None = None
+    stem_text: str = ""
+    answer_text: str = ""
 
 
 class PaperEmpty(Exception):

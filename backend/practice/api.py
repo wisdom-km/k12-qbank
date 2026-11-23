@@ -30,6 +30,8 @@ class IssuePaperCommand:
     subject_id: str
     question_version_id: str
     review_version_id: str
+    qr_printed: bool = False
+    printed_external_id: str = ""
 
 
 @dataclass(frozen=True)

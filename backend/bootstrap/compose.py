@@ -28,6 +28,7 @@ from backend.kernel.log_event import LogEvent
 from backend.kernel.logger import CompositeLogger, Logger
 from backend.practice.adapters.files import MemoryFiles
 from backend.practice.adapters.memory import MemoryPractice
+from backend.practice.adapters.memory_items import MemoryComposedWriter, MemoryPracticeItems
 from backend.practice.adapters.pdf_page import StdPdf
 from backend.practice.application.ports import PageRenderer
 
@@ -50,6 +51,8 @@ class Loop:
     questions: object | None = None
     answers: object | None = None
     publications: object = field(default_factory=MemoryPublications)
+    items: object = field(default_factory=MemoryPracticeItems)
+    composed: object | None = None
 
 
 def compose() -> Loop:
@@ -115,6 +118,8 @@ def _loop(**kwargs: object) -> Loop:
     }
     values.update(kwargs)
     loop = Loop(**values)  # type: ignore[arg-type]
+    if loop.composed is None:
+        loop = replace(loop, composed=MemoryComposedWriter(loop.practice, loop.items))  # type: ignore[arg-type]
     attach = getattr(loop.publications, "attach_approvals", None)
     if attach is not None:
         attach(loop.approvals)

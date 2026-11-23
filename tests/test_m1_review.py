@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import subprocess
 import threading
@@ -51,6 +52,16 @@ class BindOnce(MemoryPractice):
 
 
 class ReviewLoopTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._saved_qr = os.environ.get("K12_PAPER_QR")
+        os.environ["K12_PAPER_QR"] = "on"
+
+    def tearDown(self) -> None:
+        if self._saved_qr is None:
+            os.environ.pop("K12_PAPER_QR", None)
+        else:
+            os.environ["K12_PAPER_QR"] = self._saved_qr
+
     def test_same_student_papers_keep_distinct_pages_and_omit_the_answer(self) -> None:
         with self._client() as client:
             self._publish(client)
@@ -65,11 +76,12 @@ class ReviewLoopTest(unittest.TestCase):
         self.assertNotIn(str(first["paper_id"]).encode(), two)
         for pdf, row in ((one, first), (two, second)):
             self.assertIn(b"formula \\(-3\\)+5", pdf)
-            self.assertIn(b"student student-synth", pdf)
-            self.assertIn(b"name-rule omit", pdf)
+            self.assertIn(b"synth-0001", pdf)
+            self.assertNotIn(b"student-synth", pdf)
+            self.assertNotIn(b"name-rule omit", pdf)
             self.assertIn(b"page 1", pdf)
             self.assertIn(b"pages 1", pdf)
-            self.assertIn(("paper " + str(row["paper_id"])).encode(), pdf)
+            self.assertNotIn(str(row["paper_id"]).encode(), pdf)
             self.assertNotIn(b"answer ", pdf)
 
     def test_times_sign_renders_and_unsupported_text_stays_waiting(self) -> None:

@@ -49,4 +49,6 @@ def _stored(paper_id: str, item: PracticeItem) -> PracticeItem:
         question_version_id=item.question_version_id,
         answer_version_id=item.answer_version_id,
         score=item.score,
+        stem_text=item.stem_text,
+        answer_text=item.answer_text,
     )

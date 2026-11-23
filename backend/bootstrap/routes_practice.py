@@ -6,22 +6,30 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
-from backend.bootstrap.http_errors import error_response
+from backend.bootstrap.http_errors import error_response, run_use
 from backend.bootstrap.seed import synthetic_attempt_text
+from backend.identity.application.students import get_visible_student
 from backend.kernel.result import Err
 from backend.practice.api import ConfirmCommand, IssuePaperCommand, Paper
 from backend.practice.application.confirm_attempt import confirm_attempt
+from backend.practice.application.open_multi import open_multi_paper
 from backend.practice.application.open_paper import open_paper, read_attempt
+from backend.practice.application.paper_qr import paper_qr_enabled
 from backend.practice.application.render_paper import hand_out_paper, read_file
 from backend.practice.application.visible import visible_confirmation_count, visible_papers
+
+
+class IssueItem(BaseModel):
+    question_version_id: str
 
 
 class IssueBody(BaseModel):
     student_id: str
     subject_id: str
-    question_version_id: str
+    question_version_id: str = ""
     review_version_id: str
     teacher_id: str = ""
+    items: list[IssueItem] = []
 
 
 class ConfirmBody(BaseModel):
@@ -71,25 +79,54 @@ def register_practice(app: FastAPI) -> None:
 def _issue(body: IssueBody, request: Request) -> JSONResponse:
     loop = request.app.state.loop
     actor = _actor(request)
-    result = open_paper(
-        IssuePaperCommand(
+    copied = _copied_external_id(request, body.student_id)
+    qr_printed = paper_qr_enabled()
+    versions = [item.question_version_id for item in body.items]
+    if len(versions) >= 2:
+        result = open_multi_paper(
             teacher_id=actor,
             student_id=body.student_id,
             subject_id=body.subject_id,
-            question_version_id=body.question_version_id,
             review_version_id=body.review_version_id,
-        ),
-        loop.approvals,
-        loop.auth,
-        loop.practice,
-        loop.files,
-        loop.renderer,
-        loop.logger,
-        request.state.request_id,
-        actor_teacher_id=actor,
-        attempt_text=synthetic_attempt_text(),
-        publications=loop.publications,
-    )
+            question_version_ids=versions,
+            qr_printed=qr_printed,
+            printed_external_id=copied,
+            approvals=loop.approvals,
+            auth=loop.auth,
+            store=loop.practice,
+            items=loop.items,
+            writer=loop.composed,
+            files=loop.files,
+            renderer=loop.renderer,
+            logger=loop.logger,
+            request_id=request.state.request_id,
+            attempt_text=synthetic_attempt_text(),
+            publications=loop.publications,
+        )
+    else:
+        question_version_id = versions[0] if versions else body.question_version_id
+        result = open_paper(
+            IssuePaperCommand(
+                teacher_id=actor,
+                student_id=body.student_id,
+                subject_id=body.subject_id,
+                question_version_id=question_version_id,
+                review_version_id=body.review_version_id,
+                qr_printed=qr_printed,
+                printed_external_id=copied,
+            ),
+            loop.approvals,
+            loop.auth,
+            loop.practice,
+            loop.files,
+            loop.renderer,
+            loop.logger,
+            request.state.request_id,
+            actor_teacher_id=actor,
+            attempt_text=synthetic_attempt_text(),
+            publications=loop.publications,
+            items=loop.items,
+        )
     if isinstance(result, Err):
         return error_response(request.state.request_id, result)
     opened = result.value
@@ -171,6 +208,16 @@ def _actor(request: Request) -> str:
     return str(request.state.actor.user_id)
 
 
+def _copied_external_id(request: Request, student_id: str) -> str:
+    """Copy the visible student number onto the paper. Do not log it."""
+    if getattr(request.app.state, "opener", None) is None:
+        return ""
+    result = run_use(request, lambda db: get_visible_student(db, request.state.actor, student_id))
+    if isinstance(result, Err):
+        return ""
+    return str(getattr(result.value, "external_id", "") or "")
+
+
 def _paper_body(
     paper: Paper,
     fixture_answer_id: str | None = None,
@@ -191,6 +238,7 @@ def _paper_body(
         "item_order": list(paper.item_order),
         "asset_ids": list(paper.asset_ids),
         "layout_template_id": paper.layout_template_id,
+        "qr_printed": paper.qr_printed,
         "fixture_answer_id": fixture_answer_id,
         "render_code": render_code,
         "render_message": render_message,

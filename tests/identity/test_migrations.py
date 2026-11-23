@@ -15,7 +15,7 @@ class MigrationFilesTest(unittest.TestCase):
         found = discover(ROOT)
         self.assertEqual(
             [item.version for item in found],
-            ["V001", "V002", "V003", "V004", "V005", "V006", "V007", "V008", "V009", "V010"],
+            ["V001", "V002", "V003", "V004", "V005", "V006", "V007", "V008", "V009", "V010", "V011"],
         )
         self.assertTrue(found[0].down.is_file())
         up = "\n".join(sql_statements(found[0].up.read_text(encoding="utf-8")))
@@ -157,6 +157,23 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertIn("DROP COLUMN IF EXISTS external_id", down10_sql)
         self.assertNotIn("pg_advisory", down10_sql)
         self.assertNotIn("schema_migrations", down10_sql)
+        self.assertTrue(found[10].down.is_file())
+        up11 = found[10].up.read_text(encoding="utf-8")
+        down11 = found[10].down.read_text(encoding="utf-8")
+        up11_sql = "\n".join(sql_statements(up11))
+        down11_sql = "\n".join(sql_statements(down11))
+        self.assertIn("ADD COLUMN qr_printed boolean", up11_sql)
+        self.assertIn("ADD COLUMN printed_external_id text", up11_sql)
+        self.assertIn("ADD COLUMN stem_text text", up11_sql)
+        self.assertIn("ADD COLUMN answer_text text", up11_sql)
+        self.assertNotIn("pg_advisory", up11_sql)
+        self.assertNotIn("schema_migrations", up11_sql)
+        self.assertIn("DROP COLUMN IF EXISTS answer_text", down11_sql)
+        self.assertIn("DROP COLUMN IF EXISTS stem_text", down11_sql)
+        self.assertIn("DROP COLUMN IF EXISTS printed_external_id", down11_sql)
+        self.assertIn("DROP COLUMN IF EXISTS qr_printed", down11_sql)
+        self.assertNotIn("pg_advisory", down11_sql)
+        self.assertNotIn("schema_migrations", down11_sql)
         sample = "DO $$\nBEGIN\n    RAISE EXCEPTION 'keep; this';\nEND\n$$;\nSELECT 1;\n"
         parts = sql_statements(sample)
         self.assertEqual(len(parts), 2)

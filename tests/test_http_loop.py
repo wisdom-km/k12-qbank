@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import unittest
 
 from fastapi.testclient import TestClient
@@ -34,6 +35,16 @@ class BadRenderer:
 
 
 class HttpLoopTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._saved_qr = os.environ.get("K12_PAPER_QR")
+        os.environ["K12_PAPER_QR"] = "on"
+
+    def tearDown(self) -> None:
+        if self._saved_qr is None:
+            os.environ.pop("K12_PAPER_QR", None)
+        else:
+            os.environ["K12_PAPER_QR"] = self._saved_qr
+
     def test_health_is_status_only(self) -> None:
         with self._client() as client:
             response = client.get("/health")
@@ -71,14 +82,16 @@ class HttpLoopTest(unittest.TestCase):
             first_pdf = client.get("/api/practice/files/" + first["file_id"]).content
             second_pdf = client.get("/api/practice/files/" + second["file_id"]).content
             self.assertIn(b"\\(-3\\)+5", first_pdf)
-            self.assertIn(b"student-synth", first_pdf)
-            self.assertNotIn(b"student-synth-2", first_pdf)
-            self.assertIn(b"student-synth-2", second_pdf)
+            self.assertIn(b"synth-0001", first_pdf)
+            self.assertNotIn(b"student-synth", first_pdf)
+            self.assertNotIn(b"synth-0002", first_pdf)
+            self.assertIn(b"synth-0002", second_pdf)
+            self.assertNotIn(b"synth-0001", second_pdf)
             self.assertIn(b"page 1", first_pdf)
             self.assertIn(b"pages 1", first_pdf)
-            self.assertIn(("paper " + str(first["paper_id"])).encode(), first_pdf)
+            self.assertNotIn(str(first["paper_id"]).encode(), first_pdf)
             self.assertNotIn(str(second["paper_id"]).encode(), first_pdf)
-            self.assertIn(b"name-rule omit", first_pdf)
+            self.assertNotIn(b"name-rule omit", first_pdf)
             self.assertNotIn(b"answer ", first_pdf)
             self.assertEqual(hashlib_sha(first_pdf), first["file_checksum"])
             edited = client.post(
