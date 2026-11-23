@@ -49,14 +49,17 @@ def main() -> int:
         print("SMOKE HTTP FAIL: issue " + json.dumps(opened, ensure_ascii=False))
         return 1
     pdf = _open(base + "/api/practice/files/" + str(opened["file_id"])).read()
-    if b"\\(-3\\)+5" not in pdf or b"student-synth" not in pdf or b"page 1" not in pdf:
-        print("SMOKE HTTP FAIL: pdf missing formula, student number, or page")
+    paper_id = str(opened["paper_id"]).encode()
+    if (
+        b"formula \\(-3\\)+5" not in pdf
+        or b"synth-0001" not in pdf
+        or b"page 1" not in pdf
+        or b"pages 1" not in pdf
+    ):
+        print("SMOKE HTTP FAIL: pdf missing formula, external id, or page")
         return 1
-    if b"name-rule omit" not in pdf or b"pages 1" not in pdf or b"paper " not in pdf:
-        print("SMOKE HTTP FAIL: pdf missing the no-name rule, page count, or paper id")
-        return 1
-    if b"answer " in pdf:
-        print("SMOKE HTTP FAIL: pdf includes an answer")
+    if b"student-synth" in pdf or b"name-rule omit" in pdf or paper_id in pdf or b"answer " in pdf:
+        print("SMOKE HTTP FAIL: pdf prints the internal id, a name rule, the paper id, or an answer")
         return 1
     print("SMOKE HTTP PASS")
     return 0

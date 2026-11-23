@@ -298,4 +298,69 @@ describe("session pages", () => {
     expect(revokeCall[1].method).toBe("POST");
     expect(revokeCall[1].headers["X-K12-CSRF"]).toBe("csrf-admin");
   });
+
+  it("posts two chosen approved questions as one paper", async () => {
+    const ready = (id, stem) => ({
+      question_version_id: id,
+      subject_id: "math",
+      stem,
+      answer_text: "2",
+      question_approved: true,
+      answer_approved: true,
+      retired: false,
+    });
+    const rows = [ready("q-v1", "(-3)+5"), ready("q-v2", "2x3")];
+    rows.push({
+      question_version_id: "q-draft",
+      subject_id: "math",
+      stem: "draft",
+      answer_text: "0",
+      question_approved: false,
+      answer_approved: false,
+      retired: false,
+    });
+    installFetch((path, options) => {
+      if (path === "/api/session") return jsonResponse(200, teacher);
+      if (path === "/api/catalog") return jsonResponse(200, { items: rows });
+      if (path === "/api/catalog/q-v1") return jsonResponse(200, rows[0]);
+      if (path === "/api/catalog/q-v2") return jsonResponse(200, rows[1]);
+      if (path === "/api/practice/papers" && options.method === "POST") {
+        return jsonResponse(200, { paper_id: "paper-r4", status: "可打印", file_id: "file-r4" });
+      }
+      if (path === "/api/practice/papers/paper-r4/attempt") {
+        return jsonResponse(200, {
+          answer_text: "学生写下了 5",
+          sub_question_id: "sq-1",
+          review_version_id: "rev-1",
+          fixture_answer_id: "fix-1",
+        });
+      }
+      if (path === "/api/practice/papers") return jsonResponse(200, { count: 0, papers: [] });
+      return jsonResponse(404, { code: "not_found", message: "not_found", request_id: "req-test" });
+    });
+    await renderAt("/");
+    await settle(() => document.querySelectorAll('input[type="checkbox"]').length === 2);
+    expect(document.body.textContent).toContain("q-draft");
+    const boxes = [...document.querySelectorAll('input[type="checkbox"]')];
+    await act(async () => {
+      boxes[0].click();
+    });
+    await act(async () => {
+      boxes[1].click();
+    });
+    await act(async () => {
+      const button = [...document.querySelectorAll("button")].find((item) => item.textContent === "出卷");
+      button.click();
+    });
+    await settle(() =>
+      fetch.mock.calls.some((call) => call[0] === "/api/practice/papers" && call[1] && call[1].method === "POST"),
+    );
+    const posted = fetch.mock.calls.find(
+      (call) => call[0] === "/api/practice/papers" && call[1] && call[1].method === "POST",
+    );
+    expect(JSON.parse(posted[1].body).items).toEqual([
+      { question_version_id: "q-v1" },
+      { question_version_id: "q-v2" },
+    ]);
+  });
 });

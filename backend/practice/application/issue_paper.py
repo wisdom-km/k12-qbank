@@ -23,6 +23,7 @@ class PreparedIssue:
 
     paper: Paper
     answer_text: str
+    stem: str = ""
 
 
 def prepare_issue(
@@ -84,11 +85,14 @@ def prepare_issue(
         review_version_id=command.review_version_id,
         item_order=ready.item_order,
         formula=formula_from_stem(snapshot.stem if snapshot is not None else ""),
+        qr_printed=command.qr_printed,
+        printed_external_id=command.printed_external_id,
     )
     if isinstance(paper, Err):
         return _refuse_issue(logger, request_id, started, paper.code, paper.message)
     answer_text = snapshot.answer_text if snapshot is not None else ""
-    return Ok(PreparedIssue(paper=paper, answer_text=answer_text))
+    stem = snapshot.stem if snapshot is not None else ""
+    return Ok(PreparedIssue(paper=paper, answer_text=answer_text, stem=stem))
 
 
 def gate_active_publication(

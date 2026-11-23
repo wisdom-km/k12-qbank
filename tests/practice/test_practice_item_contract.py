@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from dataclasses import replace
 
 from backend.catalog.adapters.memory import MemoryApprovals
 from backend.catalog.adapters.memory_publications import MemoryPublications
@@ -74,6 +75,25 @@ class PracticeItemCases:
         self.assertEqual(resolved[0].question_version_id, paper.question_version_id)
         self.assertEqual(resolved[0].answer_version_id, paper.answer_version_id)
         self.assertIsNone(resolved[0].score)
+
+    def test_face_fields_roundtrip(self) -> None:
+        paper = replace(
+            _bare_paper("paper-r4-face"),
+            qr_printed=True,
+            printed_external_id="synth-face-1",
+        )
+        self.practice.add_paper(paper)  # type: ignore[attr-defined]
+        stored = self.practice.get_paper(paper.paper_id)  # type: ignore[attr-defined]
+        assert stored is not None
+        self.assertTrue(stored.qr_printed)  # type: ignore[attr-defined]
+        self.assertEqual(stored.printed_external_id, "synth-face-1")  # type: ignore[attr-defined]
+        item = replace(
+            _item(paper.paper_id, 1, "q-face", "a-face"),
+            stem_text="stem-synth-face",
+            answer_text="ans-synth-face",
+        )
+        self.items.set_items(paper.paper_id, (item,))  # type: ignore[attr-defined]
+        self.assertEqual(self.items.items_of(paper.paper_id), (item,))  # type: ignore[attr-defined]
 
     def test_multi_item_paper_freezes_order(self) -> None:
         paper_id = "paper-d4-b"

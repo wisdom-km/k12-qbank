@@ -1,46 +1,80 @@
-"""One-page synthetic PDF. Latin text stays on the built-in Helvetica face.
+"""Synthetic PDF. Latin text stays on the built-in Helvetica face.
 
-The page shows the frozen formula, the synthetic student number, the paper
-instance, and the page numbers. It does not print a name, an answer, or an
-explanation. Latin text uses WinAnsiEncoding. Without that encoding, Helvetica
-uses StandardEncoding, byte D7 has no glyph, and a formula such as 2×3 is
-drawn as 23. Chinese uses the installed KaiTi, Microsoft YaHei, or SimHei
-face and embeds only this page's glyphs. The font file is not stored here.
+The page shows the printed student number, the page numbers, the frozen stem
+or formula, corner marks, a fixed answer box, and an optional QR code.
+It does not print a name, a class, or the internal student id. The QR code is
+drawn as rectangles. Its payload is not a literal string in the file.
+Latin text uses WinAnsiEncoding. Chinese uses the installed KaiTi, Microsoft
+YaHei, or SimHei face and embeds only this document's glyphs.
 A character neither face can take is a stable render error.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from backend.kernel.result import Err
 from backend.practice.adapters.pdf_font import PageFont, load_system_face, subset_page_font
 from backend.practice.domain.page_face import PaperPage
+from backend.practice.domain.page_layout import alignment_marks, answer_box, qr_origin
+from backend.practice.domain.qr_code import encode_qr, qr_payload
 
 
 class StdPdf:
-    """Write one PDF 1.4 page. Latin uses Helvetica. Chinese uses the system face."""
+    """Write a PDF 1.4 document. Latin uses Helvetica. Chinese uses the system face."""
 
     def render(self, page: PaperPage) -> bytes | Err:
-        lines = (
-            "k12-qbank synthetic paper",
-            "question " + page.question_version_id,
-            "answer-version " + page.answer_version_id,
-            "layout " + page.layout_template_id,
-            "assets " + " ".join(page.asset_ids),
-            "order " + " ".join(page.item_order),
-            "formula " + page.formula,
-            "student " + page.student_id,
-            "name-rule omit",
-            "paper " + page.paper_id,
-            "page " + str(page.page_number),
-            "pages " + str(page.page_count),
-        )
+        return self.render_document((page,))
+
+    def render_document(self, pages: Sequence[PaperPage]) -> bytes | Err:
+        prepared: list[tuple[tuple[str, ...], list[str]]] = []
+        for page in pages:
+            try:
+                prepared.append((_lines(page), _graphics(page)))
+            except (ValueError, RuntimeError):
+                return Err("not_rendered", "this synthetic page cannot encode the formula")
         try:
-            if any(_has_cjk(line) for line in lines):
-                return _pdf_cjk(lines)
-            encoded = [_pdf_text(line) for line in lines]
-            return _pdf(encoded)
+            if any(_has_cjk(line) for lines, _ in prepared for line in lines):
+                return _pdf_cjk(prepared)
+            encoded = [tuple(_pdf_text(line) for line in lines) for lines, _ in prepared]
+            marks = [graphics for _, graphics in prepared]
+            return _pdf(encoded, marks)
         except UnicodeEncodeError:
             return Err("not_rendered", "this synthetic page cannot encode the formula")
+
+
+def _lines(page: PaperPage) -> tuple[str, ...]:
+    lines: list[str] = []
+    if page.printed_external_id:
+        lines.append(page.printed_external_id)
+    lines.append("page " + str(page.page_number))
+    lines.append("pages " + str(page.page_count))
+    if page.stem:
+        lines.append(page.stem)
+    if page.formula:
+        lines.append("formula " + page.formula)
+    return tuple(lines)
+
+
+def _graphics(page: PaperPage) -> list[str]:
+    commands = ["0 0 0 rg", "0 0 0 RG", "1.5 w"]
+    for left, bottom, width, height in alignment_marks():
+        commands.append(f"{left} {bottom} {width} {height} re f")
+    left, bottom, width, height = answer_box(max(page.page_number, 1))
+    commands.append(f"{left} {bottom} {width} {height} re S")
+    if not page.qr_printed:
+        return commands
+    matrix = encode_qr(qr_payload(page.paper_id, page.page_number))
+    origin_x, origin_y, module = qr_origin()
+    size = len(matrix)
+    for row, cells in enumerate(matrix):
+        for col, dark in enumerate(cells):
+            if not dark:
+                continue
+            x = origin_x + col * module
+            y = origin_y + (size - 1 - row) * module
+            commands.append(f"{x} {y} {module} {module} re f")
+    return commands
 
 
 def _is_cjk(char: str) -> bool:
@@ -65,62 +99,49 @@ def _pdf_text(text: str) -> str:
     return raw.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
-def _pdf(lines: list[str]) -> bytes:
-    commands = ["BT", "/F1 12 Tf"]
+def _pdf(pages: list[tuple[str, ...]], graphics: list[list[str]]) -> bytes:
+    contents = [_latin_stream(lines, marks) for lines, marks in zip(pages, graphics)]
+    font_at = 3 + 2 * len(contents)
+    resources = f"<< /Font << /F1 {font_at} 0 R >> >>".encode("ascii")
+    trailing = [b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"]
+    return _assemble(contents, resources, trailing)
+
+
+def _latin_stream(lines: tuple[str, ...], graphics: list[str]) -> bytes:
+    commands = list(graphics)
+    commands.extend(["BT", "/F1 12 Tf"])
     y = 780
     for line in lines:
         commands.append(f"1 0 0 1 48 {y} Tm ({line}) Tj")
         y -= 18
     commands.append("ET")
-    stream = ("\n".join(commands) + "\n").encode("latin-1")
-    contents = (
-        b"<< /Length "
-        + str(len(stream)).encode("ascii")
-        + b" >>\nstream\n"
-        + stream
-        + b"endstream"
-    )
-    objects = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-        b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-        contents,
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-    ]
-    out = bytearray(b"%PDF-1.4\n")
-    offsets = [0]
-    for index, body in enumerate(objects, start=1):
-        offsets.append(len(out))
-        out += f"{index} 0 obj\n".encode("ascii")
-        out += body
-        out += b"\nendobj\n"
-    xref = len(out)
-    out += f"xref\n0 {len(objects) + 1}\n".encode("ascii")
-    out += b"0000000000 65535 f \n"
-    for offset in offsets[1:]:
-        out += f"{offset:010d} 00000 n \n".encode("ascii")
-    out += (
-        f"trailer << /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n"
-    ).encode("ascii")
-    return bytes(out)
+    return ("\n".join(commands) + "\n").encode("latin-1")
 
 
-def _pdf_cjk(lines: list[str]) -> bytes:
+def _pdf_cjk(prepared: list[tuple[tuple[str, ...], list[str]]]) -> bytes:
     codes: set[int] = set()
-    for line in lines:
-        for char in line:
-            if _is_cjk(char):
-                codes.add(ord(char))
-            else:
-                _pdf_text(char)
+    for lines, _ in prepared:
+        for line in lines:
+            for char in line:
+                if _is_cjk(char):
+                    codes.add(ord(char))
+                else:
+                    _pdf_text(char)
     face = load_system_face()
     if face is None:
         raise UnicodeEncodeError("cp1252", "cjk", 0, 1, "no system face")
     font = subset_page_font(face, codes)
     if font is None:
         raise UnicodeEncodeError("cp1252", "cjk", 0, 1, "glyph missing")
-    commands = ["BT"]
+    contents = [_cjk_stream(lines, marks, font) for lines, marks in prepared]
+    font_at = 3 + 2 * len(contents)
+    resources = f"<< /Font << /F1 {font_at} 0 R /F2 {font_at + 1} 0 R >> >>".encode("ascii")
+    return _assemble(contents, resources, _cjk_fonts(font, codes, font_at))
+
+
+def _cjk_stream(lines: tuple[str, ...], graphics: list[str], font: PageFont) -> bytes:
+    commands = list(graphics)
+    commands.append("BT")
     y = 780
     for line in lines:
         commands.append(f"1 0 0 1 48 {y} Tm")
@@ -132,7 +153,10 @@ def _pdf_cjk(lines: list[str]) -> bytes:
                 commands.append(f"/F1 12 Tf ({_pdf_text(run)}) Tj")
         y -= 18
     commands.append("ET")
-    stream = ("\n".join(commands) + "\n").encode("latin-1")
+    return ("\n".join(commands) + "\n").encode("latin-1")
+
+
+def _cjk_fonts(font: PageFont, codes: set[int], font_at: int) -> list[bytes]:
     x0, y0, x1, y1 = font.bbox
     widths = " ".join(f"{font.glyph_id[code]} [{font.width[code]}]" for code in sorted(codes))
     unicode_map = (
@@ -146,35 +170,26 @@ def _pdf_cjk(lines: list[str]) -> bytes:
         + _bfchars(font, codes)
         + "endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n"
     ).encode("ascii")
-    contents = _stream(stream)
-    to_unicode = _stream(unicode_map)
-    font_file = _stream(font.ttf, length1=True)
-    objects = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-        b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>",
-        contents,
+    return [
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
         (
             f"<< /Type /Font /Subtype /Type0 /BaseFont /K12QBK+{font.name} "
-            f"/Encoding /Identity-H /DescendantFonts [7 0 R] /ToUnicode 10 0 R >>"
+            f"/Encoding /Identity-H /DescendantFonts [{font_at + 2} 0 R] /ToUnicode {font_at + 5} 0 R >>"
         ).encode("ascii"),
         (
             f"<< /Type /Font /Subtype /CIDFontType2 /BaseFont /K12QBK+{font.name} "
             f"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
-            f"/FontDescriptor 8 0 R /CIDToGIDMap /Identity /W [{widths}] >>"
+            f"/FontDescriptor {font_at + 3} 0 R /CIDToGIDMap /Identity /W [{widths}] >>"
         ).encode("ascii"),
         (
             f"<< /Type /FontDescriptor /FontName /K12QBK+{font.name} /Flags 4 "
             f"/FontBBox [{x0} {y0} {x1} {y1}] /ItalicAngle 0 "
             f"/Ascent {font.ascent} /Descent {font.descent} /CapHeight {font.ascent} "
-            f"/StemV 80 /FontFile2 9 0 R >>"
+            f"/StemV 80 /FontFile2 {font_at + 4} 0 R >>"
         ).encode("ascii"),
-        font_file,
-        to_unicode,
+        _stream(font.ttf, length1=True),
+        _stream(unicode_map),
     ]
-    return _finish(objects)
 
 
 def _bfchars(font: PageFont, codes: set[int]) -> str:
@@ -201,6 +216,26 @@ def _runs(line: str) -> list[tuple[str, str]]:
     if buf:
         runs.append((kind, "".join(buf)))
     return runs
+
+
+def _assemble(contents: list[bytes], resources: bytes, trailing: list[bytes]) -> bytes:
+    count = len(contents)
+    kids = " ".join(f"{3 + 2 * index} 0 R" for index in range(count))
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        f"<< /Type /Pages /Kids [{kids}] /Count {count} >>".encode("ascii"),
+    ]
+    for index, stream in enumerate(contents):
+        content_id = 4 + 2 * index
+        objects.append(
+            (
+                f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+                f"/Contents {content_id} 0 R /Resources {resources.decode('ascii')} >>"
+            ).encode("ascii")
+        )
+        objects.append(_stream(stream))
+    objects.extend(trailing)
+    return _finish(objects)
 
 
 def _stream(payload: bytes, *, length1: bool = False) -> bytes:

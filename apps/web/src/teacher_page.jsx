@@ -20,6 +20,7 @@ export function TeacherPage() {
       get: () => stateRef.current,
       setSession: set("session"),
       setItems: set("items"),
+      setChosen: set("chosen"),
       setItem: set("item"),
       setStudentId: set("studentId"),
       setPaper: set("paper"),
@@ -84,7 +85,7 @@ export function TeacherPage() {
     });
   }
 
-  const { session, items, item, studentId, paper, papers, attempt, decision, operationKey } = state;
+  const { session, items, chosen, item, studentId, paper, papers, attempt, decision, operationKey } = state;
   const { confirmation, savedPayload, message, error, errorCode, issuing } = state;
   const approved = Boolean(item && item.question_approved && item.answer_approved && !item.retired);
   const waitingReason = paper && paper.status === "待渲染" && (paper.render_code || paper.render_message);
@@ -96,7 +97,7 @@ export function TeacherPage() {
         <h1>有理数出卷</h1>
         <Link to="/account">修改我的口令</Link>
       </header>
-      <p className="note">逐题核验当前库里的题。出卷仍用选中的这一题。操作键由这次提交带上，谁生成这串文字还没定。</p>
+      <p className="note">逐题核验当前库里的题。勾选两道已核验的题会出在同一张卷上。只出一道时用当前选中的题。操作键由这次提交带上，谁生成这串文字还没定。</p>
       {session && <p className="note">当前老师：{session.actor_teacher_id}</p>}
       {error && <p className="error">{error}</p>}
       {message && <p className="ok">{message}</p>}
@@ -105,14 +106,33 @@ export function TeacherPage() {
         <h2>核验</h2>
         {items.length > 0 && (
           <ul>
-            {items.map((row) => (
-              <li key={row.question_version_id}>
-                <button type="button" onClick={() => loop.selectQuestion(row.question_version_id)}>
-                  {row.question_version_id} · {row.question_approved && row.answer_approved && !row.retired ? "已核验" : "未核验"}
-                  {row.stem ? " · " + row.stem.slice(0, 24) : ""}
-                </button>
-              </li>
-            ))}
+            {items.map((row) => {
+              const ready = row.question_approved && row.answer_approved && !row.retired;
+              return (
+                <li key={row.question_version_id}>
+                  <button type="button" onClick={() => loop.selectQuestion(row.question_version_id)}>
+                    {row.question_version_id} · {ready ? "已核验" : "未核验"}
+                    {row.stem ? " · " + row.stem.slice(0, 24) : ""}
+                  </button>
+                  {ready && (
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={chosen.includes(row.question_version_id)}
+                        onChange={() =>
+                          set("chosen")(
+                            chosen.includes(row.question_version_id)
+                              ? chosen.filter((id) => id !== row.question_version_id)
+                              : chosen.concat(row.question_version_id),
+                          )
+                        }
+                      />
+                      纳入本卷
+                    </label>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
         {item && (
@@ -148,7 +168,7 @@ export function TeacherPage() {
             ))}
           </select>
         </label>
-        <button type="button" onClick={() => loop.issue()} disabled={!approved}>
+        <button type="button" onClick={() => loop.issue()} disabled={!(approved || chosen.length >= 2)}>
           出卷
         </button>
         {paper && (

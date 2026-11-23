@@ -11,9 +11,10 @@ from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 from backend.practice.api import AttemptView, IssuePaperCommand, OpenedPaper
 from backend.practice.application.issue_paper import gate_active_publication, prepare_issue
-from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeStore
+from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeItems, PracticeStore
 from backend.practice.application.render_paper import render_paper
 from backend.practice.domain.confirm import PendingAnswer
+from backend.practice.domain.item import PracticeItem
 
 
 def open_paper(
@@ -30,6 +31,7 @@ def open_paper(
     actor_teacher_id: str,
     attempt_text: str,
     publications: Publications,
+    items: PracticeItems | None = None,
 ) -> Ok[OpenedPaper] | Err:
     prepared = prepare_issue(
         command,
@@ -75,6 +77,24 @@ def open_paper(
     )
     if isinstance(saved, Err):
         return saved
+    if items is not None:
+        copied = PracticeItem(
+            paper_id=paper.paper_id,
+            order_no=1,
+            question_version_id=paper.question_version_id,
+            answer_version_id=paper.answer_version_id,
+            stem_text=prepared.value.stem,
+            answer_text=prepared.value.answer_text,
+        )
+        stored_item = read_store(
+            lambda: items.set_items(paper.paper_id, (copied,)),
+            logger,
+            request_id,
+            "practice.issue",
+            started,
+        )
+        if isinstance(stored_item, Err):
+            return stored_item
     emit(
         logger,
         level="INFO",
@@ -103,6 +123,7 @@ def open_paper(
         logger,
         request_id,
         actor_teacher_id=actor_teacher_id,
+        items=items,
     )
     if isinstance(rendered, Err):
         current = store.get_paper(paper.paper_id) or paper

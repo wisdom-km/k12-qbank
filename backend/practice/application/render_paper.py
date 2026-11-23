@@ -11,7 +11,8 @@ from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeItems, PracticeStore
 from backend.practice.application.resolve_items import _resolve_items
-from backend.practice.domain.page_face import PaperPage
+from backend.practice.domain.item import PracticeItem
+from backend.practice.domain.page_face import PaperPage, formula_from_stem
 from backend.practice.domain.paper import Paper, mark_issued, mark_printable, recall_file
 
 
@@ -35,21 +36,16 @@ def render_paper(
     paper = loaded.value
     if paper.status != "待渲染":
         return _refuse(logger, request_id, started, "not_rendering", "only a paper waiting for render can become printable")
-    # The formula was copied at issue. A later bank edit must not change this page.
+    # The stem and formula were copied at issue. A later bank edit must not change this page.
     resolved = _resolve_items(paper.paper_id, store, items)
-    face = PaperPage(
-        question_version_id=resolved[0].question_version_id,
-        answer_version_id=resolved[0].answer_version_id,
-        formula=paper.formula,
-        student_id=paper.student_id,
-        page_number=1,
-        item_order=paper.item_order,
-        asset_ids=paper.asset_ids,
-        layout_template_id=paper.layout_template_id,
-        paper_id=paper.paper_id,
-        page_count=1,
-    )
-    drawn = renderer.render(face)
+    faces = tuple(_face(paper, item, len(resolved)) for item in resolved)
+    if len(faces) == 1:
+        drawn = renderer.render(faces[0])
+    else:
+        draw_document = getattr(renderer, "render_document", None)
+        if draw_document is None:
+            return _refuse(logger, request_id, started, "not_rendered", "this renderer cannot draw multiple pages")
+        drawn = draw_document(faces)
     if isinstance(drawn, Err):
         emit(
             logger,
@@ -193,6 +189,25 @@ def read_file(
     if blocked is not None:
         return _refuse(logger, request_id, started, blocked.code, blocked.message)
     return Ok(data.value)
+
+
+def _face(paper: Paper, item: PracticeItem, count: int) -> PaperPage:
+    formula = formula_from_stem(item.stem_text) if item.stem_text else paper.formula
+    return PaperPage(
+        question_version_id=item.question_version_id,
+        answer_version_id=item.answer_version_id,
+        formula=formula,
+        student_id=paper.student_id,
+        page_number=item.order_no,
+        item_order=paper.item_order,
+        asset_ids=paper.asset_ids,
+        layout_template_id=paper.layout_template_id,
+        paper_id=paper.paper_id,
+        page_count=count,
+        printed_external_id=paper.printed_external_id,
+        qr_printed=paper.qr_printed,
+        stem=item.stem_text,
+    )
 
 
 def _load_allowed(

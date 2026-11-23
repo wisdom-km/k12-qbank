@@ -23,6 +23,9 @@ class PaperPage:
     layout_template_id: str
     paper_id: str
     page_count: int
+    printed_external_id: str = ""
+    qr_printed: bool = False
+    stem: str = ""
 
 
 def formula_from_stem(stem: str) -> str:
