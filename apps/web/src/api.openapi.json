@@ -1821,7 +1821,8 @@
           },
           "question_version_id": {
             "type": "string",
-            "title": "Question Version Id"
+            "title": "Question Version Id",
+            "default": ""
           },
           "review_version_id": {
             "type": "string",
@@ -1831,16 +1832,36 @@
             "type": "string",
             "title": "Teacher Id",
             "default": ""
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IssueItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "default": []
           }
         },
         "type": "object",
         "required": [
           "student_id",
           "subject_id",
-          "question_version_id",
           "review_version_id"
         ],
         "title": "IssueBody"
+      },
+      "IssueItem": {
+        "properties": {
+          "question_version_id": {
+            "type": "string",
+            "title": "Question Version Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question_version_id"
+        ],
+        "title": "IssueItem"
       },
       "LoginBody": {
         "properties": {

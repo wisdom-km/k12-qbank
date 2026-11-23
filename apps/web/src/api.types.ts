@@ -783,7 +783,10 @@ export interface components {
             student_id: string;
             /** Subject Id */
             subject_id: string;
-            /** Question Version Id */
+            /**
+             * Question Version Id
+             * @default
+             */
             question_version_id: string;
             /** Review Version Id */
             review_version_id: string;
@@ -792,6 +795,16 @@ export interface components {
              * @default
              */
             teacher_id: string;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["IssueItem"][];
+        };
+        /** IssueItem */
+        IssueItem: {
+            /** Question Version Id */
+            question_version_id: string;
         };
         /** LoginBody */
         LoginBody: {
