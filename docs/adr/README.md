@@ -10,6 +10,8 @@
 
 2026-11-22：0040 已采纳。生产 CORS 白名单由 `K12_CORS_ORIGINS` 驱动。不改 0032 正文。
 
+2026-11-23：0041 已采纳。收卷照片、卷面匿名和多模态识别见该条。DEC-03 的传输范围以 PRD 为准。不改 0008、0020、0030 的正文。0011 只在文末追加修订说明。
+
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
 | [0001](0001-long-lived-tier.md) | 按长期项目做 | accepted | 全库 |
@@ -52,3 +54,4 @@
 | [0038](0038-last-admin.md) | 至少一个活跃管理员 | accepted | identity |
 | [0039](0039-catalog-persistence.md) | catalog 与 practice 的首个持久适配器 | accepted | catalog, practice |
 | [0040](0040-cors-origins.md) | 生产 CORS 白名单由 K12_CORS_ORIGINS 驱动 | accepted | kernel |
+| [0041](0041-intake-photo-and-vision.md) | 收卷照片与多模态识别 | accepted | practice |
