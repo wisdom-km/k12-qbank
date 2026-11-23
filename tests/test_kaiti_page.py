@@ -35,6 +35,15 @@ def _page(formula: str) -> PaperPage:
     )
 
 
+def _embedded_cff(pdf: bytes) -> bytes:
+    marker = pdf.index(b"/Subtype /CIDFontType0C")
+    window = pdf[marker - 80 : marker]
+    length_at = window.rindex(b"/Length ")
+    length = int(window[length_at + len(b"/Length ") :].split()[0])
+    start = pdf.index(b"stream\n", marker) + len(b"stream\n")
+    return pdf[start : start + length]
+
+
 def _embedded_ttf(pdf: bytes) -> bytes:
     marker = pdf.index(b"/Length1 ")
     length = int(pdf[marker + len(b"/Length1 ") : pdf.index(b" >>", marker)])
@@ -81,14 +90,23 @@ class KaitiPageTest(unittest.TestCase):
         self.assertIn(b"/BaseFont /Helvetica", drawn)
         self.assertIn(b"/Encoding /WinAnsiEncoding", drawn)
         self.assertIn(f"/BaseFont /K12QBK+{face}".encode("ascii"), drawn)
-        self.assertIn(b"/FontFile2", drawn)
         if "Noto" not in face:
             self.assertNotIn(b"Noto", drawn)
-        ttf = _embedded_ttf(drawn)
-        self.assertEqual(ttf[:4], b"\x00\x01\x00\x00")
-        glyph = _cmap_glyph(ttf, ord("解"))
-        self.assertGreater(glyph, 0)
-        self.assertIn(f"{glyph:04X}".encode("ascii"), drawn)
+        if b"/FontFile2" in drawn:
+            self.assertNotIn(b"/CIDFontType0C", drawn)
+            ttf = _embedded_ttf(drawn)
+            self.assertEqual(ttf[:4], b"\x00\x01\x00\x00")
+            glyph = _cmap_glyph(ttf, ord("解"))
+            self.assertGreater(glyph, 0)
+            self.assertIn(f"{glyph:04X}".encode("ascii"), drawn)
+            return
+        self.assertIn(b"/Subtype /CIDFontType0", drawn)
+        self.assertNotIn(b"/CIDToGIDMap", drawn)
+        program = _embedded_cff(drawn)
+        self.assertEqual(program[:2], b"\x01\x00")
+        self.assertGreater(len(program), 500)
+        self.assertLess(len(program), 250_000)
+        self.assertIn(b"<89E3>", drawn)
 
     def test_times_sign_stays_helvetica_and_radical_stays_waiting(self) -> None:
         drawn = StdPdf().render(_page("2\u00d73"))
@@ -97,6 +115,7 @@ class KaitiPageTest(unittest.TestCase):
         self.assertIn(b"/Encoding /WinAnsiEncoding", drawn)
         self.assertIn("formula 2\u00d73".encode("cp1252"), drawn)
         self.assertNotIn(b"/FontFile2", drawn)
+        self.assertNotIn(b"/CIDFontType0C", drawn)
         self.assertNotIn(b"K12QBK+", drawn)
         refused = StdPdf().render(_page("\u221a2"))
         self.assertIsInstance(refused, Err)

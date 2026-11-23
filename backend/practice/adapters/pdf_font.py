@@ -44,7 +44,11 @@ class SystemFace:
 
 @dataclass(frozen=True)
 class PageFont:
-    """A subset whose glyph ids are safe to draw with Identity-H."""
+    """A subset whose glyph ids are safe to draw with Identity-H.
+
+    kind is ttf for a glyf subset and cff for a CIDFontType0C subset.
+    ttf holds whichever font program is embedded.
+    """
 
     name: str
     ttf: bytes
@@ -53,6 +57,7 @@ class PageFont:
     bbox: tuple[int, int, int, int]
     ascent: int
     descent: int
+    kind: str = "ttf"
 
 
 def load_system_face() -> SystemFace | None:
@@ -102,6 +107,14 @@ def subset_page_font(face: SystemFace, codes: set[int]) -> PageFont | None:
     tables = _tables(face.data, face.origin)
     if tables is None:
         return None
+    if b"glyf" not in tables:
+        from backend.practice.adapters.pdf_cff import subset_cff
+
+        return subset_cff(face, tables, codes)
+    return _subset_ttf(face, tables, codes)
+
+
+def _subset_ttf(face: SystemFace, tables: dict[bytes, bytes], codes: set[int]) -> PageFont | None:
     needed = {0}
     mapping: dict[int, int] = {}
     for code in codes:
@@ -159,10 +172,16 @@ def _tables(data: bytes, origin: int) -> dict[bytes, bytes] | None:
         if start + length > len(data):
             return None
         found[tag] = data[start : start + length]
-    required = (b"cmap", b"glyf", b"head", b"hhea", b"hmtx", b"loca", b"maxp")
+    required = (b"cmap", b"head", b"hhea", b"hmtx")
     if any(tag not in found for tag in required):
         return None
-    return found
+    if b"glyf" in found:
+        if b"loca" not in found or b"maxp" not in found:
+            return None
+        return found
+    if b"CFF " in found:
+        return found
+    return None
 
 
 def _cmap_gid(tables: dict[bytes, bytes], code: int) -> int:

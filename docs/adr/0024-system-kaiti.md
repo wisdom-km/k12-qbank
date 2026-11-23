@@ -41,3 +41,5 @@ ADR 0022 记下 Noto Sans CJK 的许可证是 SIL Open Font License 1.1，不在
 缺字体时显式报错：`K12_ENV=production` 启动退出；development 出卷返回 `pdf_font_missing`。任何环境都不许只印公式、丢掉汉字。
 
 拉丁字符仍用 Helvetica。根号这类写不出的字符仍是 `not_rendered`。
+
+部署环境给出的字体如果是 CFF（`fonts-noto-cjk` 的 OpenType 集合就是这种），同样只嵌入这一页的字形轮廓，不整包嵌入，也不改成只写 ToUnicode。

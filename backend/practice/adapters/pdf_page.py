@@ -6,7 +6,8 @@ number, the page numbers, corner marks, answer boxes, and an optional QR code.
 Neither prints a name, a class, or the internal student id. The QR code is
 drawn as rectangles. Its payload is not a literal string in the file.
 Latin text uses WinAnsiEncoding. Chinese uses the face from pdf_font and
-embeds only this document's glyphs. A missing face is pdf_font_missing.
+embeds only this document's glyphs, as a TrueType subset or a CFF subset.
+A missing face is pdf_font_missing.
 A character the loaded face cannot draw is not_rendered.
 """
 
@@ -214,7 +215,6 @@ def _cjk_stream(
 
 
 def _cjk_fonts(font: PageFont, codes: set[int], font_at: int) -> list[bytes]:
-    x0, y0, x1, y1 = font.bbox
     widths = " ".join(f"{font.glyph_id[code]} [{font.width[code]}]" for code in sorted(codes))
     unicode_map = (
         "/CIDInit /ProcSet findresource begin\n"
@@ -233,20 +233,44 @@ def _cjk_fonts(font: PageFont, codes: set[int], font_at: int) -> list[bytes]:
             f"<< /Type /Font /Subtype /Type0 /BaseFont /K12QBK+{font.name} "
             f"/Encoding /Identity-H /DescendantFonts [{font_at + 2} 0 R] /ToUnicode {font_at + 5} 0 R >>"
         ).encode("ascii"),
-        (
-            f"<< /Type /Font /Subtype /CIDFontType2 /BaseFont /K12QBK+{font.name} "
-            f"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
-            f"/FontDescriptor {font_at + 3} 0 R /CIDToGIDMap /Identity /W [{widths}] >>"
-        ).encode("ascii"),
-        (
-            f"<< /Type /FontDescriptor /FontName /K12QBK+{font.name} /Flags 4 "
-            f"/FontBBox [{x0} {y0} {x1} {y1}] /ItalicAngle 0 "
-            f"/Ascent {font.ascent} /Descent {font.descent} /CapHeight {font.ascent} "
-            f"/StemV 80 /FontFile2 {font_at + 4} 0 R >>"
-        ).encode("ascii"),
-        _stream(font.ttf, length1=True),
+        _cid_font(font, font_at, widths),
+        _font_descriptor(font, font_at),
+        _font_program(font),
         _stream(unicode_map),
     ]
+
+
+def _cid_font(font: PageFont, font_at: int, widths: str) -> bytes:
+    if font.kind == "cff":
+        subtype = "CIDFontType0"
+        identity = ""
+    else:
+        subtype = "CIDFontType2"
+        identity = " /CIDToGIDMap /Identity"
+    return (
+        f"<< /Type /Font /Subtype /{subtype} /BaseFont /K12QBK+{font.name} "
+        f"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+        f"/FontDescriptor {font_at + 3} 0 R{identity} /W [{widths}] >>"
+    ).encode("ascii")
+
+
+def _font_descriptor(font: PageFont, font_at: int) -> bytes:
+    x0, y0, x1, y1 = font.bbox
+    file_key = "FontFile3" if font.kind == "cff" else "FontFile2"
+    return (
+        f"<< /Type /FontDescriptor /FontName /K12QBK+{font.name} /Flags 4 "
+        f"/FontBBox [{x0} {y0} {x1} {y1}] /ItalicAngle 0 "
+        f"/Ascent {font.ascent} /Descent {font.descent} /CapHeight {font.ascent} "
+        f"/StemV 80 /{file_key} {font_at + 4} 0 R >>"
+    ).encode("ascii")
+
+
+def _font_program(font: PageFont) -> bytes:
+    payload = font.ttf
+    if font.kind != "cff":
+        return _stream(payload, length1=True)
+    header = f"<< /Length {len(payload)} /Subtype /CIDFontType0C >>\nstream\n".encode("ascii")
+    return header + payload + b"\nendstream"
 
 
 def _bfchars(font: PageFont, codes: set[int]) -> str:
