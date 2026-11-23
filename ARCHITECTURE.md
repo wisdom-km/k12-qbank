@@ -200,6 +200,8 @@ core 怎么记：调用注入的 `backend.kernel.Logger.log`，参数是 `LogEve
 
 ASVS L1 自查是 SHOULD，还没做。
 
+2026-11-23：上面「运行时」列保持开工时的原文。当前八条状态、文件和测试名在 `docs/evidence/m-10-2026-11-23.md`。第 5 条仍没有费用上限。ASVS L1 仍未做。`scripts/check.ps1` 仍只把 M-10 打成 MANUAL。
+
 ## 数据安全
 
 真实学情会进入系统（[D] 是）。现在仓库里没有正式数据，也没有开发库。
