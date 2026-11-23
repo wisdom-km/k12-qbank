@@ -5,8 +5,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Literal, TypeVar
 
+from psycopg.errors import UniqueViolation
+
 from backend.catalog.domain.publication import (
+    Asset,
+    AttachResult,
     Publication,
+    RemoveResult,
+    asset_file_refusal,
+    asset_id_for,
     bound_page,
     clean_layout,
     require_actor,
@@ -77,6 +84,53 @@ class PgPublications:
             self._pool,
             lambda conn: _publish(conn, question_version_id, answer_version_id, layout),
         )
+
+    def note_page_file(self, file_id: str) -> None:
+        """Test seam. Inserts files.purpose = page so the privacy guard can see it."""
+        _run(self._pool, lambda conn: _note_page_file(conn, file_id))
+
+    def note_paper_file(self, file_id: str) -> None:
+        """Test seam. Inserts papers.file_id."""
+        _run(self._pool, lambda conn: _note_paper(conn, file_id, None, "file-" + file_id))
+
+    def note_paper_checksum(self, checksum: str) -> None:
+        """Test seam. Inserts papers.file_checksum. file_id stays null so the file-id guard does not fire."""
+        _run(self._pool, lambda conn: _note_paper(conn, None, checksum, "sum-" + checksum))
+
+    def clear_privacy_notes(self) -> None:
+        _run(self._pool, _clear_privacy_notes)
+
+    def attach_asset(
+        self,
+        publication_id: str,
+        file_id: str,
+        kind: Literal["image", "pdf"],
+        checksum: str,
+        size_bytes: int,
+        mime_type: str,
+        actor_id: str,
+    ) -> AttachResult:
+        require_actor(actor_id)
+        return _run(
+            self._pool,
+            lambda conn: _attach(
+                conn,
+                publication_id,
+                file_id,
+                kind,
+                checksum,
+                size_bytes,
+                mime_type,
+                actor_id,
+            ),
+        )
+
+    def remove_asset(self, publication_id: str, publication_asset_id: str, actor_id: str) -> RemoveResult:
+        require_actor(actor_id)
+        return _run(self._pool, lambda conn: _remove(conn, publication_id, publication_asset_id))
+
+    def list_assets(self, publication_id: str) -> tuple[Asset, ...] | None:
+        return _run(self._pool, lambda conn: _list_assets(conn, publication_id))
 
 
 def _run(pool: object, work: Callable[[Any], T]) -> T:
@@ -296,3 +350,202 @@ def _publication(row: tuple[object, ...]) -> Publication:
         status=str(row[5]),
         layout_template_id=None if row[3] is None else str(row[3]),
     )
+
+
+def _attach(
+    conn: Any,
+    publication_id: str,
+    file_id: str,
+    kind: str,
+    checksum: str,
+    size_bytes: int,
+    mime_type: str,
+    actor_id: str,
+) -> AttachResult:
+    publication = conn.execute(
+        """
+        SELECT status
+        FROM publication
+        WHERE publication_id = %s
+        """,
+        (publication_id,),
+    ).fetchone()
+    if publication is None:
+        return AttachResult("publication_not_found")
+    if str(publication[0]) == "retired":
+        return AttachResult("publication_retired")
+    page_file = conn.execute(
+        """
+        SELECT 1
+        FROM files
+        WHERE file_id = %s
+          AND purpose = 'page'
+        LIMIT 1
+        """,
+        (file_id,),
+    ).fetchone()
+    paper_file = conn.execute(
+        """
+        SELECT 1
+        FROM papers
+        WHERE file_id = %s
+        LIMIT 1
+        """,
+        (file_id,),
+    ).fetchone()
+    paper_checksum = conn.execute(
+        """
+        SELECT 1
+        FROM papers
+        WHERE file_checksum = %s
+        LIMIT 1
+        """,
+        (checksum,),
+    ).fetchone()
+    refusal = asset_file_refusal(
+        file_id,
+        kind,
+        mime_type,
+        page_file=page_file is not None,
+        paper_file=paper_file is not None,
+        paper_checksum=paper_checksum is not None,
+    )
+    if refusal is not None:
+        return AttachResult(refusal)
+    # A unique violation aborts the statement. The savepoint keeps the transaction
+    # open so the existing row can be read back.
+    conn.execute("SAVEPOINT publication_asset_insert")
+    try:
+        inserted = conn.execute(
+            """
+            INSERT INTO publication_asset (
+                publication_asset_id,
+                publication_id,
+                file_id,
+                kind,
+                checksum,
+                size_bytes,
+                mime_type,
+                created_by
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING publication_asset_id, publication_id, file_id, kind, checksum,
+                      size_bytes, mime_type, created_at, created_by
+            """,
+            (
+                asset_id_for(publication_id, checksum),
+                publication_id,
+                file_id,
+                kind,
+                checksum,
+                size_bytes,
+                mime_type,
+                actor_id,
+            ),
+        ).fetchone()
+    except UniqueViolation:
+        conn.execute("ROLLBACK TO SAVEPOINT publication_asset_insert")
+        found = conn.execute(
+            """
+            SELECT publication_asset_id
+            FROM publication_asset
+            WHERE publication_id = %s
+              AND checksum = %s
+            """,
+            (publication_id, checksum),
+        ).fetchone()
+        if found is None:
+            raise
+        return AttachResult("already_attached", publication_asset_id=str(found[0]))
+    conn.execute("RELEASE SAVEPOINT publication_asset_insert")
+    asset = _asset(inserted)
+    return AttachResult("attached", publication_asset_id=asset.publication_asset_id, asset=asset)
+
+
+def _remove(conn: Any, publication_id: str, publication_asset_id: str) -> RemoveResult:
+    deleted = conn.execute(
+        """
+        DELETE FROM publication_asset
+        WHERE publication_asset_id = %s
+          AND publication_id = %s
+        RETURNING publication_asset_id, publication_id, file_id, kind, checksum,
+                  size_bytes, mime_type, created_at, created_by
+        """,
+        (publication_asset_id, publication_id),
+    ).fetchone()
+    if deleted is None:
+        return RemoveResult("not_found")
+    return RemoveResult("removed", asset=_asset(deleted))
+
+
+def _list_assets(conn: Any, publication_id: str) -> tuple[Asset, ...] | None:
+    found = conn.execute(
+        """
+        SELECT 1
+        FROM publication
+        WHERE publication_id = %s
+        """,
+        (publication_id,),
+    ).fetchone()
+    if found is None:
+        return None
+    rows = conn.execute(
+        """
+        SELECT publication_asset_id, publication_id, file_id, kind, checksum,
+               size_bytes, mime_type, created_at, created_by
+        FROM publication_asset
+        WHERE publication_id = %s
+        ORDER BY created_at ASC, publication_asset_id ASC
+        """,
+        (publication_id,),
+    ).fetchall()
+    return tuple(_asset(row) for row in rows)
+
+
+def _asset(row: tuple[object, ...]) -> Asset:
+    return Asset(
+        publication_asset_id=str(row[0]),
+        publication_id=str(row[1]),
+        file_id=str(row[2]),
+        kind=str(row[3]),
+        checksum=str(row[4]),
+        size_bytes=int(row[5]),  # type: ignore[arg-type]
+        mime_type=str(row[6]),
+        created_at=row[7],  # type: ignore[arg-type]
+        created_by=str(row[8]),
+    )
+
+
+def _note_page_file(conn: Any, file_id: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO files (file_id, purpose, checksum)
+        VALUES (%s, 'page', 'checksum-d8a-page')
+        """,
+        (file_id,),
+    )
+
+
+def _note_paper(conn: Any, file_id: str | None, checksum: str | None, token: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO papers (
+            paper_id, teacher_id, student_id, subject_id,
+            question_version_id, answer_version_id, asset_ids,
+            layout_template_id, review_version_id, file_id,
+            status, item_order, file_checksum, formula
+        )
+        VALUES (
+            %s, 'teacher-d8a', 'student-d8a', 'subj-d8a',
+            'q-d8a', 'a-d8a', ARRAY[]::text[],
+            'layout-d8a', 'rev-d8a', %s,
+            'issued', ARRAY[]::text[], %s, 'formula-d8a'
+        )
+        """,
+        ("paper-d8a-" + token, file_id, checksum),
+    )
+
+
+def _clear_privacy_notes(conn: Any) -> None:
+    conn.execute("DELETE FROM papers WHERE paper_id LIKE 'paper-d8a-%'")
+    conn.execute("DELETE FROM files WHERE checksum = 'checksum-d8a-page'")

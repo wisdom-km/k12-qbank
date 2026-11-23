@@ -2,9 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
 from dataclasses import dataclass
+from datetime import datetime
 
 from backend.kernel.result import StoreFault
+
+# The id is a hash of the publication and the checksum. checksum[:16] alone
+# would collide when two publications carry the same file.
+_ASSET_PREFIX = "pubasset-"
+PUBFILE_ID = re.compile(r"^pubfile-[0-9a-f]{16}$")
+IMAGE_MIMES = frozenset({"image/png", "image/jpeg", "image/webp"})
+PDF_MIMES = frozenset({"application/pdf"})
 
 
 @dataclass(frozen=True)
@@ -48,3 +58,72 @@ def clean_layout(layout_template_id: str | None) -> str | None:
     if not text:
         return None
     return text
+
+
+@dataclass(frozen=True)
+class Asset:
+    publication_asset_id: str
+    publication_id: str
+    file_id: str
+    kind: str
+    checksum: str
+    size_bytes: int
+    mime_type: str
+    created_at: datetime
+    created_by: str
+
+
+@dataclass(frozen=True)
+class AttachResult:
+    result: str
+    publication_asset_id: str | None = None
+    asset: Asset | None = None
+
+
+@dataclass(frozen=True)
+class RemoveResult:
+    result: str
+    asset: Asset | None = None
+
+
+def asset_id_for(publication_id: str, checksum: str) -> str:
+    """Stable id for one publication and checksum. A repeat returns the same id."""
+    digest = hashlib.sha256(f"{publication_id}\n{checksum}".encode()).hexdigest()[:16]
+    return _ASSET_PREFIX + digest
+
+
+def mime_allowed(kind: str, mime_type: str) -> bool:
+    """Kind chooses the whitelist. The database does not store this map."""
+    if kind == "image":
+        return mime_type in IMAGE_MIMES
+    if kind == "pdf":
+        return mime_type in PDF_MIMES
+    return False
+
+
+def asset_file_refusal(
+    file_id: str,
+    kind: str,
+    mime_type: str,
+    *,
+    page_file: bool,
+    paper_file: bool,
+    paper_checksum: bool,
+) -> str | None:
+    """Refuse a page photo or an issued-paper file before the id shape is checked.
+
+    A file- prefix is a page file even when it also fails the pubfile shape.
+    """
+    if file_id.startswith("file-"):
+        return "page_file_rejected"
+    if page_file:
+        return "page_file_rejected"
+    if paper_file:
+        return "paper_file_rejected"
+    if paper_checksum:
+        return "paper_file_rejected"
+    if PUBFILE_ID.fullmatch(file_id) is None:
+        return "invalid_file_id"
+    if not mime_allowed(kind, mime_type):
+        return "disallowed_mime"
+    return None

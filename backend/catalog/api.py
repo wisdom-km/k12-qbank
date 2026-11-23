@@ -8,17 +8,20 @@ from backend.catalog.domain.answer import AnswerDraft, parse_answer_draft, answe
 from backend.catalog.domain.approval import copy_issue_snapshot, issuable_snapshot, issue_block
 from backend.catalog.domain.parse import parse_question_draft
 from backend.catalog.domain.validate import DraftFile, QuestionDraft, publication_blocked
-from backend.catalog.domain.publication import Publication
+from backend.catalog.domain.publication import Asset, AttachResult, Publication, RemoveResult
 from backend.catalog.domain.snapshot import ApprovalSnapshot, IssueSnapshot
 
 __all__ = [
     "AnswerDraft",
     "ApprovalPort",
     "ApprovalSnapshot",
+    "Asset",
+    "AttachResult",
     "DraftFile",
     "IssueSnapshot",
     "Publication",
     "Publications",
+    "RemoveResult",
     "QuestionDraft",
     "answer_not_publication",
     "copy_issue_snapshot",
@@ -70,3 +73,21 @@ class Publications(Protocol):
         limit: int = 50,
     ) -> tuple[tuple[Publication, ...], int]:
         """One page of publication rows and the filtered total. The port does not look at a role."""
+
+    def attach_asset(
+        self,
+        publication_id: str,
+        file_id: str,
+        kind: Literal["image", "pdf"],
+        checksum: str,
+        size_bytes: int,
+        mime_type: str,
+        actor_id: str,
+    ) -> AttachResult:
+        """Attach one file. An empty actor raises StoreFault. A retired publication is refused."""
+
+    def remove_asset(self, publication_id: str, publication_asset_id: str, actor_id: str) -> RemoveResult:
+        """Delete one asset. A different publication id is not_found and the row stays."""
+
+    def list_assets(self, publication_id: str) -> tuple[Asset, ...] | None:
+        """Assets ordered by created_at, then id. None when the publication does not exist."""

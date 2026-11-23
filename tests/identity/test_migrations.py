@@ -15,7 +15,7 @@ class MigrationFilesTest(unittest.TestCase):
         found = discover(ROOT)
         self.assertEqual(
             [item.version for item in found],
-            ["V001", "V002", "V003", "V004", "V005", "V006", "V007"],
+            ["V001", "V002", "V003", "V004", "V005", "V006", "V007", "V008"],
         )
         self.assertTrue(found[0].down.is_file())
         up = "\n".join(sql_statements(found[0].up.read_text(encoding="utf-8")))
@@ -96,6 +96,28 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertIn("DELETE FROM publication", down7)
         self.assertIn("DROP TABLE publication", down7)
         self.assertNotIn("schema_migrations", up7)
+        self.assertTrue(found[7].down.is_file())
+        up8 = found[7].up.read_text(encoding="utf-8")
+        down8 = found[7].down.read_text(encoding="utf-8")
+        self.assertIn("CREATE TABLE publication_asset", up8)
+        self.assertIn("REFERENCES publication (publication_id)", up8)
+        self.assertIn("pubasset-[0-9a-f]{16}", up8)
+        self.assertIn("pubfile-[0-9a-f]{16}", up8)
+        self.assertIn("UNIQUE (publication_id, checksum)", up8)
+        up8_sql = "\n".join(sql_statements(up8))
+        self.assertNotIn("pg_advisory", up8_sql)
+        self.assertNotIn("schema_migrations", up8_sql)
+        self.assertNotIn("ALTER TABLE papers", up8)
+        self.assertNotIn("ALTER TABLE paper_pages", up8)
+        self.assertNotIn("ALTER TABLE confirmations", up8)
+        self.assertNotIn("ALTER TABLE practice_item", up8)
+        self.assertNotIn("ALTER TABLE approvals", up8)
+        self.assertNotIn("ALTER TABLE publication ", up8)
+        down8_sql = "\n".join(sql_statements(down8))
+        self.assertIn("DELETE FROM publication_asset", down8_sql)
+        self.assertIn("DROP TABLE publication_asset", down8_sql)
+        self.assertNotIn("DROP TABLE publication;", down8_sql)
+        self.assertNotIn("schema_migrations", down8_sql)
 
     def test_domain_and_application_do_not_import_the_driver(self) -> None:
         base = ROOT / "backend" / "identity"

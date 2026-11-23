@@ -800,6 +800,140 @@
         }
       }
     },
+    "/api/admin/publications/{publication_id}/assets": {
+      "post": {
+        "summary": "Publications Asset Attach",
+        "operationId": "publications_asset_attach_api_admin_publications__publication_id__assets_post",
+        "parameters": [
+          {
+            "name": "publication_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Publication Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachPublicationAssetBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachPublicationAssetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Publications Asset List",
+        "operationId": "publications_asset_list_api_admin_publications__publication_id__assets_get",
+        "parameters": [
+          {
+            "name": "publication_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Publication Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationAssetListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/publications/{publication_id}/assets/{publication_asset_id}": {
+      "delete": {
+        "summary": "Publications Asset Remove",
+        "operationId": "publications_asset_remove_api_admin_publications__publication_id__assets__publication_asset_id__delete",
+        "parameters": [
+          {
+            "name": "publication_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Publication Id"
+            }
+          },
+          {
+            "name": "publication_asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Publication Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovePublicationAssetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/publications/retire": {
       "post": {
         "summary": "Publications Retire",
@@ -1256,6 +1390,71 @@
   },
   "components": {
     "schemas": {
+      "AttachPublicationAssetBody": {
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "File Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "image",
+              "pdf"
+            ],
+            "title": "Kind"
+          },
+          "checksum": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Checksum"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Size Bytes"
+          },
+          "mime_type": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_id",
+          "kind",
+          "checksum",
+          "size_bytes",
+          "mime_type"
+        ],
+        "title": "AttachPublicationAssetBody"
+      },
+      "AttachPublicationAssetResponse": {
+        "properties": {
+          "result": {
+            "type": "string",
+            "title": "Result"
+          },
+          "publication_asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publication Asset Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "result"
+        ],
+        "title": "AttachPublicationAssetResponse"
+      },
       "ConfirmBody": {
         "properties": {
           "operation_key": {
@@ -1404,6 +1603,76 @@
         ],
         "title": "PasswordBody"
       },
+      "PublicationAssetItem": {
+        "properties": {
+          "publication_asset_id": {
+            "type": "string",
+            "title": "Publication Asset Id"
+          },
+          "publication_id": {
+            "type": "string",
+            "title": "Publication Id"
+          },
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "checksum": {
+            "type": "string",
+            "title": "Checksum"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "publication_asset_id",
+          "publication_id",
+          "file_id",
+          "kind",
+          "checksum",
+          "size_bytes",
+          "mime_type",
+          "created_at",
+          "created_by"
+        ],
+        "title": "PublicationAssetItem"
+      },
+      "PublicationAssetListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationAssetItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PublicationAssetListResponse"
+      },
       "PublicationItem": {
         "properties": {
           "publication_id": {
@@ -1507,6 +1776,19 @@
           "answer_version_id"
         ],
         "title": "PublishPublicationBody"
+      },
+      "RemovePublicationAssetResponse": {
+        "properties": {
+          "result": {
+            "type": "string",
+            "title": "Result"
+          }
+        },
+        "type": "object",
+        "required": [
+          "result"
+        ],
+        "title": "RemovePublicationAssetResponse"
       },
       "RetirePublicationBody": {
         "properties": {
