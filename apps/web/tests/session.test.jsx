@@ -14,6 +14,22 @@ function jsonResponse(status, body) {
   };
 }
 
+function catalogList() {
+  return {
+    items: [
+      {
+        question_version_id: "q-v1",
+        subject_id: "math",
+        stem: "(-3)+5",
+        answer_text: "2",
+        question_approved: false,
+        answer_approved: false,
+        retired: false,
+      },
+    ],
+  };
+}
+
 const teacher = {
   role: "teacher",
   display_name: "teacher-synth",
@@ -97,6 +113,7 @@ describe("session pages", () => {
     installFetch((path) => {
       if (path === "/api/login") return jsonResponse(200, teacher);
       if (path === "/api/session") return jsonResponse(200, teacher);
+      if (path === "/api/catalog") return jsonResponse(200, catalogList());
       if (path.startsWith("/api/catalog/")) {
         return jsonResponse(200, {
           question_version_id: "q-v1",
@@ -167,6 +184,7 @@ describe("session pages", () => {
         return jsonResponse(200, { ok: true });
       }
       if (path === "/api/session") return jsonResponse(200, signed);
+      if (path === "/api/catalog") return jsonResponse(200, catalogList());
       if (path.startsWith("/api/catalog/")) {
         return jsonResponse(200, {
           question_version_id: "q-v1",
@@ -195,6 +213,7 @@ describe("session pages", () => {
     installFetch((path, options) => {
       if (path === "/api/session") return jsonResponse(200, teacher);
       if (path === "/api/account/password" && options.method === "POST") return jsonResponse(200, { ok: true });
+      if (path === "/api/catalog") return jsonResponse(200, catalogList());
       if (path.startsWith("/api/catalog/")) {
         return jsonResponse(200, {
           question_version_id: "q-v1",

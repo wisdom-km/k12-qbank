@@ -70,9 +70,13 @@ export function createPaperActions(io) {
 
   async function load() {
     const nextSession = await io.call("/api/session");
-    const nextItem = await io.call("/api/catalog/" + nextSession.question_version_id);
+    const listed = await io.call("/api/catalog");
+    const items = listed && listed.items ? listed.items : [];
+    const preferred = pickQuestion(items, nextSession.question_version_id);
+    const nextItem = await io.call("/api/catalog/" + preferred);
     const nextPapers = await io.call("/api/practice/papers");
     io.setSession(nextSession);
+    if (io.setItems) io.setItems(items);
     io.setItem(nextItem);
     writePapers(nextPapers.papers);
     const studentId = io.get().studentId;
@@ -166,6 +170,18 @@ export function createPaperActions(io) {
     });
   }
 
+  function selectQuestion(questionVersionId) {
+    const token = beginSwitch();
+    rememberPaper(null);
+    return run(async () => {
+      const nextItem = await io.call("/api/catalog/" + questionVersionId);
+      const applied = acceptResponse(token, generation.current, nextItem);
+      if (!applied.apply || !applied.body) return;
+      io.setItem(applied.body);
+      io.setMessage("已打开 " + questionVersionId);
+    });
+  }
+
   function choosePaper(row) {
     const token = beginSwitch();
     rememberPaper(row);
@@ -227,5 +243,12 @@ export function createPaperActions(io) {
     });
   }
 
-  return { load, issue, handOut, choosePaper, confirm, retry };
+  return { load, issue, handOut, choosePaper, selectQuestion, confirm, retry };
+}
+
+function pickQuestion(items, preferred) {
+  const ids = items.map((row) => row && row.question_version_id).filter(Boolean);
+  if (ids.includes(preferred)) return preferred;
+  if (ids.length > 0) return ids[0];
+  return preferred;
 }
