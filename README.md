@@ -50,7 +50,7 @@ OCR 参考答案来自核对页的 `{题干文件名}.answers/`。一份文件�
 
 job `review-import` 安装核对页 main，用合成页生成这两份草稿再导入。夹具不是教材页。
 
-服务端和网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。本机合成路径使用 FastAPI 和 React。不设置 `K12_PG_DSN` 时不连接数据库。设置后进程连接并迁移 identity、审计、catalog 与 practice。页字节目录是 `K12_FILE_DIR`。`K12_ENV` 默认是 development。production 在连接串或 `K12_FILE_DIR` 为空时退出。规范化题目表仍按 ADR 0013，有行再建。规范化答案表仍按 ADR 0014，有行再建。没有要写入的行时不建空表。安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据。机构决定 DEC-01 到 DEC-06 还没填。安卓界面仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
+服务端和网页已采纳 Python 3.12、FastAPI、PostgreSQL、React，见 [docs/adr/0012-adopt-stack.md](docs/adr/0012-adopt-stack.md)。本机合成路径使用 FastAPI 和 React。不设置 `K12_PG_DSN` 时不连接数据库。设置后进程连接并迁移 identity、审计、catalog 与 practice。页字节目录是 `K12_FILE_DIR`。`K12_ENV` 默认是 development。production 在连接串或 `K12_FILE_DIR` 为空时退出。V004 已建 `questions` 和 `answers`。V005 已建五张子表。`figure_geometry` 和 `answer_decision` 仍未建。没有要写入的行时，不为这两张未建表加空迁移。安卓试用机型、安装渠道、部署地点、识别和模型供应商、备份用时、姓名遮挡的具体做法、按学科扩展时的细权限，都还没有试用数据。机构决定 DEC-01 到 DEC-06 还没填。安卓界面仍是候选。详见 [docs/adr/0010-stack-and-deploy.md](docs/adr/0010-stack-and-deploy.md) 和 [docs/adr/0011-web-and-desktop.md](docs/adr/0011-web-and-desktop.md)。
 
 ## 当前实现状态
 
@@ -63,13 +63,13 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | 管理员后台 | 页面 `/admin`。管理员可建老师和学生、授权和撤销、查看审计与错误，并一次吊销自己的活跃会话。老师打开该页得到 permission_denied |
 | PostgreSQL 已连接 | 仅当 `K12_PG_DSN` 有值时连接并迁移 identity、审计、catalog 与 practice。页字节在 `K12_FILE_DIR`。`K12_ENV` 默认 development；production 缺少连接串或页字节目录时退出。默认进程和单测不连接。CI 的 `postgres` 作业包含 up、down、up，以及 identity、catalog/practice 契约和迁移锁 |
 | 运行模式 | `K12_ENV` 默认 development。production 缺少连接串或 `K12_FILE_DIR` 时退出。development 且连接串为空时用内存 |
-| catalog PG | 设置 `K12_PG_DSN` 时写入 V002 的运行表，V004 的 `questions` 和 `answers`，以及 V005 的五张子表。`figure_geometry` 和 `answer_decision` 仍未建 |
-| practice PG | 设置 `K12_PG_DSN` 时写入 papers、attempts、confirmations。页字节在 `K12_FILE_DIR` |
+| catalog PG | 设置 `K12_PG_DSN` 时写入 V002 运行表、V004 题目和答案、V005 五张子表、V007 `publication`、V008 `publication_asset`，并应用 V009 的 `publication_one_active`。`figure_geometry` 和 `answer_decision` 仍未建。资产字节上传仍未做 |
+| practice PG | 设置 `K12_PG_DSN` 时写入 papers、paper_pages、attempts、confirmations、files 元数据，以及 V006 的 practice_item。页字节在 `K12_FILE_DIR`。HTTP 出卷仍只提交一道题 |
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 在 `K12_PG_DSN` 有值时连接并迁移 |
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
 | 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。内存保存。还不能出卷。运行中的核准可同时写入 V004 的 `answers` 和 V005 的 `answer_part`、`answer_asset`。`answer_decision` 仍未建 |
 | 契约校验 | JSON Schema 在 `backend/catalog/contracts/`。不新增包。见 [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
-| 发布、知识点和多题练习 | 列写在 ADR 0015。知识点的内存端口已接。发布记录和多题练习的表未建。现在一卷一题 |
+| 发布、知识点和多题练习 | 列写在 ADR 0015。知识点的内存端口已接，表未建。V006 已建 `practice_item`，V007 已建 `publication`，V008 已建 `publication_asset`，V009 已换上 `publication_one_active`。多题冻结在 `compose_multi_item_paper`，出卷 HTTP 仍只收一道题，渲染仍是一页 |
 | 解题方法与错因 | 列写在 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。解题方法的内存端口已接。错因是建议。表未建 |
 
 ## 命令
@@ -123,7 +123,7 @@ git diff --check
 | [PRD.md](PRD.md) | 做什么，以及明确不做的事 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 分层、不变量、日志、门禁。端口、数据和日志事件表在 [docs/arch/](docs/arch/) |
 | [RULES.md](RULES.md) | 提交、测试和禁止事项 |
-| [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | 第一条闭环：本机合成网页。PostgreSQL 和安卓还没有 |
+| [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md) | 第一条闭环：本机合成网页。设置 `K12_PG_DSN` 后 identity、审计、catalog、practice 会迁移。安卓还没有 |
 | [docs/implementation-matrix.md](docs/implementation-matrix.md) | 六个切片的端口、适配器和测试做到哪一步 |
 
 ## 许可证
