@@ -51,4 +51,4 @@ ADR 0013 规定题目草稿怎么入库。ADR 0014 规定参考答案。正式�
 
 第二次 retire 的审计 `target_id` 取这次 `UPDATE … RETURNING publication_id` 的那一行，不再取 retired 列表里按 `publication_id` 排序的第一行。
 
-这一段是 [issue #74](https://github.com/wisdom-km/k12-qbank/issues/74) Part B。列清单没有改。`publication_asset` 仍挂在原来的 `publication_id` 上。
+这一段是 [issue #74](https://github.com/wisdom-km/k12-qbank/issues/74) Part B，对应 [PR #77](https://github.com/wisdom-km/k12-qbank/pull/77)。列清单没有改。`publication_asset` 仍挂在原来的 `publication_id` 上。
