@@ -36,6 +36,9 @@ _STATUS = {
     "file_purpose_conflict": 409,
     "ai_run_in_progress": 409,
     "ai_daily_limit": 429,
+    "formula_unsupported": 409,
+    "formula_unstructured": 409,
+    "formula_too_wide": 409,
 }
 _GENERIC = {"invalid_credentials", "unauthenticated"}
 

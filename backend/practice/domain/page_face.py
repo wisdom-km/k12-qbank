@@ -15,6 +15,7 @@ class SlotFace:
     stem: str
     options: tuple[str, ...]
     answer_box: tuple[int, int, int, int]
+    drawn: bool = False
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,8 @@ class PaperPage:
     flow_boxes: tuple[tuple[float, float, float, float], ...] = ()
     flow_marks: tuple[tuple[float, float, float, float], ...] = ()
     flow_qr: tuple[float, float, float] | None = None
+    extra_runs: tuple[tuple[object, ...], ...] = ()
+    draw_rules: tuple[tuple[float, float, float, float], ...] = ()
 
 
 def formula_from_stem(stem: str) -> str:

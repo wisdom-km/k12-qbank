@@ -12,6 +12,16 @@ import math
 import re
 from dataclasses import dataclass
 
+from backend.practice.domain.formula import (
+    FormulaFault,
+    LineBox,
+    fault_message,
+    layout_question,
+    needs_structure,
+    option_rows,
+    place_lines,
+    row_extent,
+)
 from backend.practice.domain.layout_params import LayoutParams
 
 _BLANKS = re.compile(r"_{2,}")
@@ -26,6 +36,8 @@ class FlowQuestion:
     options: tuple[str, ...]
     space: str
     blank_count: int
+    stem_parts: tuple[tuple[str, str], ...] | None = None
+    option_parts: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -54,12 +66,23 @@ class PlacedItem:
     page_no: int
     lines: tuple[PlacedLine, ...]
     boxes: tuple[PlacedBox, ...]
+    draw: tuple[tuple[object, ...], ...] | None = None
 
 
 @dataclass(frozen=True)
 class ItemTooLong:
     order_no: int
     question_version_id: str
+
+
+@dataclass(frozen=True)
+class FormulaStop:
+    """The paper is refused. code is one of the formula_* outcomes."""
+
+    order_no: int
+    question_version_id: str
+    code: str
+    command: str = ""
 
 
 def blank_count(stem: str) -> int:
@@ -112,7 +135,7 @@ def dump_layout(params: LayoutParams) -> str:
 
 def flow_place(
     questions: tuple[FlowQuestion, ...], params: LayoutParams
-) -> tuple[PlacedItem, ...] | ItemTooLong:
+) -> tuple[PlacedItem, ...] | ItemTooLong | FormulaStop:
     """Place every question. A too-long item returns before any page is kept."""
     area = _content(params)
     if area.top - area.bottom <= 0:
@@ -122,12 +145,15 @@ def flow_place(
     page_no = 1
     cursor = area.top
     for question in questions:
-        needed = _needed(question, params, area, cursor)
+        block, stopped = _formula_block(question, params, area)
+        if stopped is not None:
+            return stopped
+        needed = _needed(question, params, area, cursor, block)
         if isinstance(needed, ItemTooLong):
             return needed
         if needed.start == area.top and cursor < area.top:
             page_no += 1
-        item = _draw(question, params, area, needed.start, page_no, needed.answer_h)
+        item = _draw(question, params, area, needed.start, page_no, needed.answer_h, block)
         placed.append(item)
         cursor = needed.start - needed.used
         if question.space == "full":
@@ -144,9 +170,13 @@ class _Need:
 
 
 def _needed(
-    question: FlowQuestion, params: LayoutParams, area: _Area, cursor: float
+    question: FlowQuestion,
+    params: LayoutParams,
+    area: _Area,
+    cursor: float,
+    block: tuple[LineBox, ...] | None = None,
 ) -> _Need | ItemTooLong:
-    text_h = _text_height(question, params, area)
+    text_h = _text_height(question, params, area, block)
     page_h = area.top - area.bottom
     if question.space == "full":
         if text_h + params.item_gap >= page_h:
@@ -175,7 +205,10 @@ def _draw(
     top: float,
     page_no: int,
     answer_h: float,
+    block: tuple[LineBox, ...] | None = None,
 ) -> PlacedItem:
+    if block is not None:
+        return _draw_formula(question, params, area, top, page_no, answer_h, block)
     lines = _lines(question, params, area)
     placed: list[PlacedLine] = []
     boxes: list[PlacedBox] = []
@@ -252,6 +285,84 @@ def _blank_boxes(
     return tuple(boxes)
 
 
+def _draw_formula(
+    question: FlowQuestion,
+    params: LayoutParams,
+    area: _Area,
+    top: float,
+    page_no: int,
+    answer_h: float,
+    block: tuple[LineBox, ...],
+) -> PlacedItem:
+    first = params.letter_height if question.space == "letter" else 0.0
+    ops, text_h = place_lines(block, area.left, top, params.line_height, first_row=first)
+    cursor = top - text_h
+    boxes: list[PlacedBox] = []
+    if question.space == "letter":
+        boxes.append(
+            PlacedBox(
+                question.order_no,
+                1,
+                page_no,
+                area.right - params.letter_width,
+                top - params.letter_height,
+                params.letter_width,
+                params.letter_height,
+                "letter",
+            )
+        )
+    if question.space == "blanks":
+        boxes.extend(_blank_boxes(question, params, area, cursor, page_no))
+    elif question.space in {"small", "medium", "large", "full"}:
+        boxes.append(
+            PlacedBox(
+                question.order_no,
+                1,
+                page_no,
+                area.left,
+                cursor - answer_h,
+                area.right - area.left,
+                answer_h,
+                question.space,
+            )
+        )
+    return PlacedItem(
+        question.order_no,
+        question.question_version_id,
+        page_no,
+        (),
+        tuple(boxes),
+        ops,
+    )
+
+
+def _formula_block(
+    question: FlowQuestion, params: LayoutParams, area: _Area
+) -> tuple[tuple[LineBox, ...] | None, FormulaStop | None]:
+    option_text = "\n".join(question.options)
+    if needs_structure(question.stem_parts, question.stem, question.option_parts, option_text):
+        return None, FormulaStop(question.order_no, question.question_version_id, "formula_unstructured")
+    if question.stem_parts is None:
+        return None, None
+    width = area.right - area.left
+    first = width
+    if question.space == "letter":
+        first = max(params.font_size, width - params.letter_width - 8)
+    try:
+        lines = layout_question(
+            f"{question.order_no}. ",
+            question.stem_parts,
+            option_rows(question.option_parts, question.options),
+            size=float(params.font_size),
+            first_width=first,
+            width=width,
+        )
+    except FormulaFault as fault:
+        code, _message = fault_message(question.question_version_id, fault.code, fault.command)
+        return None, FormulaStop(question.order_no, question.question_version_id, code, fault.command)
+    return lines, None
+
+
 def _lines(question: FlowQuestion, params: LayoutParams, area: _Area) -> tuple[str, ...]:
     width = area.right - area.left
     first = width
@@ -264,7 +375,18 @@ def _lines(question: FlowQuestion, params: LayoutParams, area: _Area) -> tuple[s
     return tuple(rows) or ("",)
 
 
-def _text_height(question: FlowQuestion, params: LayoutParams, area: _Area) -> float:
+def _text_height(
+    question: FlowQuestion,
+    params: LayoutParams,
+    area: _Area,
+    block: tuple[LineBox, ...] | None = None,
+) -> float:
+    if block is not None:
+        first = params.letter_height if question.space == "letter" else 0.0
+        height = 0.0
+        for index, line in enumerate(block):
+            height += row_extent(line, params.line_height, first if index == 0 else 0.0)
+        return height
     lines = _lines(question, params, area)
     height = 0.0
     for index in range(len(lines)):

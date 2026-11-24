@@ -21,6 +21,7 @@ from backend.catalog.domain.validate import DraftFile, QuestionDraft
 from backend.kernel.logger import Logger
 from backend.kernel.result import Err
 from backend.kernel.use_log import emit
+from backend.practice.api import unsupported_commands
 
 _MAX_PAGES = 600
 _PAGE_KEYS = {"pdf_page", "role", "questions", "answers"}
@@ -511,6 +512,39 @@ def _classify(planned: list[_Planned], questions: _Questions, approvals: _Approv
             continue
         item.save_question = stored is None
         item.outcome = "skipped" if item.answer is None else "staged"
+    _warn_formulas(planned)
+
+
+def _warn_formulas(planned: list[_Planned]) -> None:
+    """Record unsupported commands. The outcome stays staged, kept, or skipped."""
+    for item in planned:
+        if item.outcome == "conflict" or item.reason:
+            continue
+        names = _formula_names(item.question)
+        if names:
+            item.reason = "formula_unsupported " + " ".join(names)
+
+
+def _formula_names(question: QuestionDraft) -> tuple[str, ...]:
+    found: list[str] = []
+
+    def take(parts: tuple[object, ...]) -> None:
+        for part in parts:
+            latex = getattr(part, "latex", None)
+            if not isinstance(latex, str):
+                continue
+            for name in unsupported_commands(latex):
+                if name not in found:
+                    found.append(name)
+
+    take(question.stem)
+    for option in question.options:
+        take(option.content)
+    for sub in question.subquestions:
+        take(sub.stem)
+        for option in sub.options:
+            take(option.content)
+    return tuple(found)
 
 
 def _same_question(question: QuestionDraft, stored: QuestionDraft) -> bool:

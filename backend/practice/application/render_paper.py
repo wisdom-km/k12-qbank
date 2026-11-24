@@ -13,6 +13,7 @@ from backend.kernel.use_log import emit, read_store
 from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeItems, PracticeStore
 from backend.practice.application.resolve_items import _resolve_items
 from backend.practice.domain.flow_layout import header_text
+from backend.practice.domain.formula import split_draw
 from backend.practice.domain.item import PracticeItem
 from backend.practice.domain.page_face import PaperPage, SlotFace, formula_from_stem
 from backend.practice.domain.page_layout import slot_answer_box
@@ -212,6 +213,7 @@ def page_faces(paper: Paper, items: tuple[PracticeItem, ...]) -> tuple[PaperPage
     for page_no in sorted(grouped):
         group = grouped[page_no]
         slots = tuple(_slot(paper.slots_per_page, item) for item in group)
+        runs, rules = _page_draw(group)
         first = group[0]
         faces.append(
             PaperPage(
@@ -229,6 +231,8 @@ def page_faces(paper: Paper, items: tuple[PracticeItem, ...]) -> tuple[PaperPage
                 qr_printed=paper.qr_printed,
                 stem=first.stem_text,
                 slots=slots,
+                extra_runs=runs,
+                draw_rules=rules,
             )
         )
     return tuple(faces)
@@ -257,9 +261,15 @@ def _flow_faces(paper: Paper, items: tuple[PracticeItem, ...]) -> tuple[PaperPag
             (header_text(paper.printed_external_id, page_no, count), header_x, header_y, header_size)
         ]
         boxes: list[tuple[float, float, float, float]] = []
+        rules: list[tuple[float, float, float, float]] = []
         for item in group:
-            for text, x, y in item.placed_lines:
-                lines.append((text, x, y, body_size))
+            if item.formula_draw is not None:
+                glyphs, item_rules = split_draw(item.formula_draw)
+                lines.extend(glyphs)
+                rules.extend(item_rules)
+            else:
+                for text, x, y in item.placed_lines:
+                    lines.append((text, x, y, body_size))
             for box in item.boxes:
                 boxes.append((box.x, box.y, box.w, box.h))
         first = group[0]
@@ -283,6 +293,7 @@ def _flow_faces(paper: Paper, items: tuple[PracticeItem, ...]) -> tuple[PaperPag
                 flow_boxes=tuple(boxes),
                 flow_marks=tuple(marks),  # type: ignore[arg-type]
                 flow_qr=qr,
+                draw_rules=tuple(rules),
             )
         )
     return tuple(faces)
@@ -290,18 +301,25 @@ def _flow_faces(paper: Paper, items: tuple[PracticeItem, ...]) -> tuple[PaperPag
 
 def _slot(slots_per_page: int, item: PracticeItem) -> SlotFace:
     options = tuple(line for line in item.option_text.split("\n") if line)
+    drawn = item.formula_draw is not None
     return SlotFace(
         order_no=item.order_no,
         slot_no=item.slot_no,
         slot_span=item.slot_span,
-        stem=item.stem_text,
-        options=options,
+        stem="" if drawn else item.stem_text,
+        options=() if drawn else options,
         answer_box=slot_answer_box(slots_per_page, item.slot_no, item.slot_span),
+        drawn=drawn,
     )
 
 
 def _face(paper: Paper, item: PracticeItem, count: int) -> PaperPage:
     formula = formula_from_stem(item.stem_text) if item.stem_text else paper.formula
+    runs: tuple[tuple[object, ...], ...] = ()
+    rules: tuple[tuple[float, float, float, float], ...] = ()
+    if item.formula_draw is not None:
+        runs, rules = split_draw(item.formula_draw)
+        formula = ""
     return PaperPage(
         question_version_id=item.question_version_id,
         answer_version_id=item.answer_version_id,
@@ -316,7 +334,23 @@ def _face(paper: Paper, item: PracticeItem, count: int) -> PaperPage:
         printed_external_id=paper.printed_external_id,
         qr_printed=paper.qr_printed,
         stem=item.stem_text,
+        extra_runs=runs,
+        draw_rules=rules,
     )
+
+
+def _page_draw(
+    items: list[PracticeItem],
+) -> tuple[tuple[tuple[object, ...], ...], tuple[tuple[float, float, float, float], ...]]:
+    runs: list[tuple[object, ...]] = []
+    rules: list[tuple[float, float, float, float]] = []
+    for item in items:
+        if item.formula_draw is None:
+            continue
+        glyphs, item_rules = split_draw(item.formula_draw)
+        runs.extend(glyphs)
+        rules.extend(item_rules)
+    return tuple(runs), tuple(rules)
 
 
 def _load_allowed(

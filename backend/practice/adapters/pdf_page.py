@@ -38,20 +38,20 @@ class StdPdf:
         for page in pages:
             try:
                 if page.flow:
-                    prepared.append((_flow_lines(page), _flow_graphics(page)))
+                    lines, graphics = list(_flow_lines(page)), _flow_graphics(page)
                 elif slotted:
-                    prepared.append((_slot_lines(page), _slot_graphics(page)))
+                    lines, graphics = list(_slot_lines(page)), _slot_graphics(page)
                 else:
-                    prepared.append((_legacy_positions(_lines(page)), _graphics(page)))
+                    lines, graphics = list(_legacy_positions(_lines(page))), _graphics(page)
+                lines.extend(page.extra_runs)
+                graphics.extend(_rule_commands(page.draw_rules))
+                prepared.append((tuple(lines), graphics))
             except (ValueError, RuntimeError):
                 return Err("not_rendered", "this synthetic page cannot encode the formula")
         try:
-            if any(_has_cjk(row[0]) for lines, _ in prepared for row in lines):
+            if any(_row_needs_cjk(row) for lines, _ in prepared for row in lines):
                 return _pdf_cjk(prepared)
-            encoded = [
-                tuple((_pdf_text(row[0]), row[1], row[2], row[3] if len(row) > 3 else 12) for row in lines)
-                for lines, _ in prepared
-            ]
+            encoded = [tuple(_latin_row(row) for row in lines) for lines, _ in prepared]
             marks = [graphics for _, graphics in prepared]
             return _pdf(encoded, marks)
         except _FontMissing:
@@ -123,6 +123,8 @@ def _num(value: float) -> str:
 def _slot_lines(page: PaperPage) -> tuple[tuple[str, int, int], ...]:
     rows: list[tuple[str, int, int]] = list(_legacy_positions(_header(page)))
     for slot in page.slots:
+        if slot.drawn:
+            continue
         rows.extend(
             placed_slot_lines(slot.order_no, slot.slot_no, slot.slot_span, slot.stem, slot.options)
         )
@@ -179,6 +181,33 @@ def _qr(page: PaperPage) -> list[str]:
     return commands
 
 
+def _rule_commands(rules: tuple[tuple[float, float, float, float], ...]) -> list[str]:
+    if not rules:
+        return []
+    commands = ["0.6 w"]
+    for x1, y1, x2, y2 in rules:
+        commands.append(f"{_num(x1)} {_num(y1)} m {_num(x2)} {_num(y2)} l S")
+    return commands
+
+
+def _row_font(row: tuple[object, ...]) -> str:
+    if len(row) > 4 and isinstance(row[4], str):
+        return row[4]
+    return ""
+
+
+def _row_scale(row: tuple[object, ...]) -> float:
+    if len(row) > 5:
+        return float(row[5])  # type: ignore[arg-type]
+    return 1.0
+
+
+def _row_needs_cjk(row: tuple[object, ...]) -> bool:
+    if _row_font(row) == "cjk":
+        return True
+    return _has_cjk(str(row[0]))
+
+
 def _is_cjk(char: str) -> bool:
     code = ord(char)
     return (
@@ -191,6 +220,16 @@ def _is_cjk(char: str) -> bool:
 
 def _has_cjk(text: str) -> bool:
     return any(_is_cjk(char) for char in text)
+
+
+def _latin_row(row: tuple[object, ...]) -> tuple[object, ...]:
+    text = _pdf_text(str(row[0]))
+    if len(row) > 5:
+        size = row[3] if len(row) > 3 else 12
+        return (text, row[1], row[2], size, row[4], row[5])
+    if len(row) > 3:
+        return (text, row[1], row[2], row[3])
+    return (text, row[1], row[2])
 
 
 def _pdf_text(text: str) -> str:
@@ -218,9 +257,10 @@ def _latin_stream(lines: tuple[tuple[object, ...], ...], graphics: list[str]) ->
     for row in lines:
         line, x, y = row[0], row[1], row[2]
         size = row[3] if len(row) > 3 else 12
-        if varied:
+        scale = _row_scale(row)
+        if varied or scale != 1:
             commands.append(f"/F1 {_num(float(size))} Tf")
-            commands.append(f"1 0 0 1 {_num(float(x))} {_num(float(y))} Tm ({line}) Tj")
+            commands.append(f"1 0 0 {_num(scale)} {_num(float(x))} {_num(float(y))} Tm ({line}) Tj")
         else:
             commands.append(f"1 0 0 1 {x} {y} Tm ({line}) Tj")
     commands.append("ET")
@@ -231,9 +271,10 @@ def _pdf_cjk(prepared: list[tuple[tuple[tuple[str, int, int], ...], list[str]]])
     codes: set[int] = set()
     for lines, _ in prepared:
         for row in lines:
-            line = row[0]
+            line = str(row[0])
+            forced = _row_font(row) == "cjk"
             for char in line:
-                if _is_cjk(char):
+                if forced or _is_cjk(char):
                     codes.add(ord(char))
                 else:
                     _pdf_text(char)
@@ -255,15 +296,24 @@ def _cjk_stream(
     commands = list(graphics)
     commands.append("BT")
     for row in lines:
-        line, x, y = row[0], row[1], row[2]
+        line, x, y = str(row[0]), row[1], row[2]
         size = row[3] if len(row) > 3 else 12
-        commands.append(f"1 0 0 1 {x} {y} Tm")
-        for kind, run in _runs(line):
-            if kind == "cjk":
-                glyphs = "".join(f"{font.glyph_id[ord(char)]:04X}" for char in run)
-                commands.append(f"/F2 {_num(float(size)) if size != 12 else 12} Tf <{glyphs}> Tj")
-            else:
-                commands.append(f"/F1 {_num(float(size)) if size != 12 else 12} Tf ({_pdf_text(run)}) Tj")
+        scale = _row_scale(row)
+        tag = _row_font(row)
+        if tag or scale != 1:
+            commands.append(f"1 0 0 {_num(scale)} {_num(float(x))} {_num(float(y))} Tm")
+        else:
+            commands.append(f"1 0 0 1 {x} {y} Tm")
+        if tag == "cjk":
+            commands.append(f"/F2 {_num(float(size)) if size != 12 else 12} Tf <{_glyph_hex(line, font)}> Tj")
+        elif tag == "latin":
+            commands.append(f"/F1 {_num(float(size)) if size != 12 else 12} Tf ({_pdf_text(line)}) Tj")
+        else:
+            for kind, run in _runs(line):
+                if kind == "cjk":
+                    commands.append(f"/F2 {_num(float(size)) if size != 12 else 12} Tf <{_glyph_hex(run, font)}> Tj")
+                else:
+                    commands.append(f"/F1 {_num(float(size)) if size != 12 else 12} Tf ({_pdf_text(run)}) Tj")
     commands.append("ET")
     return ("\n".join(commands) + "\n").encode("latin-1")
 
@@ -335,6 +385,16 @@ def _bfchars(font: PageFont, codes: set[int]) -> str:
         lines = "\n".join(f"<{font.glyph_id[code]:04X}> <{code:04X}>" for code in chunk)
         blocks.append(f"{len(chunk)} beginbfchar\n{lines}\nendbfchar\n")
     return "".join(blocks)
+
+
+def _glyph_hex(text: str, font: PageFont) -> str:
+    parts: list[str] = []
+    for index, char in enumerate(text):
+        gid = font.glyph_id.get(ord(char))
+        if not gid:
+            raise UnicodeEncodeError("cp1252", text, index, index + 1, "glyph missing")
+        parts.append(f"{gid:04X}")
+    return "".join(parts)
 
 
 def _runs(line: str) -> list[tuple[str, str]]:

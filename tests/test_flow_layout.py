@@ -208,9 +208,11 @@ class FlowIssueTest(unittest.TestCase):
             row = listed.json()["items"][0]
             self.assertEqual(row["answer_space"], "medium")
             self.assertTrue(row["answer_space_is_default"])
+            self.assertEqual(row["formula_note"], "公式未结构化")
             one = client.get("/api/catalog/q-v1")
             self.assertEqual(one.json()["answer_space"], "medium")
             self.assertTrue(one.json()["answer_space_is_default"])
+            self.assertEqual(one.json()["formula_note"], "公式未结构化")
 
     def test_issue_stores_the_boxes_and_a_later_file_does_not_move_them(self) -> None:
         raw = json.loads(bundled_layout_path().read_text(encoding="utf-8"))

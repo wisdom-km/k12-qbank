@@ -43,3 +43,7 @@ ADR 0022 记下 Noto Sans CJK 的许可证是 SIL Open Font License 1.1，不在
 拉丁字符仍用 Helvetica。根号这类写不出的字符仍是 `not_rendered`。
 
 部署环境给出的字体如果是 CFF（`fonts-noto-cjk` 的 OpenType 集合就是这种），同样只嵌入这一页的字形轮廓，不整包嵌入，也不改成只写 ToUnicode。
+
+## 修订（2026-11-24，R4e）
+
+卷面公式按排版印出，不印 LaTeX 源码。数字和字母仍用 Helvetica。运算符和公式里的中文走部署环境的中文字体。缺字形仍是 `not_rendered`。见 ADR 0046。

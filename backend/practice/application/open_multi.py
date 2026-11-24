@@ -78,6 +78,8 @@ def open_multi_paper(
                 stem_text=snapshot.stem,
                 answer_text=snapshot.answer_text,
                 option_text="\n".join(snapshot.options),
+                stem_parts=snapshot.stem_parts,
+                option_parts=snapshot.option_parts,
             )
         )
     layout_params = ""

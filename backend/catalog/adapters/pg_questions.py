@@ -66,7 +66,7 @@ def insert_approved_question(conn: Any, snapshot: ApprovalSnapshot) -> bool:
     if pair is None or _exists(conn, snapshot.question_version_id):
         return False
     now = datetime.now(timezone.utc)
-    stem = [{"type": "text", "value": snapshot.stem}]
+    stem = _approved_stem(snapshot)
     conn.execute(
         _INSERT,
         _values(
@@ -232,6 +232,19 @@ def _payload(row: tuple[object, ...]) -> dict[str, object]:
 def _next_version(conn: Any, key: str) -> int:
     row = conn.execute("SELECT COALESCE(MAX(version), 0) FROM questions WHERE key = %s", (key,)).fetchone()
     return int(row[0]) + 1
+
+
+def _approved_stem(snapshot: ApprovalSnapshot) -> list[dict[str, str]]:
+    """A new approved row keeps the fragments. An old row stays one text piece."""
+    if snapshot.stem_parts is None:
+        return [{"type": "text", "value": snapshot.stem}]
+    rows: list[dict[str, str]] = []
+    for kind, value in snapshot.stem_parts:
+        if kind == "math":
+            rows.append({"type": "math", "latex": value})
+        else:
+            rows.append({"type": "text", "value": value})
+    return rows
 
 
 def _approved_pair(snapshot: ApprovalSnapshot) -> tuple[str, str] | None:

@@ -6,9 +6,11 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from psycopg.errors import UniqueViolation
+from psycopg.types.json import Json
 
 from backend.catalog.adapters.pg_answers import insert_approved_answer
 from backend.catalog.adapters.pg_questions import insert_approved_question
+from backend.catalog.domain.formula_parts import option_from_json, option_json, stem_from_json, stem_json
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.catalog.domain.validate import TYPE_STRUCTURE
 from backend.kernel.result import StoreFault
@@ -18,7 +20,7 @@ T = TypeVar("T")
 _COLUMNS = """
 question_version_id, answer_version_id, asset_ids, layout_template_id,
 question_approved, answer_approved, retired, subject_id, item_order, stem, answer_text,
-type, structure, option_text, answer_space
+type, structure, option_text, answer_space, stem_parts, option_parts
 """
 
 
@@ -92,12 +94,14 @@ def _upsert(conn: Any, snapshot: ApprovalSnapshot) -> None:
         type = EXCLUDED.type,
         structure = EXCLUDED.structure,
         option_text = EXCLUDED.option_text,
-        answer_space = EXCLUDED.answer_space
+        answer_space = EXCLUDED.answer_space,
+        stem_parts = EXCLUDED.stem_parts,
+        option_parts = EXCLUDED.option_parts
     """
     conn.execute(
         f"""
         INSERT INTO approvals ({_COLUMNS}) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         ON CONFLICT (question_version_id) DO UPDATE SET {assignments}
         """,
@@ -119,7 +123,7 @@ def _insert_new(conn: Any, snapshot: ApprovalSnapshot) -> bool:
     conn.execute(
         f"""
         INSERT INTO approvals ({_COLUMNS}) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         """,
         _params(snapshot),
@@ -195,6 +199,8 @@ def _params(snapshot: ApprovalSnapshot) -> tuple[object, ...]:
         *_stored_type(snapshot),
         "\n".join(snapshot.options),
         snapshot.answer_space,
+        _json_or_null(stem_json(snapshot.stem_parts)),
+        _json_or_null(option_json(snapshot.option_parts)),
     )
 
 
@@ -215,6 +221,8 @@ def _snapshot(row: tuple[object, ...]) -> ApprovalSnapshot:
         structure="" if row[12] is None else str(row[12]),
         options=_option_lines(row[13]),
         answer_space=None if row[14] is None else str(row[14]),
+        stem_parts=stem_from_json(row[15]) if len(row) > 15 else None,
+        option_parts=option_from_json(row[16]) if len(row) > 16 else None,
     )
 
 
@@ -222,6 +230,13 @@ def _stored_type(snapshot: ApprovalSnapshot) -> tuple[str | None, str | None]:
     if TYPE_STRUCTURE.get(snapshot.type) != snapshot.structure or snapshot.type == "":
         return None, None
     return snapshot.type, snapshot.structure
+
+
+def _json_or_null(value: object) -> object:
+    """None stays SQL NULL. An empty list is a real structured value."""
+    if value is None:
+        return None
+    return Json(value)
 
 
 def _option_lines(value: object) -> tuple[str, ...]:

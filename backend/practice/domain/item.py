@@ -26,6 +26,9 @@ class PracticeItem:
     option_text: str = ""
     placed_lines: tuple[tuple[str, float, float], ...] = ()
     boxes: tuple[ItemBox, ...] = ()
+    stem_parts: tuple[tuple[str, str], ...] | None = None
+    option_parts: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] | None = None
+    formula_draw: tuple[tuple[object, ...], ...] | None = None
 
 
 @dataclass(frozen=True)

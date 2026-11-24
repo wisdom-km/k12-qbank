@@ -9,6 +9,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import replace
 
+from backend.practice.domain.formula import (
+    FormulaFault,
+    layout_question,
+    needs_structure,
+    option_rows,
+    place_lines,
+    row_extent,
+)
 from backend.practice.domain.item import PracticeItem
 
 BOX_X = 72
@@ -28,6 +36,7 @@ TEXT_WIDTH = 480
 LINE_H = 16
 SLOT_BOX_H = 72
 SLOT_BOX_GAP = 6
+SLOT_FONT = 12
 
 
 def answer_box(order_no: int) -> tuple[int, int, int, int]:
@@ -100,7 +109,10 @@ def pack_items(items: Sequence[PracticeItem], slots_per_page: int) -> tuple[Prac
         if cursor + span - 1 > SLOTS_PER_PAGE:
             page += 1
             cursor = 1
-        packed.append(replace(item, page_no=page, slot_no=cursor, slot_span=span))
+        placed = replace(item, page_no=page, slot_no=cursor, slot_span=span)
+        if item.stem_parts is not None:
+            placed = _with_slot_draw(placed)
+        packed.append(placed)
         cursor += span
         if cursor > SLOTS_PER_PAGE:
             page += 1
@@ -138,13 +150,64 @@ def item_text_lines(order_no: int, stem: str, options: Sequence[str]) -> tuple[s
     return tuple(lines)
 
 
+def draw_legacy_formula(item: PracticeItem) -> PracticeItem:
+    """One-item pages keep the header and draw the formula below it.
+
+    A plain item is returned unchanged. A command in that plain text is not
+    drawn here; the caller refuses formula_unstructured before this runs.
+    """
+    if item.stem_parts is None:
+        return item
+    if needs_structure(item.stem_parts, item.stem_text, item.option_parts, item.option_text):
+        raise FormulaFault("formula_unstructured", "", item.question_version_id)
+    lines = _formula_lines(item, TEXT_WIDTH, TEXT_WIDTH)
+    ops, _height = place_lines(lines, TEXT_X, CONTENT_TOP, LINE_H)
+    return replace(item, formula_draw=ops, placed_lines=())
+
+
 def _span_for(item: PracticeItem) -> int:
+    if item.stem_parts is not None:
+        return _formula_span(item)
     options = tuple(line for line in item.option_text.split("\n") if line)
     count = len(item_text_lines(item.order_no, item.stem_text, options))
     for span in range(1, SLOTS_PER_PAGE + 1):
         if count <= line_capacity(span):
             return span
     return SLOTS_PER_PAGE
+
+
+def _formula_span(item: PracticeItem) -> int:
+    if needs_structure(item.stem_parts, item.stem_text, item.option_parts, item.option_text):
+        raise FormulaFault("formula_unstructured", "", item.question_version_id)
+    lines = _formula_lines(item, TEXT_WIDTH, TEXT_WIDTH)
+    height = 0.0
+    for line in lines:
+        height += row_extent(line, LINE_H, 0.0)
+    for span in range(1, SLOTS_PER_PAGE + 1):
+        if height <= line_capacity(span) * LINE_H:
+            return span
+    return SLOTS_PER_PAGE
+
+
+def _with_slot_draw(item: PracticeItem) -> PracticeItem:
+    top = CONTENT_TOP - (item.slot_no - 1) * SLOT_H
+    lines = _formula_lines(item, TEXT_WIDTH, TEXT_WIDTH)
+    ops, _height = place_lines(lines, TEXT_X, top, LINE_H)
+    return replace(item, formula_draw=ops, placed_lines=())
+
+
+def _formula_lines(item: PracticeItem, first_width: float, width: float) -> tuple[object, ...]:
+    try:
+        return layout_question(
+            f"{item.order_no}. ",
+            item.stem_parts or (),
+            option_rows(item.option_parts, tuple(line for line in item.option_text.split("\n") if line)),
+            size=SLOT_FONT,
+            first_width=first_width,
+            width=width,
+        )
+    except FormulaFault as fault:
+        raise FormulaFault(fault.code, fault.command, item.question_version_id) from None
 
 
 def _wrap(text: str) -> tuple[str, ...]:

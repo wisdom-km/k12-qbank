@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from backend.catalog.domain.answer import AnswerDraft
+from backend.catalog.domain.formula_parts import draft_option_parts, draft_stem_parts
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.catalog.domain.validate import DraftFile, QuestionDraft
 
@@ -77,6 +78,8 @@ def _snapshot(question: QuestionDraft, answer: AnswerDraft, subject_id: str) -> 
         options=tuple(
             f"{option.key}. {_plain(option.content)}".strip() for option in question.options
         ),
+        stem_parts=draft_stem_parts(question.stem),
+        option_parts=draft_option_parts(question.options),
     )
 
 

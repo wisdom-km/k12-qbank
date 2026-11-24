@@ -2039,6 +2039,11 @@
             "type": "boolean",
             "title": "Answer Space Is Default",
             "default": true
+          },
+          "formula_note": {
+            "type": "string",
+            "title": "Formula Note",
+            "default": ""
           }
         },
         "type": "object",

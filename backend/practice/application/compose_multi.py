@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from backend.catalog.api import ApprovalPort, Publications
 from backend.kernel.result import Err, Ok
 from backend.practice.application.ports import ComposedPaperStore
+from backend.practice.domain.formula import FormulaFault, fault_message, needs_structure, plain_has_command
 from backend.practice.domain.item import PracticeItem, stored_item
 from backend.practice.domain.page_face import formula_from_stem
-from backend.practice.domain.page_layout import pack_items
+from backend.practice.domain.page_layout import draw_legacy_formula, pack_items
 from backend.practice.domain.paper import Paper, freeze_paper
 
 
@@ -68,11 +70,37 @@ def compose_multi_item_paper(
     )
     if isinstance(paper, Err):
         return paper
+    if plain_has_command(paper.formula):
+        paper = replace(paper, formula="")
     stored = tuple(stored_item(paper_id, item) for item in items)
-    if layout_kind != "flow" and slots_per_page > 1:
-        stored = pack_items(stored, slots_per_page)
-    writer.place_composed(paper, stored)
+    drawn = _with_formula(stored, layout_kind, slots_per_page)
+    if isinstance(drawn, Err):
+        return drawn
+    writer.place_composed(paper, drawn)
     return Ok(paper)
+
+
+def _with_formula(
+    items: tuple[PracticeItem, ...], layout_kind: str, slots_per_page: int
+) -> tuple[PracticeItem, ...] | Err:
+    """Lay out formulas before any row is written. Flow items are already placed."""
+    for item in items:
+        if needs_structure(item.stem_parts, item.stem_text, item.option_parts, item.option_text):
+            code, message = fault_message(item.question_version_id, "formula_unstructured")
+            return Err(code, message)
+    if layout_kind == "flow":
+        return items
+    try:
+        if slots_per_page > 1:
+            return pack_items(items, slots_per_page)
+        return tuple(draw_legacy_formula(item) for item in items)
+    except FormulaFault as fault:
+        code, message = fault_message(
+            fault.question_version_id or items[0].question_version_id,
+            fault.code,
+            fault.command,
+        )
+        return Err(code, message)
 
 
 def _is_item_approved(item: PracticeItem, approvals: ApprovalPort) -> Err | None:

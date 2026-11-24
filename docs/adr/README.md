@@ -18,6 +18,8 @@
 
 2026-11-24：0045 已采纳。新增切片 `ai`，两步识别、本机判分、脱敏和失败降级。0004 和 0041 只在文末追加修订，不删原文。
 
+2026-11-24：0046 已采纳。新导入的题分开保存文字和公式，卷面按排版印出，不印 LaTeX 源码。0024 只在文末追加修订，不删原文。不改 0043 正文。
+
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
 | [0001](0001-long-lived-tier.md) | 按长期项目做 | accepted | 全库 |
@@ -65,3 +67,4 @@
 | [0043](0043-answer-space-and-layout.md) | 答题区大小与按高度排版 | accepted | catalog, practice |
 | [0044](0044-browser-qr-decode.md) | 二维码在浏览器里读 | accepted | practice |
 | [0045](0045-ai-suggestions.md) | AI 识别建议 | accepted | ai |
+| [0046](0046-formula-layout.md) | 卷面公式按排版印出 | accepted | catalog, practice |
