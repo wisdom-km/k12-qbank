@@ -57,5 +57,6 @@
 
 | 2026-11-24 | 删除 `POST /api/admin/catalog/drafts`。新增 `POST /api/admin/catalog/books/{book_id}/import`。整书规则、书和页命名空间、答案配对都在这条路由。见 ADR 0042。 | 用户要求整书导入。不改契约文件。不改已有题目、答案、核准行。 |
 | 2026-11-24 | 书清单和核准行增加 `answer_space`。只改答题区大小的重导记 `space_changed`。新卷按高度排版。一整页放不下返回 `item_too_long`。版式参数不合法时，production 启动失败，development 出卷返回 `layout_invalid`。见 ADR 0043。 | 用户要求按题型排版，坐标存进卷记录。不回填已有行。不改已发出的卷。 |
+| 2026-11-24 | 新增 `PUT /api/practice/papers/{paper_id}/pages/{page_no}/intake`、`GET /api/practice/papers/{paper_id}/intake`、`GET /api/practice/intake/{intake_id}/image`。错误码：`permission_denied` 403、`csrf` 403、`unauthenticated` 401、`paper_not_found` 404、`not_found` 404、`file_missing` 404、`page_out_of_range` 400、`not_image` 400、`validation_failed` 400、`too_large` 413、`qr_mismatch` 409、`page_already_received` 409、`file_purpose_conflict` 409。`publication_asset` 对 purpose 为 intake 的文件返回 `intake_file_rejected`。见 ADR 0041 修订与 ADR 0044。 | 用户要求整页拍照收卷。浏览器读码，服务端核对。不改已有 files 行，不改已发出的卷。 |
 
 方案里的 DEC-01 到 DEC-06 仍是待机构确认。本仓库没有替机构填写这些决定。

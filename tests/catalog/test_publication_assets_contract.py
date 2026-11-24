@@ -18,6 +18,7 @@ _ACTOR = "actor-d8a"
 _FILE = "pubfile-0123456789abcdef"
 _FILE_TWO = "pubfile-fedcba9876543210"
 _PAGE_FILE = "pubfile-bbbbbbbbbbbbbbbb"
+_INTAKE_FILE = "pubfile-dddddddddddddddd"
 _PAPER_FILE = "pubfile-cccccccccccccccc"
 
 
@@ -103,6 +104,12 @@ class PublicationAssetCases:
         self._put("pub-d8a-prefix")
         result = self._attach("pub-d8a-prefix", "file-short", "image", "checksum-prefix", 6, "image/png")
         self.assertEqual(result.result, "page_file_rejected")
+
+    def test_files_purpose_intake_is_rejected(self) -> None:
+        self._put("pub-d8a-intake")
+        self.publications.note_intake_file(_INTAKE_FILE)  # type: ignore[attr-defined]
+        result = self._attach("pub-d8a-intake", _INTAKE_FILE, "image", "checksum-intake", 7, "image/png")
+        self.assertEqual(result.result, "intake_file_rejected")
 
     def test_files_purpose_page_is_rejected(self) -> None:
         self._put("pub-d8a-purpose")

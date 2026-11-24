@@ -209,7 +209,7 @@ def _seed(dsn: str, page: Path, note: Path) -> tuple[str, str]:
             )
             conn.execute(
                 "INSERT INTO files (file_id, purpose, checksum) VALUES (%s, %s, %s)",
-                (_NOTE, "note", note_digest),
+                (_NOTE, "intake", note_digest),
             )
     return page_digest, note_digest
 

@@ -48,6 +48,15 @@ def _password_blocked(request: Request, user: object) -> bool:
     return (request.method, request.url.path) not in _WHILE_CHANGING
 
 
+def _intake_put(request: Request) -> bool:
+    """The intake route enforces K12_INTAKE_MAX_BYTES. Other writes stay at 1 MiB."""
+    if request.method != "PUT":
+        return False
+    path = request.url.path
+    marker = "/pages/"
+    return path.startswith("/api/practice/papers/") and marker in path and path.endswith("/intake")
+
+
 def _public(request: Request) -> bool:
     path = request.url.path
     if path == "/health" and request.method == "GET":
@@ -58,6 +67,8 @@ def _public(request: Request) -> bool:
 
 
 def _too_big(request: Request) -> bool:
+    if _intake_put(request):
+        return False
     raw = request.headers.get("content-length")
     if raw is None:
         return False

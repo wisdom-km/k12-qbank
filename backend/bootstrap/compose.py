@@ -28,6 +28,7 @@ from backend.kernel.log_event import LogEvent
 from backend.kernel.logger import CompositeLogger, Logger
 from backend.practice.adapters.files import MemoryFiles
 from backend.practice.adapters.memory import MemoryPractice
+from backend.practice.adapters.memory_intake import MemoryIntake
 from backend.practice.adapters.memory_items import MemoryComposedWriter, MemoryPracticeItems
 from backend.practice.adapters.pdf_page import StdPdf
 from backend.practice.application.ports import PageRenderer
@@ -53,6 +54,7 @@ class Loop:
     publications: object = field(default_factory=MemoryPublications)
     items: object = field(default_factory=MemoryPracticeItems)
     composed: object | None = None
+    intake: object = field(default_factory=MemoryIntake)
 
 
 def compose() -> Loop:

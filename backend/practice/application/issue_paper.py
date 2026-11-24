@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from datetime import datetime, timezone
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -89,6 +90,7 @@ def prepare_issue(
         qr_printed=command.qr_printed,
         printed_external_id=command.printed_external_id,
         slots_per_page=command.slots_per_page,
+        issued_on=datetime.now(timezone.utc).date().isoformat(),
     )
     if isinstance(paper, Err):
         return _refuse_issue(logger, request_id, started, paper.code, paper.message)

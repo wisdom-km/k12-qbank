@@ -90,6 +90,10 @@ class PgPublications:
         """Test seam. Inserts files.purpose = page so the privacy guard can see it."""
         _run(self._pool, lambda conn: _note_page_file(conn, file_id))
 
+    def note_intake_file(self, file_id: str) -> None:
+        """Test seam. Inserts files.purpose = intake so the privacy guard can see it."""
+        _run(self._pool, lambda conn: _note_intake_file(conn, file_id))
+
     def note_paper_file(self, file_id: str) -> None:
         """Test seam. Inserts papers.file_id."""
         _run(self._pool, lambda conn: _note_paper(conn, file_id, None, "file-" + file_id))
@@ -392,6 +396,16 @@ def _attach(
         """,
         (file_id,),
     ).fetchone()
+    intake_file = conn.execute(
+        """
+        SELECT 1
+        FROM files
+        WHERE file_id = %s
+          AND purpose = 'intake'
+        LIMIT 1
+        """,
+        (file_id,),
+    ).fetchone()
     paper_file = conn.execute(
         """
         SELECT 1
@@ -415,6 +429,7 @@ def _attach(
         kind,
         mime_type,
         page_file=page_file is not None,
+        intake_file=intake_file is not None,
         paper_file=paper_file is not None,
         paper_checksum=paper_checksum is not None,
     )
@@ -534,6 +549,16 @@ def _note_page_file(conn: Any, file_id: str) -> None:
     )
 
 
+def _note_intake_file(conn: Any, file_id: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO files (file_id, purpose, checksum)
+        VALUES (%s, 'intake', 'checksum-d8a-intake')
+        """,
+        (file_id,),
+    )
+
+
 def _note_paper(conn: Any, file_id: str | None, checksum: str | None, token: str) -> None:
     conn.execute(
         """
@@ -557,3 +582,4 @@ def _note_paper(conn: Any, file_id: str | None, checksum: str | None, token: str
 def _clear_privacy_notes(conn: Any) -> None:
     conn.execute("DELETE FROM papers WHERE paper_id LIKE 'paper-d8a-%'")
     conn.execute("DELETE FROM files WHERE checksum = 'checksum-d8a-page'")
+    conn.execute("DELETE FROM files WHERE checksum = 'checksum-d8a-intake'")

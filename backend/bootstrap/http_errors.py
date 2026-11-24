@@ -27,7 +27,13 @@ _STATUS = {
     "already_granted": 409,
     "not_granted": 409,
     "payload_too_large": 413,
+    "too_large": 413,
     "no_active_publication": 409,
+    "not_image": 400,
+    "page_out_of_range": 400,
+    "qr_mismatch": 409,
+    "page_already_received": 409,
+    "file_purpose_conflict": 409,
 }
 _GENERIC = {"invalid_credentials", "unauthenticated"}
 

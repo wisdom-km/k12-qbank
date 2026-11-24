@@ -16,6 +16,8 @@
 | answer_imported | INFO | catalog | 导入的答案数。不记答案正文 |
 | import_book | INFO | catalog | audit=true。book_id、页数、staged / kept / skipped / conflict / space_changed。不记题干 |
 | paper_created | INFO | practice | 学生卷标识 |
+| intake_uploaded | INFO | practice | audit=true。paper_id、page_no、located_by、replaced。不记学号，不记图片字节 |
+| intake_read | INFO | practice | audit=true。paper_id、page_no、located_by。不记学号，不记图片字节 |
 | page_stored | INFO | 文件适配器 | 文件标识 |
 | analysis_finished | INFO | analysis | 任务标识、结果类别 |
 | attempt_confirmed | INFO | practice | 确认记录标识 |

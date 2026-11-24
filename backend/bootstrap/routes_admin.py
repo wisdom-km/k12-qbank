@@ -547,6 +547,7 @@ _ATTACH_STATUS = {
     "disallowed_mime": 400,
     "page_file_rejected": 400,
     "paper_file_rejected": 400,
+    "intake_file_rejected": 400,
 }
 
 

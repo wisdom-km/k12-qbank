@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime, timezone
 
 from backend.catalog.api import ApprovalPort, Publications
 from backend.kernel.result import Err, Ok
@@ -63,6 +64,7 @@ def compose_multi_item_paper(
         slots_per_page=slots_per_page,
         layout_kind=layout_kind,
         layout_params=layout_params,
+        issued_on=datetime.now(timezone.utc).date().isoformat(),
     )
     if isinstance(paper, Err):
         return paper

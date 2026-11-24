@@ -65,6 +65,8 @@ def main() -> int:
     if b"student-synth" in pdf or b"name-rule omit" in pdf or paper_id in pdf or b"answer " in pdf:
         print("SMOKE HTTP FAIL: pdf prints the internal id, a name rule, the paper id, or an answer")
         return 1
+    if _intake(base, str(opened["paper_id"])) != 0:
+        return 1
     refused_import = _json(
         _open(base + "/api/admin/catalog/books/synth-smoke/import", _smoke_page(True), expect=403)
     )
@@ -91,6 +93,62 @@ def main() -> int:
         return 1
     print("SMOKE HTTP PASS")
     return 0
+
+
+def _intake(base: str, paper_id: str) -> int:
+    """Upload one synthetic page, read the status, then read the image once."""
+    uploaded = _json(
+        _put_bytes(
+            base + "/api/practice/papers/" + paper_id + "/pages/1/intake?located_by=manual",
+            _jpeg(),
+        )
+    )
+    intake_id = uploaded.get("intake_id")
+    if not isinstance(intake_id, str) or not intake_id.startswith("intake-"):
+        print("SMOKE HTTP FAIL: intake upload")
+        return 1
+    status = _json(_open(base + "/api/practice/papers/" + paper_id + "/intake"))
+    pages = status.get("pages")
+    if not isinstance(pages, list) or not pages or not pages[0].get("received"):
+        print("SMOKE HTTP FAIL: intake status")
+        return 1
+    image = _open(base + "/api/practice/intake/" + intake_id + "/image")
+    body = image.read()
+    if image.headers.get("Cache-Control") != "no-store" or not body.startswith(b"\xff\xd8"):
+        print("SMOKE HTTP FAIL: intake image")
+        return 1
+    if b"EXIF-MARKER-SYNTH" in body or b"student-synth" in body or b"synth-0001" in body:
+        print("SMOKE HTTP FAIL: intake image still has capture data or an id")
+        return 1
+    return 0
+
+
+def _jpeg() -> bytes:
+    payload = b"EXIF-MARKER-SYNTH"
+    length = len(payload) + 2
+    segment = bytes((0xFF, 0xE1, (length >> 8) & 0xFF, length & 0xFF)) + payload
+    return b"\xff\xd8" + segment + bytes((0xFF, 0xDA, 0x00, 0x02)) + b"IMAGE-BYTES-SYNTH" + b"\xff\xd9"
+
+
+def _put_bytes(url: str, body: bytes, expect: int = 200) -> urllib.response.addinfourl:
+    headers = {
+        "Content-Type": "image/jpeg",
+        "X-Request-Id": "smoke-http",
+        "X-K12-CSRF": _CSRF["value"],
+    }
+    request = urllib.request.Request(url, data=body, headers=headers, method="PUT")
+    try:
+        response = _OPENER.open(request, timeout=3)
+    except urllib.error.HTTPError as exc:
+        if exc.code != expect:
+            print("SMOKE HTTP FAIL: " + url + " status " + str(exc.code))
+            print(exc.read().decode("utf-8", errors="replace"))
+            raise SystemExit(1) from exc
+        return exc
+    if response.status != expect:
+        print("SMOKE HTTP FAIL: " + url + " status " + str(response.status))
+        raise SystemExit(1)
+    return response
 
 
 def _smoke_fail(step: str, report: dict[str, object]) -> str:

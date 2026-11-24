@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from typing import NoReturn
@@ -105,3 +106,12 @@ def _warn_memory(logger: Logger) -> None:
         outcome="memory",
         started=time.perf_counter(),
     )
+
+
+def http_host() -> str:
+    """Bind address for a manual uvicorn command. The default stays on this machine.
+
+    scripts/check.conf does not read this. The operator passes the value to --host.
+    """
+    raw = os.environ.get("K12_HTTP_HOST", "").strip()
+    return raw or "127.0.0.1"

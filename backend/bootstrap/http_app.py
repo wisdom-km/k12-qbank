@@ -21,6 +21,7 @@ from backend.bootstrap.http_gate import gate
 from backend.bootstrap.routes_admin import register_admin
 from backend.bootstrap.routes_catalog import register_catalog
 from backend.bootstrap.routes_observability import register_observability
+from backend.bootstrap.routes_intake import register_intake
 from backend.bootstrap.routes_practice import register_practice
 from backend.bootstrap.routes_session import register_session
 from backend.bootstrap.seed import bootstrap_from_env, load_fixture
@@ -62,6 +63,7 @@ def create_app(
     register_admin(app)
     register_catalog(app)
     register_practice(app)
+    register_intake(app)
     _mount_web(app)
     return app
 
@@ -180,8 +182,8 @@ def _cors(app: FastAPI, origins: tuple[str, ...]) -> None:
         CORSMiddleware,
         allow_origins=list(origins),
         allow_credentials=True,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Accept", "Content-Type", "X-K12-CSRF"],
+        allow_methods=["GET", "POST", "PUT"],
+        allow_headers=["Accept", "Content-Type", "X-K12-CSRF", "X-K12-Qr"],
     )
 
 

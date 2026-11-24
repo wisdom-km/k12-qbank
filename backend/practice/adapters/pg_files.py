@@ -38,6 +38,12 @@ class PgFiles:
         )
         return file_id, digest
 
+    def store_bytes(self, file_id: str, data: bytes) -> str:
+        """Write the bytes only. The intake row inserts purpose=intake and does not rewrite a page row."""
+        digest = hashlib.sha256(data).hexdigest()
+        self._write_bytes(file_id, data)
+        return digest
+
     def read(self, file_id: str) -> bytes | None:
         if _meta(self._pool, file_id) is None:
             return None

@@ -26,6 +26,11 @@ class SignedClient:
         headers.setdefault("X-K12-CSRF", self._token)
         return self._client.post(url, headers=headers, **kwargs)  # type: ignore[arg-type]
 
+    def put(self, url: str, **kwargs: object) -> object:
+        headers = dict(kwargs.pop("headers", None) or {})  # type: ignore[arg-type]
+        headers.setdefault("X-K12-CSRF", self._token)
+        return self._client.put(url, headers=headers, **kwargs)  # type: ignore[arg-type]
+
 
 @contextmanager
 def signed_client(loop: Loop | None = None) -> Iterator[SignedClient]:

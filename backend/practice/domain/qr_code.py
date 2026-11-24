@@ -48,6 +48,25 @@ def qr_payload(paper_id: str, page_number: int) -> str:
     return text
 
 
+def parse_qr_payload(text: str) -> tuple[str, int] | None:
+    """Split a payload from qr_payload. A mismatch returns None."""
+    if text.count("#") != 1:
+        return None
+    paper_id, page_text = text.split("#", 1)
+    if not paper_id or not page_text.isdigit():
+        return None
+    page_number = int(page_text)
+    if page_number < 1 or str(page_number) != page_text:
+        return None
+    try:
+        expected = qr_payload(paper_id, page_number)
+    except ValueError:
+        return None
+    if expected != text:
+        return None
+    return paper_id, page_number
+
+
 def format_bits(mask: int = 0) -> int:
     """15 format bits for ECC M and the given mask, already XOR-masked."""
     data = mask & 0b111

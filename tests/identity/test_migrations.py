@@ -15,7 +15,22 @@ class MigrationFilesTest(unittest.TestCase):
         found = discover(ROOT)
         self.assertEqual(
             [item.version for item in found],
-            ["V001", "V002", "V003", "V004", "V005", "V006", "V007", "V008", "V009", "V010", "V011", "V012", "V013"],
+            [
+                "V001",
+                "V002",
+                "V003",
+                "V004",
+                "V005",
+                "V006",
+                "V007",
+                "V008",
+                "V009",
+                "V010",
+                "V011",
+                "V012",
+                "V013",
+                "V014",
+            ],
         )
         self.assertTrue(found[0].down.is_file())
         up = "\n".join(sql_statements(found[0].up.read_text(encoding="utf-8")))
@@ -215,6 +230,26 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertNotIn("UPDATE ", down13_sql)
         self.assertNotIn("pg_advisory", down13_sql)
         self.assertNotIn("schema_migrations", down13_sql)
+        self.assertTrue(found[13].down.is_file())
+        up14 = found[13].up.read_text(encoding="utf-8")
+        down14 = found[13].down.read_text(encoding="utf-8")
+        up14_sql = "\n".join(sql_statements(up14))
+        down14_sql = "\n".join(sql_statements(down14))
+        self.assertIn("CREATE TABLE intake_page", up14_sql)
+        self.assertIn("files_purpose_known", up14_sql)
+        self.assertIn("purpose IN ('page', 'intake')", up14_sql)
+        self.assertIn("ADD COLUMN issued_on date", up14_sql)
+        self.assertIn("intake_page_current", up14_sql)
+        self.assertIn("superseded_at IS NULL", up14_sql)
+        self.assertNotIn("UPDATE ", up14_sql)
+        self.assertNotIn("pg_advisory", up14_sql)
+        self.assertNotIn("schema_migrations", up14_sql)
+        self.assertIn("DROP TABLE IF EXISTS intake_page", down14_sql)
+        self.assertIn("DROP CONSTRAINT IF EXISTS files_purpose_known", down14_sql)
+        self.assertIn("DROP COLUMN IF EXISTS issued_on", down14_sql)
+        self.assertNotIn("UPDATE ", down14_sql)
+        self.assertNotIn("pg_advisory", down14_sql)
+        self.assertNotIn("schema_migrations", down14_sql)
         sample = "DO $$\nBEGIN\n    RAISE EXCEPTION 'keep; this';\nEND\n$$;\nSELECT 1;\n"
         parts = sql_statements(sample)
         self.assertEqual(len(parts), 2)

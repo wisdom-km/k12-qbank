@@ -30,6 +30,7 @@ class MemoryPublications:
         self._assets: dict[str, Asset] = {}
         self._asset_key: dict[tuple[str, str], str] = {}
         self._page_files: set[str] = set()
+        self._intake_files: set[str] = set()
         self._paper_files: set[str] = set()
         self._paper_checksums: set[str] = set()
         self._clock = datetime.now(timezone.utc)
@@ -149,6 +150,11 @@ class MemoryPublications:
         with self._lock:
             self._page_files.add(file_id)
 
+    def note_intake_file(self, file_id: str) -> None:
+        """Test seam. Stands in for files.purpose = intake."""
+        with self._lock:
+            self._intake_files.add(file_id)
+
     def note_paper_file(self, file_id: str) -> None:
         """Test seam. Stands in for papers.file_id."""
         with self._lock:
@@ -162,6 +168,7 @@ class MemoryPublications:
     def clear_privacy_notes(self) -> None:
         with self._lock:
             self._page_files.clear()
+            self._intake_files.clear()
             self._paper_files.clear()
             self._paper_checksums.clear()
 
@@ -187,6 +194,7 @@ class MemoryPublications:
                 kind,
                 mime_type,
                 page_file=file_id in self._page_files,
+                intake_file=file_id in self._intake_files,
                 paper_file=file_id in self._paper_files,
                 paper_checksum=checksum in self._paper_checksums,
             )

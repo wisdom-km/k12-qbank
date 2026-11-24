@@ -16,6 +16,7 @@ from backend.practice.application.open_multi import open_multi_paper
 from backend.practice.application.open_paper import open_paper, read_attempt
 from backend.practice.application.paper_qr import paper_qr_enabled
 from backend.practice.application.render_paper import hand_out_paper, read_file
+from backend.practice.application.intake_photo import pages_of
 from backend.practice.application.visible import visible_confirmation_count, visible_papers
 
 
@@ -47,7 +48,10 @@ def register_practice(app: FastAPI) -> None:
     def papers(request: Request) -> dict[str, object]:
         actor = _actor(request)
         rows = visible_papers(actor, request.app.state.loop.auth, request.app.state.loop.practice)
-        return {"count": len(rows), "papers": [_paper_body(row) for row in rows]}
+        return {
+            "count": len(rows),
+            "papers": [_paper_body(row, request=request, reveal_external_id=True) for row in rows],
+        }
 
     @app.get("/api/practice/confirmations/count")
     def confirmation_count(request: Request) -> dict[str, int]:
@@ -134,7 +138,15 @@ def _issue(body: IssueBody, request: Request) -> JSONResponse:
     if isinstance(result, Err):
         return error_response(request.state.request_id, result)
     opened = result.value
-    return JSONResponse(_paper_body(opened.paper, opened.fixture_answer_id, opened.render_code, opened.render_message))
+    return JSONResponse(
+        _paper_body(
+            opened.paper,
+            opened.fixture_answer_id,
+            opened.render_code,
+            opened.render_message,
+            request=request,
+        )
+    )
 
 
 def _handout(paper_id: str, request: Request) -> JSONResponse:
@@ -143,7 +155,7 @@ def _handout(paper_id: str, request: Request) -> JSONResponse:
     result = hand_out_paper(paper_id, loop.approvals, loop.auth, loop.practice, loop.logger, request.state.request_id, actor_teacher_id=actor)
     if isinstance(result, Err):
         return error_response(request.state.request_id, result)
-    return JSONResponse(_paper_body(result.value))
+    return JSONResponse(_paper_body(result.value, request=request))
 
 
 def _attempt(paper_id: str, request: Request) -> JSONResponse:
@@ -227,8 +239,15 @@ def _paper_body(
     fixture_answer_id: str | None = None,
     render_code: str | None = None,
     render_message: str = "",
+    request: Request | None = None,
+    *,
+    reveal_external_id: bool = False,
 ) -> dict[str, object]:
-    return {
+    page_count = 1
+    if request is not None:
+        found = request.app.state.loop.items.items_of(paper.paper_id)
+        page_count = pages_of(paper, found)
+    body: dict[str, object] = {
         "paper_id": paper.paper_id,
         "status": paper.status,
         "student_id": paper.student_id,
@@ -243,7 +262,12 @@ def _paper_body(
         "asset_ids": list(paper.asset_ids),
         "layout_template_id": paper.layout_template_id,
         "qr_printed": paper.qr_printed,
+        "issued_on": paper.issued_on,
+        "page_count": page_count,
         "fixture_answer_id": fixture_answer_id,
         "render_code": render_code,
         "render_message": render_message,
     }
+    if reveal_external_id:
+        body["printed_external_id"] = paper.printed_external_id
+    return body

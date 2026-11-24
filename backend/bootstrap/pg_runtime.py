@@ -36,7 +36,7 @@ def open_postgres() -> Loop:
 
     attempts = PgAttempts(pool)
     deps = make_deps(attempts, logger)
-    approvals, practice, files, items = _catalog_stores(pool)
+    approvals, practice, files, items, intake = _catalog_stores(pool)
     from backend.catalog.adapters.pg_answers import PgAnswers
     from backend.catalog.adapters.pg_publications import PgPublications
     from backend.catalog.adapters.pg_questions import PgQuestions
@@ -56,14 +56,16 @@ def open_postgres() -> Loop:
         publications=PgPublications(pool),
         items=items,
         composed=items,
+        intake=intake,
     )
 
 
-def _catalog_stores(pool: object) -> tuple[object, object, object, object]:
+def _catalog_stores(pool: object) -> tuple[object, object, object, object, object]:
     """DSN path stores approvals and papers in PostgreSQL. Empty K12_FILE_DIR keeps bytes in memory."""
     from backend.catalog.adapters.pg_approvals import PgApprovals
     from backend.practice.adapters.files import MemoryFiles
     from backend.practice.adapters.pg_files import PgFiles
+    from backend.practice.adapters.pg_intake import PgIntake
     from backend.practice.adapters.pg_items import PgPracticeItems
     from backend.practice.adapters.pg_practice import PgPractice
 
@@ -81,7 +83,7 @@ def _catalog_stores(pool: object) -> tuple[object, object, object, object]:
             started=time.perf_counter(),
         )
         files = MemoryFiles()
-    return PgApprovals(pool), PgPractice(pool), files, PgPracticeItems(pool)
+    return PgApprovals(pool), PgPractice(pool), files, PgPracticeItems(pool), PgIntake(pool)
 
 
 @contextmanager
