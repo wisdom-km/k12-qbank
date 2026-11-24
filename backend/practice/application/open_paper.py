@@ -17,8 +17,9 @@ from backend.practice.application.issue_paper import gate_active_publication, pr
 from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeItems, PracticeStore
 from backend.practice.application.render_paper import render_paper
 from backend.practice.domain.confirm import PendingAnswer
+from backend.practice.domain.formula import FormulaFault, fault_message, needs_structure, plain_has_command
 from backend.practice.domain.item import PracticeItem
-from backend.practice.domain.page_layout import pack_items
+from backend.practice.domain.page_layout import draw_legacy_formula, pack_items
 
 
 def open_paper(
@@ -50,9 +51,20 @@ def open_paper(
     if isinstance(prepared, Err):
         return prepared
     paper = prepared.value.paper
-    flowed_item = None
+    snapshot = approvals.read_snapshot(paper.question_version_id)
+    seed = PracticeItem(
+        paper_id=paper.paper_id,
+        order_no=1,
+        question_version_id=paper.question_version_id,
+        answer_version_id=paper.answer_version_id,
+        stem_text=prepared.value.stem,
+        answer_text=prepared.value.answer_text,
+        option_text=prepared.value.option_text,
+        stem_parts=None if snapshot is None else snapshot.stem_parts,
+        option_parts=None if snapshot is None else snapshot.option_parts,
+    )
+    copied = seed
     if command.layout_kind == "flow":
-        snapshot = approvals.read_snapshot(paper.question_version_id)
         if snapshot is None:
             return _refuse(
                 logger,
@@ -61,20 +73,20 @@ def open_paper(
                 "question_not_approved",
                 "the question version is not approved",
             )
-        seed = PracticeItem(
-            paper_id=paper.paper_id,
-            order_no=1,
-            question_version_id=paper.question_version_id,
-            answer_version_id=paper.answer_version_id,
-            stem_text=prepared.value.stem,
-            answer_text=prepared.value.answer_text,
-            option_text=prepared.value.option_text,
-        )
         flowed = place_flow((seed,), (snapshot,))
         if isinstance(flowed, Err):
             return _refuse(logger, request_id, time.perf_counter(), flowed.code, flowed.message)
-        flowed_item = flowed[0][0]
+        copied = flowed[0][0]
         paper = replace(paper, layout_kind="flow", layout_params=flowed[1], slots_per_page=1)
+    else:
+        blocked_formula = _formula_block(seed, paper.slots_per_page)
+        if isinstance(blocked_formula, Err):
+            return _refuse(
+                logger, request_id, time.perf_counter(), blocked_formula.code, blocked_formula.message
+            )
+        copied = blocked_formula
+    if plain_has_command(paper.formula):
+        paper = replace(paper, formula="")
     if not attempt_text.strip():
         return _refuse(
             logger,
@@ -107,17 +119,6 @@ def open_paper(
     if isinstance(saved, Err):
         return saved
     if items is not None:
-        copied = flowed_item or PracticeItem(
-            paper_id=paper.paper_id,
-            order_no=1,
-            question_version_id=paper.question_version_id,
-            answer_version_id=paper.answer_version_id,
-            stem_text=prepared.value.stem,
-            answer_text=prepared.value.answer_text,
-            option_text=prepared.value.option_text,
-        )
-        if paper.layout_kind != "flow" and paper.slots_per_page > 1:
-            copied = pack_items((copied,), paper.slots_per_page)[0]
         stored_item = read_store(
             lambda: items.set_items(paper.paper_id, (copied,)),
             logger,
@@ -234,6 +235,21 @@ def read_attempt(
             answer_text=answer.answer_text,
         )
     )
+
+
+def _formula_block(item: PracticeItem, slots_per_page: int) -> PracticeItem | Err:
+    if needs_structure(item.stem_parts, item.stem_text, item.option_parts, item.option_text):
+        code, message = fault_message(item.question_version_id, "formula_unstructured")
+        return Err(code, message)
+    try:
+        if slots_per_page > 1:
+            return pack_items((item,), slots_per_page)[0]
+        return draw_legacy_formula(item)
+    except FormulaFault as fault:
+        code, message = fault_message(
+            fault.question_version_id or item.question_version_id, fault.code, fault.command
+        )
+        return Err(code, message)
 
 
 def _refuse(logger: Logger, request_id: str, started: float, code: str, message: str) -> Err:

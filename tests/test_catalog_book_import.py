@@ -151,6 +151,61 @@ class BookImportCases:
         self.assertEqual(stored.pdf_page, 4)
         self.assertEqual(stored.question_key, "synth-r4c-self.p0004:1:1")
 
+    def test_a_formula_reimport_stays_kept_and_an_old_row_does_not_gain_parts(self) -> None:
+        question = _question("1:1", "1", "synth")
+        question["stem"] = [
+            {"type": "text", "value": "synth-calc:"},
+            {"type": "math", "latex": r"\frac{1}{2}"},
+        ]
+        page = _page(1, "questions", _file(1, [question]), [_answer("1:1", 1, "1")])
+        first = self.call("synth-r4c-keptf", [page])
+        self.assertTrue(first.written)  # type: ignore[attr-defined]
+        self.assertEqual(first.questions[0].outcome, "staged")  # type: ignore[attr-defined]
+        self.assertEqual(first.questions[0].reason, "")  # type: ignore[attr-defined]
+        stored = self.approvals.read_snapshot("qv-synth-r4c-keptf.p0001-1-1")  # type: ignore[attr-defined]
+        self.assertEqual(stored.stem, r"synth-calc:\frac{1}{2}")
+        self.assertEqual(stored.stem_parts, (("text", "synth-calc:"), ("math", r"\frac{1}{2}")))
+        second = self.call("synth-r4c-keptf", [page])
+        self.assertEqual(second.questions[0].outcome, "kept")  # type: ignore[attr-defined]
+        self.assertEqual(second.conflict, 0)  # type: ignore[attr-defined]
+        again = self.approvals.read_snapshot("qv-synth-r4c-keptf.p0001-1-1")  # type: ignore[attr-defined]
+        self.assertEqual(again.stem_parts, stored.stem_parts)
+        self.approvals.put(  # type: ignore[attr-defined]
+            ApprovalSnapshot(
+                question_version_id="qv-synth-r4c-oldf.p0001-1-1",
+                answer_version_id="av-synth-r4c-oldf.p0001-1-1-ocr-1",
+                asset_ids=(),
+                layout_template_id="",
+                question_approved=False,
+                answer_approved=False,
+                retired=False,
+                subject_id="math",
+                stem=r"synth-calc:\frac{1}{2}",
+                answer_text="1",
+                type="single_choice",
+                structure="choice",
+                options=("A. 2",),
+                stem_parts=None,
+                option_parts=None,
+            )
+        )
+        old = self.call("synth-r4c-oldf", [page])
+        self.assertEqual(old.questions[0].outcome, "kept")  # type: ignore[attr-defined]
+        left = self.approvals.read_snapshot("qv-synth-r4c-oldf.p0001-1-1")  # type: ignore[attr-defined]
+        self.assertIsNone(left.stem_parts)
+        self.assertIsNone(left.option_parts)
+
+    def test_an_unsupported_formula_warns_and_still_imports(self) -> None:
+        question = _question("1:1", "1", "synth")
+        question["stem"] = [{"type": "math", "latex": r"\sqrt{2}"}]
+        page = _page(1, "questions", _file(1, [question]), [_answer("1:1", 1, "1")])
+        report = self.call("synth-r4c-sqrt", [page])
+        self.assertTrue(report.written)  # type: ignore[attr-defined]
+        self.assertEqual(report.questions[0].outcome, "staged")  # type: ignore[attr-defined]
+        self.assertEqual(report.questions[0].reason, r"formula_unsupported \sqrt")  # type: ignore[attr-defined]
+        self.assertNotIn("{2}", report.questions[0].reason)  # type: ignore[attr-defined]
+        self.assertIsNotNone(self.approvals.read_snapshot("qv-synth-r4c-sqrt.p0001-1-1"))  # type: ignore[attr-defined]
+
     def test_second_import_is_kept_and_row_counts_stay(self) -> None:
         pages = [_qpage(1, "1:1", "synth-keep", "same")]
         first = self.call("synth-r4c-keep", pages)

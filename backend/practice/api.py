@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from backend.practice.domain.confirm import Confirmation, OperationKey
+from backend.practice.domain.formula import plain_has_command, unsupported_commands
 from backend.practice.domain.layout_params import LayoutError, load_layout
 from backend.practice.domain.paper import Paper
 
@@ -22,6 +23,8 @@ __all__ = [
     "OperationKey",
     "Paper",
     "paper_layout_problem",
+    "plain_has_command",
+    "unsupported_commands",
 ]
 
 

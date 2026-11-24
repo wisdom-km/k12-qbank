@@ -6,6 +6,7 @@ import json
 from collections.abc import Callable, Sequence
 from typing import Any, TypeVar
 
+from backend.practice.domain.formula import plain_has_command
 from backend.practice.domain.item import ItemBox, PracticeItem, stored_item
 from backend.practice.domain.page_face import formula_from_stem
 from backend.practice.domain.paper import Paper
@@ -53,7 +54,8 @@ def _items(conn: Any, paper_id: str) -> tuple[PracticeItem, ...]:
     rows = conn.execute(
         """
         SELECT paper_id, order_no, question_version_id, answer_version_id, score,
-               stem_text, answer_text, page_no, slot_no, slot_span, option_text, placed_lines
+               stem_text, answer_text, page_no, slot_no, slot_span, option_text, placed_lines,
+               stem_parts, option_parts, formula_draw
         FROM practice_item
         WHERE paper_id = %s
         ORDER BY order_no ASC
@@ -72,8 +74,9 @@ def _replace_items(conn: Any, paper_id: str, items: tuple[PracticeItem, ...]) ->
             """
             INSERT INTO practice_item (
                 paper_id, order_no, question_version_id, answer_version_id, score,
-                stem_text, answer_text, page_no, slot_no, slot_span, option_text, placed_lines
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                stem_text, answer_text, page_no, slot_no, slot_span, option_text, placed_lines,
+                stem_parts, option_parts, formula_draw
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
             """,
             (
                 item.paper_id,
@@ -88,6 +91,9 @@ def _replace_items(conn: Any, paper_id: str, items: tuple[PracticeItem, ...]) ->
                 item.slot_span,
                 item.option_text,
                 _dump_lines(item.placed_lines),
+                _dump_parts(item.stem_parts),
+                _dump_option_parts(item.option_parts),
+                _dump_draw(item.formula_draw),
             ),
         )
         for box in item.boxes:
@@ -176,7 +182,7 @@ def _insert_one_page(conn: Any, paper: Paper, item: PracticeItem, number: int, c
             count,
             item.question_version_id,
             item.answer_version_id,
-            formula_from_stem(item.stem_text) if item.stem_text else paper.formula,
+            _shown_formula(item, paper),
             paper.student_id,
             list(paper.item_order),
             list(paper.asset_ids),
@@ -201,6 +207,9 @@ def _item(row: tuple[object, ...], boxes: tuple[ItemBox, ...]) -> PracticeItem:
         option_text=str(row[10]),
         placed_lines=_load_lines(row[11]),
         boxes=boxes,
+        stem_parts=_load_parts(row[12]) if len(row) > 12 else None,
+        option_parts=_load_option_parts(row[13]) if len(row) > 13 else None,
+        formula_draw=_load_draw(row[14]) if len(row) > 14 else None,
     )
 
 
@@ -228,6 +237,84 @@ def _boxes(conn: Any, paper_id: str) -> dict[int, tuple[ItemBox, ...]]:
             )
         )
     return {order: tuple(items) for order, items in grouped.items()}
+
+
+def _shown_formula(item: PracticeItem, paper: Paper) -> str:
+    """A typeset item does not store the source in the page row."""
+    if item.formula_draw is not None:
+        return ""
+    text = formula_from_stem(item.stem_text) if item.stem_text else paper.formula
+    if plain_has_command(text):
+        return ""
+    return text
+
+
+def _dump_parts(parts: tuple[tuple[str, str], ...] | None) -> str | None:
+    if parts is None:
+        return None
+    rows = [{"type": "math", "latex": value} if kind == "math" else {"type": "text", "value": value} for kind, value in parts]
+    return json.dumps(rows, ensure_ascii=False)
+
+
+def _dump_option_parts(
+    parts: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] | None,
+) -> str | None:
+    if parts is None:
+        return None
+    rows = []
+    for key, content in parts:
+        body = _dump_parts(content)
+        rows.append({"key": key, "content": [] if body is None else json.loads(body)})
+    return json.dumps(rows, ensure_ascii=False)
+
+
+def _dump_draw(ops: tuple[tuple[object, ...], ...] | None) -> str | None:
+    if ops is None:
+        return None
+    return json.dumps([list(op) for op in ops], ensure_ascii=False)
+
+
+def _load_parts(value: object) -> tuple[tuple[str, str], ...] | None:
+    raw = _load_json(value)
+    if raw is None:
+        return None
+    rows: list[tuple[str, str]] = []
+    for item in raw:
+        if item.get("type") == "math":
+            rows.append(("math", str(item.get("latex", ""))))
+        else:
+            rows.append(("text", str(item.get("value", ""))))
+    return tuple(rows)
+
+
+def _load_option_parts(value: object) -> tuple[tuple[str, tuple[tuple[str, str], ...]], ...] | None:
+    raw = _load_json(value)
+    if raw is None:
+        return None
+    rows = []
+    for item in raw:
+        content = _load_parts(item.get("content"))
+        rows.append((str(item.get("key", "")), () if content is None else content))
+    return tuple(rows)
+
+
+def _load_draw(value: object) -> tuple[tuple[object, ...], ...] | None:
+    raw = _load_json(value)
+    if raw is None:
+        return None
+    return tuple(tuple(op) for op in raw)
+
+
+def _load_json(value: object) -> list[dict[str, object]] | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        loaded = json.loads(value)
+    else:
+        loaded = value
+    if not isinstance(loaded, list):
+        return None
+    return loaded
 
 
 def _dump_lines(lines: tuple[tuple[str, float, float], ...]) -> str | None:

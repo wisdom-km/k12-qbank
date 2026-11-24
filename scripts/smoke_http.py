@@ -66,6 +66,9 @@ def main() -> int:
     if b"student-synth" in pdf or b"name-rule omit" in pdf or paper_id in pdf or b"answer " in pdf:
         print("SMOKE HTTP FAIL: pdf prints the internal id, a name rule, the paper id, or an answer")
         return 1
+    if b"\\frac" in pdf or b"\\times" in pdf or b"\\leq" in pdf:
+        print("SMOKE HTTP FAIL: pdf prints a latex command")
+        return 1
     if _intake(base, str(opened["paper_id"])) != 0:
         return 1
     refused_import = _json(

@@ -22,6 +22,8 @@ class ApprovalSnapshot:
     structure: str = ""
     options: tuple[str, ...] = ()
     answer_space: str | None = None
+    stem_parts: tuple[tuple[str, str], ...] | None = None
+    option_parts: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] | None = None
 
 
 @dataclass(frozen=True)

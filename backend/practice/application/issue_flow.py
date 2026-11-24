@@ -8,12 +8,14 @@ from backend.catalog.api import ApprovalSnapshot, resolved_space
 from backend.kernel.result import Err
 from backend.practice.domain.flow_layout import (
     FlowQuestion,
+    FormulaStop,
     ItemTooLong,
     PlacedItem,
     blank_count,
     dump_layout,
     flow_place,
 )
+from backend.practice.domain.formula import fault_message
 from backend.practice.domain.item import ItemBox, PracticeItem
 from backend.practice.domain.layout_params import LayoutError, load_layout
 
@@ -38,6 +40,8 @@ def place_flow(
                 options=tuple(line for line in item.option_text.split("\n") if line),
                 space=space,
                 blank_count=count,
+                stem_parts=item.stem_parts,
+                option_parts=item.option_parts,
             )
         )
     placed = flow_place(tuple(questions), loaded)
@@ -46,6 +50,9 @@ def place_flow(
             "item_too_long",
             f"第 {placed.order_no} 题放不下一整页（{placed.question_version_id}）",
         )
+    if isinstance(placed, FormulaStop):
+        code, message = fault_message(placed.question_version_id, placed.code, placed.command)
+        return Err(code, message)
     by_order = {item.order_no: item for item in placed}
     stored = tuple(_copy(item, by_order[item.order_no]) for item in items)
     return stored, dump_layout(loaded)
@@ -55,7 +62,8 @@ def _copy(item: PracticeItem, placed: PlacedItem) -> PracticeItem:
     return replace(
         item,
         page_no=placed.page_no,
-        placed_lines=tuple((line.text, line.x, line.y) for line in placed.lines),
+        placed_lines=() if placed.draw is not None else tuple((line.text, line.x, line.y) for line in placed.lines),
+        formula_draw=placed.draw,
         boxes=tuple(
             ItemBox(box.box_no, box.page_no, box.x, box.y, box.w, box.h, box.kind) for box in placed.boxes
         ),

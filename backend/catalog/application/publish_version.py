@@ -196,6 +196,8 @@ def revise_text(
             question_approved=False,
             answer_approved=False,
             retired=False,
+            stem_parts=None,
+            option_parts=None,
         )
         saved = read_store(
             lambda row=updated: approvals.insert_if_absent(row),

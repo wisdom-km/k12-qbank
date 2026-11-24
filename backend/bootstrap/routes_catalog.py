@@ -33,6 +33,7 @@ class CatalogItem(BaseModel):
     retired: bool
     answer_space: str = ""
     answer_space_is_default: bool = True
+    formula_note: str = ""
 
 
 class CatalogListResponse(BaseModel):
@@ -99,6 +100,7 @@ def register_catalog(app: FastAPI) -> None:
                     retired=row.retired,
                     answer_space=_space_value(row),
                     answer_space_is_default=_space_default(row),
+                    formula_note=_formula_note(row),
                 )
                 for row in rows
             ]
@@ -201,7 +203,15 @@ def _snapshot_body(snapshot: ApprovalSnapshot) -> dict[str, object]:
         "layout_template_id": snapshot.layout_template_id,
         "answer_space": _space_value(snapshot),
         "answer_space_is_default": _space_default(snapshot),
+        "formula_note": _formula_note(snapshot),
     }
+
+
+def _formula_note(snapshot: ApprovalSnapshot) -> str:
+    """Empty when this row stored text and math separately. Old rows say so."""
+    if snapshot.stem_parts is not None:
+        return ""
+    return "公式未结构化"
 
 
 def _space_value(snapshot: ApprovalSnapshot) -> str:
