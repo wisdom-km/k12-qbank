@@ -895,6 +895,11 @@ export interface components {
              * @default true
              */
             answer_space_is_default: boolean;
+            /**
+             * Formula Note
+             * @default
+             */
+            formula_note: string;
         };
         /** CatalogListResponse */
         CatalogListResponse: {
