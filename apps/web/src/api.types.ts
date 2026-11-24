@@ -722,6 +722,13 @@ export interface components {
             pairing: {
                 [key: string]: unknown;
             }[];
+            /**
+             * Answer Space
+             * @default []
+             */
+            answer_space: {
+                [key: string]: unknown;
+            }[];
         } & {
             [key: string]: unknown;
         };
@@ -747,6 +754,11 @@ export interface components {
             skipped: number;
             /** Conflict */
             conflict: number;
+            /**
+             * Space Changed
+             * @default 0
+             */
+            space_changed: number;
         };
         /** BookPageReport */
         BookPageReport: {
@@ -788,6 +800,16 @@ export interface components {
             answer_approved: boolean;
             /** Retired */
             retired: boolean;
+            /**
+             * Answer Space
+             * @default
+             */
+            answer_space: string;
+            /**
+             * Answer Space Is Default
+             * @default true
+             */
+            answer_space_is_default: boolean;
         };
         /** CatalogListResponse */
         CatalogListResponse: {

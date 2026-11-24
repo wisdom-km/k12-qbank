@@ -1649,6 +1649,15 @@
             "type": "array",
             "title": "Pairing",
             "default": []
+          },
+          "answer_space": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Answer Space",
+            "default": []
           }
         },
         "additionalProperties": true,
@@ -1707,6 +1716,11 @@
           "conflict": {
             "type": "integer",
             "title": "Conflict"
+          },
+          "space_changed": {
+            "type": "integer",
+            "title": "Space Changed",
+            "default": 0
           }
         },
         "type": "object",
@@ -1821,6 +1835,16 @@
           "retired": {
             "type": "boolean",
             "title": "Retired"
+          },
+          "answer_space": {
+            "type": "string",
+            "title": "Answer Space",
+            "default": ""
+          },
+          "answer_space_is_default": {
+            "type": "boolean",
+            "title": "Answer Space Is Default",
+            "default": true
           }
         },
         "type": "object",
