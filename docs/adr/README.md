@@ -55,3 +55,4 @@
 | [0039](0039-catalog-persistence.md) | catalog 与 practice 的首个持久适配器 | accepted | catalog, practice |
 | [0040](0040-cors-origins.md) | 生产 CORS 白名单由 K12_CORS_ORIGINS 驱动 | accepted | kernel |
 | [0041](0041-intake-photo-and-vision.md) | 收卷照片与多模态识别 | accepted | practice |
+| [0042](0042-book-import.md) | 整书导入：书和页命名空间、答案配对 | accepted | catalog |

@@ -1,0 +1,23 @@
+{
+  "contract": "k12-answer-draft",
+  "contract_version": 1,
+  "schema_version": 1,
+  "ok": true,
+  "reason": "",
+  "question_key": "1:1",
+  "key": "1:1:ocr:1",
+  "origin": "ocr",
+  "status": "confirmed",
+  "applicable": true,
+  "source": {
+    "pdf_page": 101
+  },
+  "content": [
+    {
+      "type": "text",
+      "value": "synth-min-a"
+    }
+  ],
+  "parts": [],
+  "assets": []
+}

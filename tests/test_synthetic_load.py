@@ -30,3 +30,18 @@ class SyntheticLoadTest(unittest.TestCase):
     def test_default_synthetic_secret_meets_the_password_rule(self) -> None:
         self.assertTrue(password_ok(SYNTH_SECRET))
         self.assertNotIn(" ", SYNTH_SECRET)
+
+    def test_development_seeds_the_smoke_admin_when_no_dsn_and_no_bootstrap_user(self) -> None:
+        env = {"K12_ENV": "development", "K12_PG_DSN": "", "K12_BOOTSTRAP_ADMIN_USERNAME": ""}
+        with mock.patch.dict(os.environ, env):
+            loop = compose()
+            load_fixture(loop)
+        self.assertIsNotNone(loop.identity.users.by_username("admin-synth"))  # type: ignore[attr-defined]
+
+    def test_bootstrap_username_skips_the_smoke_admin(self) -> None:
+        env = {"K12_ENV": "development", "K12_PG_DSN": "", "K12_BOOTSTRAP_ADMIN_USERNAME": "admin"}
+        with mock.patch.dict(os.environ, env):
+            loop = compose()
+            load_fixture(loop)
+        self.assertIsNone(loop.identity.users.by_username("admin-synth"))  # type: ignore[attr-defined]
+        self.assertIsNotNone(loop.identity.users.by_username("teacher-synth"))  # type: ignore[attr-defined]

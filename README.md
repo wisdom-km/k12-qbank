@@ -66,8 +66,8 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | catalog PG | 设置 `K12_PG_DSN` 时写入 V002 运行表、V004 题目和答案、V005 五张子表、V007 `publication`、V008 `publication_asset`，并应用 V009 的 `publication_one_active`。`figure_geometry` 和 `answer_decision` 仍未建。资产字节上传仍未做 |
 | practice PG | 设置 `K12_PG_DSN` 时写入 papers、paper_pages、attempts、confirmations、files 元数据，以及 V006 的 practice_item。V011 记下出卷时是否印码、印在卷上的学号，以及每题的题干和答案快照。V012 记下每页槽位数和每题的页、槽、跨度。页字节在 `K12_FILE_DIR`。HTTP 出卷每页 4 个槽位。已发出的旧卷 `slots_per_page` 为 1，不重新排版 |
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 在 `K12_PG_DSN` 有值时连接并迁移 |
-| 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。内存保存。还不能出卷 |
-| 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。内存保存。还不能出卷。运行中的核准可同时写入 V004 的 `answers` 和 V005 的 `answer_part`、`answer_asset`。`answer_decision` 仍未建 |
+| 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。操作入口是整书导入，见下方「导入一本书」 |
+| 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。运行中的核准可同时写入 V004 的 `answers` 和 V005 的 `answer_part`、`answer_asset`。`answer_decision` 仍未建。操作入口是整书导入 |
 | 契约校验 | JSON Schema 在 `backend/catalog/contracts/`。不新增包。见 [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
 | 发布、知识点和多题练习 | 列写在 ADR 0015。知识点的内存端口已接，表未建。V006 已建 `practice_item`，V007 已建 `publication`，V008 已建 `publication_asset`，V009 已换上 `publication_one_active`。多题冻结在 `compose_multi_item_paper`。出卷 HTTP 每页 4 个槽位，短题可以同页。`K12_PAPER_QR` 默认印码，`off` 关闭。已发出的卷保留出卷时的题目、答案、是否印码和当时的槽位 |
 | 解题方法与错因 | 列写在 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。解题方法的内存端口已接。错因是建议。表未建 |
@@ -114,6 +114,10 @@ git diff --check
 | 最小 core 测试 | `python -m unittest discover -s tests -v` |
 | 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
 | 全量检查（干净环境） | `bash scripts/check` |
+
+## 导入一本书
+
+双击 `scripts/import_book.cmd`。脚本只读目录、登录、调用 `POST /api/admin/catalog/books/{book_id}/import`，并把报告写到书目录的 `_import_reports/`。规则在服务端。步骤、书清单和 conflict 的处理见 [docs/ops/import-book.md](docs/ops/import-book.md)。决定见 [docs/adr/0042-book-import.md](docs/adr/0042-book-import.md)。
 
 ## 先读
 

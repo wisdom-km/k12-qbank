@@ -106,7 +106,9 @@ jobs:
         run: python -m pip install "git+https://github.com/wisdom-km/md-json-review.git@main"
 
       - name: Import the synthetic OCR fixture
-        run: python -m unittest integration.test_review_tool_import -v
+        run: |
+          python -m unittest integration.test_review_tool_import -v
+          python -m unittest integration.test_review_tool_book_import -v
 
   postgres:
     name: postgres
@@ -152,6 +154,11 @@ jobs:
         env:
           K12_PG_DSN: postgresql://k12:changeme@localhost:5432/k12
         run: python -m unittest tests.test_catalog_practice_contract -v
+
+      - name: Whole-book import
+        env:
+          K12_PG_DSN: postgresql://k12:changeme@localhost:5432/k12
+        run: python -m unittest discover -s tests -p test_catalog_book_import.py -v
 
       - name: Migration lock
         env:

@@ -7,11 +7,11 @@ import os
 from pathlib import Path
 
 from backend.bootstrap.compose import Loop
-from backend.bootstrap.synthetic import ACTOR_TEACHER_ID, SYNTH_SECRET
+from backend.bootstrap.synthetic import ACTOR_ADMIN_ID, ACTOR_TEACHER_ID, SYNTH_SECRET
 from backend.catalog.api import ApprovalSnapshot
 from backend.identity.application.bootstrap_admin import bootstrap_admin
 from backend.identity.application.run import execute
-from backend.identity.application.synthetic_seed import seed_synthetic
+from backend.identity.application.synthetic_seed import seed_smoke_admin, seed_synthetic
 from backend.kernel.result import Err
 
 FIXTURE = Path(__file__).resolve().parents[2] / "docs" / "fixtures" / "rational-number-min.json"
@@ -63,6 +63,11 @@ def load_fixture(loop: Loop) -> None:
     if granter is not None:
         for student in students:
             granter(ACTOR_TEACHER_ID, student, subject_id)
+    if os.environ.get("K12_PG_DSN", "").strip():
+        return
+    if os.environ.get("K12_BOOTSTRAP_ADMIN_USERNAME", "").strip():
+        return
+    _seed_smoke_admin(loop)
 
 
 def _seed_identity(loop: Loop, subject_id: str, students: tuple[str, ...]) -> None:
@@ -84,6 +89,25 @@ def _seed_identity(loop: Loop, subject_id: str, students: tuple[str, ...]) -> No
     )
     if isinstance(result, Err):
         raise RuntimeError("synthetic seed failed")
+
+
+def _seed_smoke_admin(loop: Loop) -> None:
+    if loop.opener is None or loop.deps is None:
+        return
+    result = execute(
+        loop.opener,  # type: ignore[arg-type]
+        lambda db: seed_smoke_admin(
+            db,
+            loop.deps,  # type: ignore[arg-type]
+            user_id=ACTOR_ADMIN_ID,
+            username=ACTOR_ADMIN_ID,
+            secret=SYNTH_SECRET,
+            ),
+        loop.deps.logger,
+        "seed",
+    )
+    if isinstance(result, Err):
+        raise RuntimeError("synthetic admin seed failed")
 
 
 def bootstrap_from_env(loop: Loop) -> None:
