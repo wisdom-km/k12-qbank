@@ -9,6 +9,7 @@ from typing import NoReturn
 from backend.kernel.logger import Logger
 from backend.kernel.use_log import emit
 from backend.practice.adapters.pdf_font import MISSING_FONT, load_system_face
+from backend.practice.api import paper_layout_problem
 
 
 def choose_persist(env_raw: str, dsn: str, logger: Logger) -> bool:
@@ -61,6 +62,17 @@ def require_pdf_font(env_raw: str, logger: Logger) -> None:
         return
     sys.stderr.write(MISSING_FONT + "\n")
     _refuse(logger, "pdf_font_missing")
+
+
+def require_paper_layout(env_raw: str, logger: Logger) -> None:
+    """production exits when the layout file is illegal. development does not."""
+    if _mode(env_raw, logger) != "production":
+        return
+    outcome, message = paper_layout_problem()
+    if not outcome:
+        return
+    sys.stderr.write(message + "\n")
+    _refuse(logger, outcome)
 
 
 def _mode(env_raw: str, logger: Logger) -> str:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.kernel.result import StoreFault
@@ -35,6 +36,14 @@ class MemoryApprovals:
     def has_version_id(self, version_id: str) -> bool:
         with self._lock:
             return self._contains(version_id)
+
+    def set_answer_space(self, question_version_id: str, space: str | None) -> None:
+        """Update only the answer-space field. Other snapshot fields stay."""
+        with self._lock:
+            current = self._items.get(question_version_id)
+            if current is None:
+                return
+            self._items[question_version_id] = replace(current, answer_space=space)
 
     def insert_if_absent(self, snapshot: ApprovalSnapshot) -> bool:
         """Insert one new version. A taken question id or answer id inserts nothing."""

@@ -24,6 +24,21 @@ class PracticeItem:
     slot_no: int = 1
     slot_span: int = 1
     option_text: str = ""
+    placed_lines: tuple[tuple[str, float, float], ...] = ()
+    boxes: tuple[ItemBox, ...] = ()
+
+
+@dataclass(frozen=True)
+class ItemBox:
+    """One answer box stored at issue time. Coordinates are PDF points."""
+
+    box_no: int
+    page_no: int
+    x: float
+    y: float
+    w: float
+    h: float
+    kind: str
 
 
 def stored_item(paper_id: str, item: PracticeItem) -> PracticeItem:

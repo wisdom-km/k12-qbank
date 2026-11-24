@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 
 from backend.catalog.api import ApprovalPort
@@ -11,6 +12,7 @@ from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeItems, PracticeStore
 from backend.practice.application.resolve_items import _resolve_items
+from backend.practice.domain.flow_layout import header_text
 from backend.practice.domain.item import PracticeItem
 from backend.practice.domain.page_face import PaperPage, SlotFace, formula_from_stem
 from backend.practice.domain.page_layout import slot_answer_box
@@ -193,7 +195,12 @@ def read_file(
 
 
 def page_faces(paper: Paper, items: tuple[PracticeItem, ...]) -> tuple[PaperPage, ...]:
-    """slots_per_page 1 keeps one legacy page per item. 4 groups by page_no."""
+    """slots_per_page 1 keeps one legacy page per item. 4 groups by page_no.
+
+    A flow paper draws the lines and boxes stored at issue time.
+    """
+    if paper.layout_kind == "flow":
+        return _flow_faces(paper, items)
     if paper.slots_per_page <= 1:
         count = len(items)
         return tuple(_face(paper, item, count) for item in items)
@@ -222,6 +229,60 @@ def page_faces(paper: Paper, items: tuple[PracticeItem, ...]) -> tuple[PaperPage
                 qr_printed=paper.qr_printed,
                 stem=first.stem_text,
                 slots=slots,
+            )
+        )
+    return tuple(faces)
+
+
+def _flow_faces(paper: Paper, items: tuple[PracticeItem, ...]) -> tuple[PaperPage, ...]:
+    chrome = json.loads(paper.layout_params) if paper.layout_params else {}
+    header = chrome.get("header") or {}
+    body_size = float(chrome.get("body_font_size") or 12)
+    header_size = float(header.get("font_size") or body_size)
+    header_x = float(header.get("x") or 48)
+    header_y = float(header.get("y") or 800)
+    marks = tuple(tuple(float(part) for part in mark) for mark in chrome.get("marks") or ())
+    qr_raw = chrome.get("qr") or {}
+    qr = None
+    if paper.qr_printed and qr_raw:
+        qr = (float(qr_raw["x"]), float(qr_raw["y"]), float(qr_raw["module"]))
+    grouped: dict[int, list[PracticeItem]] = {}
+    for item in items:
+        grouped.setdefault(max(item.page_no, 1), []).append(item)
+    count = max(grouped) if grouped else 1
+    faces: list[PaperPage] = []
+    for page_no in sorted(grouped):
+        group = grouped[page_no]
+        lines: list[tuple[str, float, float, float]] = [
+            (header_text(paper.printed_external_id, page_no, count), header_x, header_y, header_size)
+        ]
+        boxes: list[tuple[float, float, float, float]] = []
+        for item in group:
+            for text, x, y in item.placed_lines:
+                lines.append((text, x, y, body_size))
+            for box in item.boxes:
+                boxes.append((box.x, box.y, box.w, box.h))
+        first = group[0]
+        faces.append(
+            PaperPage(
+                question_version_id=first.question_version_id,
+                answer_version_id=first.answer_version_id,
+                formula="",
+                student_id=paper.student_id,
+                page_number=page_no,
+                item_order=paper.item_order,
+                asset_ids=paper.asset_ids,
+                layout_template_id=paper.layout_template_id,
+                paper_id=paper.paper_id,
+                page_count=count,
+                printed_external_id=paper.printed_external_id,
+                qr_printed=paper.qr_printed,
+                stem=first.stem_text,
+                flow=True,
+                flow_lines=tuple(lines),
+                flow_boxes=tuple(boxes),
+                flow_marks=tuple(marks),  # type: ignore[arg-type]
+                flow_qr=qr,
             )
         )
     return tuple(faces)

@@ -37,17 +37,20 @@ class StdPdf:
         prepared: list[tuple[tuple[tuple[str, int, int], ...], list[str]]] = []
         for page in pages:
             try:
-                if slotted:
+                if page.flow:
+                    prepared.append((_flow_lines(page), _flow_graphics(page)))
+                elif slotted:
                     prepared.append((_slot_lines(page), _slot_graphics(page)))
                 else:
                     prepared.append((_legacy_positions(_lines(page)), _graphics(page)))
             except (ValueError, RuntimeError):
                 return Err("not_rendered", "this synthetic page cannot encode the formula")
         try:
-            if any(_has_cjk(text) for lines, _ in prepared for text, _x, _y in lines):
+            if any(_has_cjk(row[0]) for lines, _ in prepared for row in lines):
                 return _pdf_cjk(prepared)
             encoded = [
-                tuple((_pdf_text(text), x, y) for text, x, y in lines) for lines, _ in prepared
+                tuple((_pdf_text(row[0]), row[1], row[2], row[3] if len(row) > 3 else 12) for row in lines)
+                for lines, _ in prepared
             ]
             marks = [graphics for _, graphics in prepared]
             return _pdf(encoded, marks)
@@ -76,6 +79,45 @@ def _legacy_positions(lines: tuple[str, ...]) -> tuple[tuple[str, int, int], ...
         placed.append((line, 48, y))
         y -= 18
     return tuple(placed)
+
+
+def _flow_lines(page: PaperPage) -> tuple[tuple[str, float, float, float], ...]:
+    return page.flow_lines
+
+
+def _flow_graphics(page: PaperPage) -> list[str]:
+    commands = ["0 0 0 rg", "0 0 0 RG", "1.5 w"]
+    for left, bottom, width, height in page.flow_marks:
+        commands.append(f"{_num(left)} {_num(bottom)} {_num(width)} {_num(height)} re f")
+    commands.append("0 0 0 RG")
+    for left, bottom, width, height in page.flow_boxes:
+        commands.append(f"{_num(left)} {_num(bottom)} {_num(width)} {_num(height)} re S")
+    commands.extend(_flow_qr(page))
+    return commands
+
+
+def _flow_qr(page: PaperPage) -> list[str]:
+    if page.flow_qr is None:
+        return []
+    matrix = encode_qr(qr_payload(page.paper_id, page.page_number))
+    origin_x, origin_y, module = page.flow_qr
+    size = len(matrix)
+    commands: list[str] = []
+    for row, cells in enumerate(matrix):
+        for col, dark in enumerate(cells):
+            if not dark:
+                continue
+            x = origin_x + col * module
+            y = origin_y + (size - 1 - row) * module
+            commands.append(f"{_num(x)} {_num(y)} {_num(module)} {_num(module)} re f")
+    return commands
+
+
+def _num(value: float) -> str:
+    if float(value) == int(value):
+        return str(int(value))
+    text = f"{value:.2f}".rstrip("0").rstrip(".")
+    return text or "0"
 
 
 def _slot_lines(page: PaperPage) -> tuple[tuple[str, int, int], ...]:
@@ -167,11 +209,20 @@ def _pdf(pages: list[tuple[tuple[str, int, int], ...]], graphics: list[list[str]
     return _assemble(contents, resources, trailing)
 
 
-def _latin_stream(lines: tuple[tuple[str, int, int], ...], graphics: list[str]) -> bytes:
+def _latin_stream(lines: tuple[tuple[object, ...], ...], graphics: list[str]) -> bytes:
     commands = list(graphics)
-    commands.extend(["BT", "/F1 12 Tf"])
-    for line, x, y in lines:
-        commands.append(f"1 0 0 1 {x} {y} Tm ({line}) Tj")
+    commands.append("BT")
+    varied = any(len(row) > 3 and row[3] != 12 for row in lines)
+    if not varied:
+        commands.append("/F1 12 Tf")
+    for row in lines:
+        line, x, y = row[0], row[1], row[2]
+        size = row[3] if len(row) > 3 else 12
+        if varied:
+            commands.append(f"/F1 {_num(float(size))} Tf")
+            commands.append(f"1 0 0 1 {_num(float(x))} {_num(float(y))} Tm ({line}) Tj")
+        else:
+            commands.append(f"1 0 0 1 {x} {y} Tm ({line}) Tj")
     commands.append("ET")
     return ("\n".join(commands) + "\n").encode("latin-1")
 
@@ -179,7 +230,8 @@ def _latin_stream(lines: tuple[tuple[str, int, int], ...], graphics: list[str]) 
 def _pdf_cjk(prepared: list[tuple[tuple[tuple[str, int, int], ...], list[str]]]) -> bytes:
     codes: set[int] = set()
     for lines, _ in prepared:
-        for line, _x, _y in lines:
+        for row in lines:
+            line = row[0]
             for char in line:
                 if _is_cjk(char):
                     codes.add(ord(char))
@@ -202,14 +254,16 @@ def _cjk_stream(
 ) -> bytes:
     commands = list(graphics)
     commands.append("BT")
-    for line, x, y in lines:
+    for row in lines:
+        line, x, y = row[0], row[1], row[2]
+        size = row[3] if len(row) > 3 else 12
         commands.append(f"1 0 0 1 {x} {y} Tm")
         for kind, run in _runs(line):
             if kind == "cjk":
                 glyphs = "".join(f"{font.glyph_id[ord(char)]:04X}" for char in run)
-                commands.append(f"/F2 12 Tf <{glyphs}> Tj")
+                commands.append(f"/F2 {_num(float(size)) if size != 12 else 12} Tf <{glyphs}> Tj")
             else:
-                commands.append(f"/F1 12 Tf ({_pdf_text(run)}) Tj")
+                commands.append(f"/F1 {_num(float(size)) if size != 12 else 12} Tf ({_pdf_text(run)}) Tj")
     commands.append("ET")
     return ("\n".join(commands) + "\n").encode("latin-1")
 

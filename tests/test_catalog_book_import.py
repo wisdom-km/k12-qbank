@@ -79,6 +79,7 @@ class BookImportCases:
             dry_run=bool(kwargs.get("dry_run", False)),
             unknown_fields=bool(kwargs.get("unknown_fields", False)),
             actor_user_id="actor-synth",
+            answer_space=kwargs.get("answer_space"),
         )
 
     def test_two_pages_with_the_same_original_key_stay_distinct(self) -> None:
@@ -313,6 +314,115 @@ class BookImportCases:
         self.assertEqual(self.approvals.read_snapshot("qv-synth-legacy-1").stem, "legacy-stem")  # type: ignore[attr-defined]
         self.assertIsNotNone(self.questions.read("synth-r4c-new.p0002:1:1"))  # type: ignore[attr-defined]
         self.assertNotEqual("synth-legacy:1", "synth-r4c-new.p0002:1:1")
+
+    def test_answer_space_override_then_space_changed_keeps_the_stem(self) -> None:
+        pages = [_qpage(12, "3:1", "synth-space", "ans")]
+        space = [{"page": 12, "key": "3:1", "space": "full"}]
+        first = self.call("synth-r4d-space", pages, answer_space=space)
+        self.assertTrue(first.written)  # type: ignore[attr-defined]
+        self.assertEqual(first.staged, 1)  # type: ignore[attr-defined]
+        self.assertEqual(first.space_changed, 0)  # type: ignore[attr-defined]
+        stored = self.approvals.read_snapshot("qv-synth-r4d-space.p0012-3-1")  # type: ignore[attr-defined]
+        self.assertEqual(stored.answer_space, "full")
+        self.assertEqual(stored.stem, "synth-space")
+        self.assertEqual(stored.answer_text, "ans")
+        before = self.rows()
+        again = self.call(
+            "synth-r4d-space",
+            pages,
+            answer_space=[{"page": 12, "key": "3:1", "space": "small"}],
+        )
+        self.assertTrue(again.written)  # type: ignore[attr-defined]
+        self.assertEqual(again.space_changed, 1)  # type: ignore[attr-defined]
+        self.assertEqual(again.staged, 0)  # type: ignore[attr-defined]
+        self.assertEqual(again.kept, 0)  # type: ignore[attr-defined]
+        self.assertEqual(again.conflict, 0)  # type: ignore[attr-defined]
+        self.assertEqual(self.rows(), before)
+        updated = self.approvals.read_snapshot("qv-synth-r4d-space.p0012-3-1")  # type: ignore[attr-defined]
+        self.assertEqual(updated.answer_space, "small")
+        self.assertEqual(updated.stem, "synth-space")
+        self.assertEqual(updated.answer_text, "ans")
+        self.assertEqual(updated.type, "single_choice")
+
+    def test_space_dry_run_does_not_write(self) -> None:
+        pages = [_qpage(12, "3:1", "synth-space-dry", "ans")]
+        self.call("synth-r4d-spdry", pages, answer_space=[{"page": 12, "key": "3:1", "space": "large"}])
+        before = self.rows()
+        report = self.call(
+            "synth-r4d-spdry",
+            pages,
+            answer_space=[{"page": 12, "key": "3:1", "space": "small"}],
+            dry_run=True,
+        )
+        self.assertFalse(report.written)  # type: ignore[attr-defined]
+        self.assertEqual(report.space_changed, 1)  # type: ignore[attr-defined]
+        self.assertEqual(self.rows(), before)
+        stored = self.approvals.read_snapshot("qv-synth-r4d-spdry.p0012-3-1")  # type: ignore[attr-defined]
+        self.assertEqual(stored.answer_space, "large")
+
+    def test_invalid_answer_space_writes_nothing(self) -> None:
+        before = self.rows()
+        report = self.call(
+            "synth-r4d-badsp",
+            [_qpage(12, "3:1", "synth-bad-space", "ans")],
+            answer_space=[{"page": 12, "key": "3:1", "space": "huge"}],
+        )
+        self.assertFalse(report.written)  # type: ignore[attr-defined]
+        self.assertEqual(report.reason, "invalid_answer_space")  # type: ignore[attr-defined]
+        self.assertEqual(self.rows(), before)
+
+    def test_duplicate_answer_space_writes_nothing(self) -> None:
+        before = self.rows()
+        report = self.call(
+            "synth-r4d-dupsp",
+            [_qpage(12, "3:1", "synth-dup-space", "ans")],
+            answer_space=[
+                {"page": 12, "key": "3:1", "space": "full"},
+                {"page": 12, "key": "3:1", "space": "small"},
+            ],
+        )
+        self.assertFalse(report.written)  # type: ignore[attr-defined]
+        self.assertEqual(report.reason, "duplicate_answer_space")  # type: ignore[attr-defined]
+        self.assertEqual(self.rows(), before)
+
+    def test_answer_space_for_a_missing_question_writes_nothing(self) -> None:
+        pages = [_qpage(12, "3:1", "synth-miss-space", "ans")]
+        before = self.rows()
+        report = self.call(
+            "synth-r4d-misssp",
+            pages,
+            answer_space=[{"page": 12, "key": "9:9", "space": "full"}],
+        )
+        self.assertFalse(report.written)  # type: ignore[attr-defined]
+        self.assertIn("no_question", [page.reason for page in report.pages])  # type: ignore[attr-defined]
+        self.assertEqual(self.rows(), before)
+        self.assertIsNone(self.approvals.read_snapshot("qv-synth-r4d-misssp.p0012-3-1"))  # type: ignore[attr-defined]
+
+    def test_omitted_answer_space_uses_the_type_default(self) -> None:
+        report = self.call("synth-r4d-def", [_qpage(4, "1:1", "synth-default-space", "ans")])
+        self.assertEqual(report.staged, 1)  # type: ignore[attr-defined]
+        stored = self.approvals.read_snapshot("qv-synth-r4d-def.p0004-1-1")  # type: ignore[attr-defined]
+        self.assertIsNone(stored.answer_space)
+        from backend.catalog.api import resolved_space
+
+        self.assertEqual(resolved_space(stored.answer_space, stored.type), ("letter", True))
+
+    def test_a_stem_conflict_does_not_change_answer_space(self) -> None:
+        pages = [_qpage(12, "3:1", "synth-space-keep", "ans")]
+        self.call("synth-r4d-hold", pages, answer_space=[{"page": 12, "key": "3:1", "space": "full"}])
+        before = self.rows()
+        changed = _qpage(12, "3:1", "synth-space-other", "ans")
+        report = self.call(
+            "synth-r4d-hold",
+            [changed],
+            answer_space=[{"page": 12, "key": "3:1", "space": "small"}],
+        )
+        self.assertFalse(report.written)  # type: ignore[attr-defined]
+        self.assertEqual(report.conflict, 1)  # type: ignore[attr-defined]
+        self.assertEqual(self.rows(), before)
+        stored = self.approvals.read_snapshot("qv-synth-r4d-hold.p0012-3-1")  # type: ignore[attr-defined]
+        self.assertEqual(stored.answer_space, "full")
+        self.assertEqual(stored.stem, "synth-space-keep")
 
     def _rejects(self, pages: list[object], reason: str, book_id: str = "synth-r4c-bad") -> None:
         before = self.rows()

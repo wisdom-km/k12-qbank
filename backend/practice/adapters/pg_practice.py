@@ -24,7 +24,7 @@ T = TypeVar("T")
 _PAPER = """
 paper_id, teacher_id, student_id, subject_id, question_version_id, answer_version_id,
 asset_ids, layout_template_id, review_version_id, file_id, status, item_order, file_checksum, formula,
-qr_printed, printed_external_id, slots_per_page
+qr_printed, printed_external_id, slots_per_page, layout_kind, layout_params
 """
 _ANSWER = """
 fixture_answer_id, paper_id, sub_question_id, review_version_id, student_id, status, answer_text
@@ -191,7 +191,7 @@ def _save_paper(conn: Any, paper: Paper) -> None:
     conn.execute(
         f"""
         INSERT INTO papers ({_PAPER})
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (paper_id) DO UPDATE SET
             teacher_id = EXCLUDED.teacher_id,
             student_id = EXCLUDED.student_id,
@@ -208,7 +208,9 @@ def _save_paper(conn: Any, paper: Paper) -> None:
             formula = EXCLUDED.formula,
             qr_printed = EXCLUDED.qr_printed,
             printed_external_id = EXCLUDED.printed_external_id,
-            slots_per_page = EXCLUDED.slots_per_page
+            slots_per_page = EXCLUDED.slots_per_page,
+            layout_kind = EXCLUDED.layout_kind,
+            layout_params = EXCLUDED.layout_params
         """,
         _paper_params(paper),
     )
@@ -361,6 +363,8 @@ def _paper_params(paper: Paper) -> tuple[object, ...]:
         paper.qr_printed,
         paper.printed_external_id,
         paper.slots_per_page,
+        paper.layout_kind,
+        paper.layout_params or None,
     )
 
 
@@ -383,6 +387,8 @@ def _paper_row(row: tuple[object, ...]) -> Paper:
         qr_printed=bool(row[14]),
         printed_external_id=str(row[15]),
         slots_per_page=int(row[16]),  # type: ignore[arg-type]
+        layout_kind=str(row[17]) if row[17] is not None else "slots",
+        layout_params="" if row[18] is None else str(row[18]),
     )
 
 

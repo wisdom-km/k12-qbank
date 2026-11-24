@@ -21,6 +21,7 @@ class ApprovalSnapshot:
     type: str = ""
     structure: str = ""
     options: tuple[str, ...] = ()
+    answer_space: str | None = None
 
 
 @dataclass(frozen=True)

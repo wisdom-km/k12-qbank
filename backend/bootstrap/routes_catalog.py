@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from backend.bootstrap.http_errors import error_response
-from backend.catalog.api import ApprovalSnapshot
+from backend.catalog.api import ApprovalSnapshot, resolved_space
 from backend.catalog.application.import_book import import_book
 from backend.catalog.application.publish_version import publish_version, retire_version, revise_text
 from backend.identity.application.guard import admin_only, signed_in
@@ -31,6 +31,8 @@ class CatalogItem(BaseModel):
     question_approved: bool
     answer_approved: bool
     retired: bool
+    answer_space: str = ""
+    answer_space_is_default: bool = True
 
 
 class CatalogListResponse(BaseModel):
@@ -46,6 +48,7 @@ class BookImportBody(BaseModel):
     dry_run: bool = False
     pages: list[dict[str, Any]]
     pairing: list[dict[str, Any]] = []
+    answer_space: list[dict[str, Any]] = []
 
 
 class BookPageReport(BaseModel):
@@ -74,6 +77,7 @@ class BookImportResponse(BaseModel):
     kept: int
     skipped: int
     conflict: int
+    space_changed: int = 0
 
 
 def register_catalog(app: FastAPI) -> None:
@@ -93,6 +97,8 @@ def register_catalog(app: FastAPI) -> None:
                     question_approved=row.question_approved,
                     answer_approved=row.answer_approved,
                     retired=row.retired,
+                    answer_space=_space_value(row),
+                    answer_space_is_default=_space_default(row),
                 )
                 for row in rows
             ]
@@ -121,6 +127,7 @@ def register_catalog(app: FastAPI) -> None:
                 dry_run=body.dry_run,
                 unknown_fields=bool(body.model_extra),
                 actor_user_id=getattr(request.state.actor, "user_id", ""),
+                answer_space=body.answer_space,
             ),
             loop.logger,
             request_id,
@@ -192,4 +199,16 @@ def _snapshot_body(snapshot: ApprovalSnapshot) -> dict[str, object]:
         "item_order": list(snapshot.item_order),
         "asset_ids": list(snapshot.asset_ids),
         "layout_template_id": snapshot.layout_template_id,
+        "answer_space": _space_value(snapshot),
+        "answer_space_is_default": _space_default(snapshot),
     }
+
+
+def _space_value(snapshot: ApprovalSnapshot) -> str:
+    value, _default = resolved_space(snapshot.answer_space, snapshot.type)
+    return value
+
+
+def _space_default(snapshot: ApprovalSnapshot) -> bool:
+    _value, default = resolved_space(snapshot.answer_space, snapshot.type)
+    return default

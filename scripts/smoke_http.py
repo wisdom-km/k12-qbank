@@ -54,10 +54,13 @@ def main() -> int:
         b"\\(-3\\)+5" not in pdf
         or b"<8BA1>" not in pdf
         or b"synth-0001" not in pdf
-        or b"page 1" not in pdf
-        or b"pages 1" not in pdf
+        or b"<7B2C>" not in pdf
+        or b"<9875>" not in pdf
+        or b"<5171>" not in pdf
+        or b"page 1" in pdf
+        or b"pages 1" in pdf
     ):
-        print("SMOKE HTTP FAIL: pdf missing stem, external id, or page")
+        print("SMOKE HTTP FAIL: pdf missing stem, external id, or page label")
         return 1
     if b"student-synth" in pdf or b"name-rule omit" in pdf or paper_id in pdf or b"answer " in pdf:
         print("SMOKE HTTP FAIL: pdf prints the internal id, a name rule, the paper id, or an answer")

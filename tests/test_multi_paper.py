@@ -9,11 +9,8 @@ from unittest import mock
 
 from http_client import signed_client
 
-from backend.practice.domain.page_layout import slot_answer_box
-
-def _box(slot_no: int) -> bytes:
-    left, bottom, width, height = slot_answer_box(4, slot_no, 1)
-    return f"{left} {bottom} {width} {height} re S".encode("ascii")
+from backend.practice.adapters.pdf_page import _num
+from backend.practice.application.render_paper import page_faces
 
 
 ISSUE = {
@@ -56,15 +53,16 @@ class MultiPaperHttpTest(unittest.TestCase):
                 self.assertEqual(body["student_id"], "student-synth")
                 pdf = client.get("/api/practice/files/" + body["file_id"]).content
                 self.assertIn(b"/Count 1", pdf)
-                self.assertIn(b"page 1", pdf)
-                self.assertIn(b"pages 1", pdf)
+                self.assertNotIn(b"page 1", pdf)
+                self.assertNotIn(b"pages 1", pdf)
                 self.assertNotIn(b"page 2", pdf)
+                self.assertIn(b"<7B2C>", pdf)
+                self.assertIn(b"<9875>", pdf)
                 self.assertIn(b"synth-0001", pdf)
                 self.assertNotIn(b"student-synth", pdf)
                 self.assertNotIn(b"synth-ans-keep", pdf)
                 self.assertNotIn(str(body["paper_id"]).encode(), pdf)
-                self.assertIn(_box(1), pdf)
-                self.assertIn(_box(2), pdf)
+                self.assertIn(b"1.8 1.8 re f", pdf)
                 self.assertIn(b"\\(-3\\)+5", pdf)
                 self.assertIn("2\u00d73".encode("cp1252"), pdf)
                 self.assertIn(b"<8BA1>", pdf)
@@ -73,10 +71,18 @@ class MultiPaperHttpTest(unittest.TestCase):
                 self.assertEqual([item.stem_text for item in frozen], ["计算：(-3)+5", "计算：2\u00d73"])
                 self.assertEqual(frozen[1].answer_text, "synth-ans-keep")
                 self.assertEqual([item.page_no for item in frozen], [1, 1])
-                self.assertEqual([item.slot_no for item in frozen], [1, 2])
-                self.assertEqual([item.slot_span for item in frozen], [1, 1])
+                self.assertEqual([item.boxes[0].kind for item in frozen], ["medium", "medium"])
+                self.assertEqual([item.boxes[0].h for item in frozen], [160.0, 160.0])
+                for item in frozen:
+                    box = item.boxes[0]
+                    token = f"{_num(box.x)} {_num(box.y)} {_num(box.w)} {_num(box.h)} re S".encode("ascii")
+                    self.assertIn(token, pdf)
                 stored_paper = client.app.state.loop.practice.get_paper(body["paper_id"])
-                self.assertEqual(stored_paper.slots_per_page, 4)
+                self.assertEqual(stored_paper.slots_per_page, 1)
+                self.assertEqual(stored_paper.layout_kind, "flow")
+                face = page_faces(stored_paper, tuple(frozen))[0]
+                self.assertEqual(face.flow_lines[0][0], "synth-0001  第 1 页 / 共 1 页")
+                self.assertNotIn("student-synth", face.flow_lines[0][0])
                 live = client.app.state.loop.approvals.read_snapshot("q-v1")
                 assert live is not None
                 client.app.state.loop.approvals.put(replace(live, stem="计算：9+9", answer_text="18"))
@@ -120,6 +126,7 @@ class MultiPaperHttpTest(unittest.TestCase):
                 self.assertFalse(quiet.json()["qr_printed"])
                 quiet_pdf = client.get("/api/practice/files/" + quiet.json()["file_id"]).content
                 self.assertIn(b"/Count 1", quiet_pdf)
+                self.assertNotIn(b"1.8 1.8 re f", quiet_pdf)
                 self.assertLess(quiet_pdf.count(b" re f"), on_marks)
 
     def _publish(self, client: object, question_version_id: str) -> None:

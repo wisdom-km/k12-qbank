@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Sequence
 from typing import Any, TypeVar
 
-from backend.practice.domain.item import PracticeItem, stored_item
+from backend.practice.domain.item import ItemBox, PracticeItem, stored_item
 from backend.practice.domain.page_face import formula_from_stem
 from backend.practice.domain.paper import Paper
 
@@ -14,7 +15,7 @@ T = TypeVar("T")
 _PAPER = """
 paper_id, teacher_id, student_id, subject_id, question_version_id, answer_version_id,
 asset_ids, layout_template_id, review_version_id, file_id, status, item_order, file_checksum, formula,
-qr_printed, printed_external_id, slots_per_page
+qr_printed, printed_external_id, slots_per_page, layout_kind, layout_params
 """
 
 
@@ -52,25 +53,27 @@ def _items(conn: Any, paper_id: str) -> tuple[PracticeItem, ...]:
     rows = conn.execute(
         """
         SELECT paper_id, order_no, question_version_id, answer_version_id, score,
-               stem_text, answer_text, page_no, slot_no, slot_span, option_text
+               stem_text, answer_text, page_no, slot_no, slot_span, option_text, placed_lines
         FROM practice_item
         WHERE paper_id = %s
         ORDER BY order_no ASC
         """,
         (paper_id,),
     ).fetchall()
-    return tuple(_item(row) for row in rows)
+    boxes = _boxes(conn, paper_id)
+    return tuple(_item(row, boxes.get(int(row[1]), ())) for row in rows)
 
 
 def _replace_items(conn: Any, paper_id: str, items: tuple[PracticeItem, ...]) -> None:
+    conn.execute("DELETE FROM practice_item_box WHERE paper_id = %s", (paper_id,))
     conn.execute("DELETE FROM practice_item WHERE paper_id = %s", (paper_id,))
     for item in items:
         conn.execute(
             """
             INSERT INTO practice_item (
                 paper_id, order_no, question_version_id, answer_version_id, score,
-                stem_text, answer_text, page_no, slot_no, slot_span, option_text
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                stem_text, answer_text, page_no, slot_no, slot_span, option_text, placed_lines
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 item.paper_id,
@@ -84,15 +87,35 @@ def _replace_items(conn: Any, paper_id: str, items: tuple[PracticeItem, ...]) ->
                 item.slot_no,
                 item.slot_span,
                 item.option_text,
+                _dump_lines(item.placed_lines),
             ),
         )
+        for box in item.boxes:
+            conn.execute(
+                """
+                INSERT INTO practice_item_box (
+                    paper_id, order_no, box_no, page_no, x, y, w, h, kind
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    paper_id,
+                    item.order_no,
+                    box.box_no,
+                    box.page_no,
+                    box.x,
+                    box.y,
+                    box.w,
+                    box.h,
+                    box.kind,
+                ),
+            )
 
 
 def _insert_paper(conn: Any, paper: Paper) -> None:
     conn.execute(
         f"""
         INSERT INTO papers ({_PAPER})
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             paper.paper_id,
@@ -112,13 +135,15 @@ def _insert_paper(conn: Any, paper: Paper) -> None:
             paper.qr_printed,
             paper.printed_external_id,
             paper.slots_per_page,
+            paper.layout_kind,
+            paper.layout_params or None,
         ),
     )
 
 
 def _insert_pages(conn: Any, paper: Paper, items: tuple[PracticeItem, ...]) -> None:
     """slots_per_page 1 follows the input sequence. 4 follows the packed page_no."""
-    if paper.slots_per_page > 1:
+    if paper.layout_kind == "flow" or paper.slots_per_page > 1:
         _insert_packed_pages(conn, paper, items)
         return
     count = len(items)
@@ -159,7 +184,7 @@ def _insert_one_page(conn: Any, paper: Paper, item: PracticeItem, number: int, c
     )
 
 
-def _item(row: tuple[object, ...]) -> PracticeItem:
+def _item(row: tuple[object, ...], boxes: tuple[ItemBox, ...]) -> PracticeItem:
     score = row[4]
     return PracticeItem(
         paper_id=str(row[0]),
@@ -173,4 +198,45 @@ def _item(row: tuple[object, ...]) -> PracticeItem:
         slot_no=int(row[8]),  # type: ignore[arg-type]
         slot_span=int(row[9]),  # type: ignore[arg-type]
         option_text=str(row[10]),
+        placed_lines=_load_lines(row[11]),
+        boxes=boxes,
     )
+
+
+def _boxes(conn: Any, paper_id: str) -> dict[int, tuple[ItemBox, ...]]:
+    rows = conn.execute(
+        """
+        SELECT order_no, box_no, page_no, x, y, w, h, kind
+        FROM practice_item_box
+        WHERE paper_id = %s
+        ORDER BY order_no, box_no
+        """,
+        (paper_id,),
+    ).fetchall()
+    grouped: dict[int, list[ItemBox]] = {}
+    for row in rows:
+        grouped.setdefault(int(row[0]), []).append(
+            ItemBox(
+                box_no=int(row[1]),
+                page_no=int(row[2]),
+                x=float(row[3]),
+                y=float(row[4]),
+                w=float(row[5]),
+                h=float(row[6]),
+                kind=str(row[7]),
+            )
+        )
+    return {order: tuple(items) for order, items in grouped.items()}
+
+
+def _dump_lines(lines: tuple[tuple[str, float, float], ...]) -> str | None:
+    if not lines:
+        return None
+    return json.dumps([[text, x, y] for text, x, y in lines], ensure_ascii=False)
+
+
+def _load_lines(value: object) -> tuple[tuple[str, float, float], ...]:
+    if not value:
+        return ()
+    raw = json.loads(str(value))
+    return tuple((str(row[0]), float(row[1]), float(row[2])) for row in raw)

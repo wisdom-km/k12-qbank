@@ -11,6 +11,7 @@ from collections import Counter
 from dataclasses import dataclass, replace
 from typing import Protocol
 
+from backend.catalog.application.import_space import parse_answer_space
 from backend.catalog.application.stage_review import _plain, _version_id, stage_review, subject_accepted
 from backend.catalog.domain.answer import AnswerDraft, parse_answer_draft
 from backend.catalog.domain.book_key import namespace_reason, namespaced_key
@@ -40,6 +41,8 @@ class _Approvals(Protocol):
     def read_snapshot(self, question_version_id: str) -> ApprovalSnapshot | None: ...
 
     def insert_if_absent(self, snapshot: ApprovalSnapshot) -> bool: ...
+
+    def set_answer_space(self, question_version_id: str, space: str | None) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -71,6 +74,7 @@ class BookImportReport:
     skipped: int
     conflict: int
     reason: str = ""
+    space_changed: int = 0
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -101,6 +105,7 @@ class BookImportReport:
             "kept": self.kept,
             "skipped": self.skipped,
             "conflict": self.conflict,
+            "space_changed": self.space_changed,
         }
 
 
@@ -124,6 +129,7 @@ class _Planned:
     reason: str
     version_id: str
     save_question: bool
+    wanted_space: str | None = None
 
 
 @dataclass(frozen=True)
@@ -147,6 +153,7 @@ def import_book(
     dry_run: bool = False,
     unknown_fields: bool = False,
     actor_user_id: str = "",
+    answer_space: object = None,
 ) -> BookImportReport:
     """Validate the whole book, then write staged rows. A page error writes nothing."""
     started = time.perf_counter()
@@ -160,6 +167,7 @@ def import_book(
         approvals,
         dry_run=dry_run,
         unknown_fields=unknown_fields,
+        answer_space=answer_space,
     )
     _audit(logger, request_id, actor_user_id, book_id, pages, report, started)
     return report
@@ -176,6 +184,7 @@ def _build(
     *,
     dry_run: bool,
     unknown_fields: bool,
+    answer_space: object = None,
 ) -> BookImportReport:
     if unknown_fields:
         return _finish(book_id, dry_run, (), (), "unknown_field", False)
@@ -193,11 +202,16 @@ def _build(
     pairs, pair_reason = _load_pairs(pairing)
     if pair_reason:
         return _finish(book_id, dry_run, _page_rows(loaded), (), pair_reason, False)
+    overrides, space_reason = parse_answer_space(answer_space)
+    if space_reason:
+        return _finish(book_id, dry_run, _page_rows(loaded), (), space_reason, False)
     _mark_duplicates(loaded)
     planned, pair_pages = _assign(book_id, loaded, pairs)
+    space_pages = _bind_space(planned, overrides)
     _classify(planned, questions, approvals)
     page_rows = _page_rows(loaded)
     page_rows.extend(pair_pages)
+    page_rows.extend(space_pages)
     blocked = any(page.reason for page in page_rows) or any(item.outcome == "conflict" for item in planned)
     question_rows = _question_rows(planned)
     if blocked or dry_run:
@@ -226,6 +240,7 @@ def _finish(
         skipped=sum(row.outcome == "skipped" for row in questions),
         conflict=sum(row.outcome == "conflict" for row in questions),
         reason=reason,
+        space_changed=sum(row.outcome == "space_changed" for row in questions),
     )
 
 
@@ -482,7 +497,10 @@ def _classify(planned: list[_Planned], questions: _Questions, approvals: _Approv
         stored = questions.read(item.question.key)
         if snapshot is not None:
             if item.answer is not None and _same_snapshot(item.question, item.answer, snapshot):
-                item.outcome = "kept"
+                if snapshot.answer_space != item.wanted_space:
+                    item.outcome = "space_changed"
+                else:
+                    item.outcome = "kept"
             else:
                 item.outcome = "conflict"
                 item.reason = "conflict"
@@ -533,20 +551,36 @@ def _persist(
     for item in staged:
         assert item.answer is not None
         answers.put(item.answer)
-    if not staged:
-        return
-    stage_review(
-        DraftFile(
-            pdf_page=staged[0].page,
-            ok=True,
-            reason="",
-            preface="",
-            questions=tuple(item.question for item in staged),
-        ),
-        tuple(item.answer for item in staged if item.answer is not None),
-        approvals,
-        subject_id,
-    )
+    if staged:
+        stage_review(
+            DraftFile(
+                pdf_page=staged[0].page,
+                ok=True,
+                reason="",
+                preface="",
+                questions=tuple(item.question for item in staged),
+            ),
+            tuple(item.answer for item in staged if item.answer is not None),
+            approvals,
+            subject_id,
+        )
+    for item in planned:
+        if item.outcome == "space_changed" or (item.outcome == "staged" and item.wanted_space is not None):
+            approvals.set_answer_space(item.version_id, item.wanted_space)
+
+
+def _bind_space(
+    planned: list[_Planned], overrides: dict[tuple[int, str], str]
+) -> list[PageResult]:
+    index = {(item.page, item.original_key): item for item in planned}
+    extra: list[PageResult] = []
+    for (page, key), space in overrides.items():
+        item = index.get((page, key))
+        if item is None:
+            extra.append(PageResult(page, "questions", "rejected", "no_question"))
+            continue
+        item.wanted_space = space
+    return extra
 
 
 def _page_rows(pages: list[_Page]) -> list[PageResult]:
@@ -599,7 +633,8 @@ def _audit(
         module="catalog.import_book",
         outcome=(
             f"pages={page_count};staged={report.staged};kept={report.kept};"
-            f"skipped={report.skipped};conflict={report.conflict}"
+            f"skipped={report.skipped};conflict={report.conflict};"
+            f"space_changed={report.space_changed}"
         ),
         started=started,
         actor_user_id=actor_user_id,

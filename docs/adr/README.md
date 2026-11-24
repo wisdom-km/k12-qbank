@@ -12,6 +12,8 @@
 
 2026-11-23：0041 已采纳。收卷照片、卷面匿名和多模态识别见该条。DEC-03 的传输范围以 PRD 为准。不改 0008、0020、0030 的正文。0011 只在文末追加修订说明。
 
+2026-11-24：0042 已采纳。整书导入、书和页命名空间、答案配对。0043 已采纳。答题区大小属于题目，新卷按高度排版，坐标写入 `practice_item_box`。0041 与 0042 只在文末追加修订，不删原文。
+
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
 | [0001](0001-long-lived-tier.md) | 按长期项目做 | accepted | 全库 |
@@ -56,3 +58,4 @@
 | [0040](0040-cors-origins.md) | 生产 CORS 白名单由 K12_CORS_ORIGINS 驱动 | accepted | kernel |
 | [0041](0041-intake-photo-and-vision.md) | 收卷照片与多模态识别 | accepted | practice |
 | [0042](0042-book-import.md) | 整书导入：书和页命名空间、答案配对 | accepted | catalog |
+| [0043](0043-answer-space-and-layout.md) | 答题区大小与按高度排版 | accepted | catalog, practice |
