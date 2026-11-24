@@ -17,10 +17,16 @@ class MemoryFiles:
     def add(self, data: bytes) -> tuple[str, str]:
         digest = hashlib.sha256(data).hexdigest()
         file_id = "file-" + digest[:16]
+        self.store_bytes(file_id, data)
+        return file_id, digest
+
+    def store_bytes(self, file_id: str, data: bytes) -> str:
+        """Keep bytes for an id the caller already chose. Memory has no purpose column."""
+        digest = hashlib.sha256(data).hexdigest()
         with self._lock:
             self._items[file_id] = data
             self._sums[file_id] = digest
-        return file_id, digest
+        return digest
 
     def read(self, file_id: str) -> bytes | None:
         with self._lock:

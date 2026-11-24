@@ -64,7 +64,7 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | PostgreSQL 已连接 | 仅当 `K12_PG_DSN` 有值时连接并迁移 identity、审计、catalog 与 practice。页字节在 `K12_FILE_DIR`。`K12_ENV` 默认 development；production 缺少连接串或页字节目录时退出。默认进程和单测不连接。CI 的 `postgres` 作业包含 up、down、up，以及 identity、catalog/practice 契约和迁移锁 |
 | 运行模式 | `K12_ENV` 默认 development。production 缺少连接串或 `K12_FILE_DIR` 时退出。development 且连接串为空时用内存 |
 | catalog PG | 设置 `K12_PG_DSN` 时写入 V002 运行表、V004 题目和答案、V005 五张子表、V007 `publication`、V008 `publication_asset`，并应用 V009 的 `publication_one_active`。`figure_geometry` 和 `answer_decision` 仍未建。资产字节上传仍未做 |
-| practice PG | 设置 `K12_PG_DSN` 时写入 papers、paper_pages、attempts、confirmations、files 元数据，以及 V006 的 practice_item。V011 记下出卷时是否印码、印在卷上的学号，以及每题的题干和答案快照。V012 记下每页槽位数和每题的页、槽、跨度。V013 记下版式种类、当时的页眉和二维码参数，以及 `practice_item_box` 里每个答题框的坐标。页字节在 `K12_FILE_DIR`。新的 HTTP 出卷按题型高度排版。已发出的旧卷 `slots_per_page` 为 1 或 4，不重新排版 |
+| practice PG | 设置 `K12_PG_DSN` 时写入 papers、paper_pages、attempts、confirmations、files 元数据，以及 V006 的 practice_item。V011 记下出卷时是否印码、印在卷上的学号，以及每题的题干和答案快照。V012 记下每页槽位数和每题的页、槽、跨度。V013 记下版式种类、当时的页眉和二维码参数，以及 `practice_item_box` 里每个答题框的坐标。V014 允许 `files.purpose` 为 `intake`，给 papers 增加可空的 `issued_on`，并建 `intake_page`。页字节在 `K12_FILE_DIR`。新的 HTTP 出卷按题型高度排版。已发出的旧卷 `slots_per_page` 为 1 或 4，不重新排版 |
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 在 `K12_PG_DSN` 有值时连接并迁移 |
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。操作入口是整书导入，见下方「导入一本书」 |
 | 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。运行中的核准可同时写入 V004 的 `answers` 和 V005 的 `answer_part`、`answer_asset`。`answer_decision` 仍未建。操作入口是整书导入 |
@@ -93,6 +93,10 @@ python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --
 默认访问日志已关闭。带 `request_id` 的结构化日志仍打在标准输出。这个端口和核对页 md-json-review 相同。核对页开着时不要启动本服务。两个进程不要同时听 `127.0.0.1:8765`。
 
 浏览器打开 `http://127.0.0.1:8765/login`。未登录会到登录页。登录后老师在 `/`，管理员在 `/admin`。老师页有「修改我的口令」，打开 `/account`。出卷老师来自会话 cookie。停用、启用和重置口令会吊销尚未过期的会话。过期会话和登录尝试按保留天数清理。学情天数仍不写。引导创建的管理员必须先改掉启动口令，才能调用其他接口。合成账号仍是 `teacher-synth`。development 启动时读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。`K12_ENV=production` 时不加载这份合成夹具，也不创建合成账号。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
+
+## 收卷
+
+老师页有「收卷」。可以拍照，也可以从相册选。浏览器里用 jsQR 读二维码，缩小后重新编码成 JPEG，再上传。读不出码时，从自己出过的卷里选卷和页。服务端核对卷号、页码和出卷老师。只有出卷老师和管理员能看照片，每次读取写审计。操作步骤、缺页和手机连本机见 [docs/ops/intake.md](docs/ops/intake.md)。按题裁切和模型认学号页码还没做。
 
 服务已经在 8765 端口时，另开一个窗口执行 `python scripts/smoke_http.py`。复验：
 

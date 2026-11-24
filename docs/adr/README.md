@@ -14,6 +14,8 @@
 
 2026-11-24：0042 已采纳。整书导入、书和页命名空间、答案配对。0043 已采纳。答题区大小属于题目，新卷按高度排版，坐标写入 `practice_item_box`。0041 与 0042 只在文末追加修订，不删原文。
 
+2026-11-24：0044 已采纳。二维码在浏览器里用 jsQR 读。服务端核对卷号、页码和出卷老师，后端不加图片库。0041 只在文末追加修订，不删原文。
+
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
 | [0001](0001-long-lived-tier.md) | 按长期项目做 | accepted | 全库 |
@@ -59,3 +61,4 @@
 | [0041](0041-intake-photo-and-vision.md) | 收卷照片与多模态识别 | accepted | practice |
 | [0042](0042-book-import.md) | 整书导入：书和页命名空间、答案配对 | accepted | catalog |
 | [0043](0043-answer-space-and-layout.md) | 答题区大小与按高度排版 | accepted | catalog, practice |
+| [0044](0044-browser-qr-decode.md) | 二维码在浏览器里读 | accepted | practice |

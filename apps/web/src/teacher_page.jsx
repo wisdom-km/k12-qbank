@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { call } from "./auth.js";
 import { attemptBlock, canHandOut, confirmReady, showConflictReload } from "./confirm_gate.js";
 import { createPaperActions, layoutIssueText } from "./paper_loop.js";
+import { IntakePanel } from "./intake_panel.jsx";
 import { initialPaperState, paperReducer } from "./paper_state.js";
 
 const REVIEW_VERSION_ID = "rev-1";
@@ -214,6 +215,8 @@ export function TeacherPage() {
           </ul>
         )}
       </section>
+
+      <IntakePanel papers={papers} call={call} />
 
       <section>
         <h2>确认</h2>

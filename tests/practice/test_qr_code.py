@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from backend.practice.domain.page_layout import answer_box
-from backend.practice.domain.qr_code import encode_qr, format_bits, qr_payload
+from backend.practice.domain.qr_code import encode_qr, format_bits, parse_qr_payload, qr_payload
 
 _GENERATOR = 0b10100110111
 _MASK = 0b101010000010010
@@ -30,6 +30,10 @@ class QrCodeTest(unittest.TestCase):
             qr_payload("abc", 0)
         with self.assertRaises(ValueError):
             qr_payload("x" * 43, 1)
+        self.assertEqual(parse_qr_payload(text), ("abc123", 2))
+        self.assertIsNone(parse_qr_payload("abc123#02"))
+        self.assertIsNone(parse_qr_payload("abc123#2#3"))
+        self.assertIsNone(parse_qr_payload("no-page"))
 
     def test_format_bits_match_an_independent_bch(self) -> None:
         self.assertEqual(format_bits(0), _bch(0))

@@ -118,6 +118,45 @@ label {
   color: #1f4d3a;
 }
 
+.intake {
+  overflow-x: hidden;
+}
+
+.intake button,
+.intake select {
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  width: 100%;
+  margin-right: 0;
+}
+
+.intake img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.intake-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  margin-top: 0.75rem;
+  background: #1f4d3a;
+  color: #f7f4ec;
+  border-radius: 8px;
+}
+
+.intake-file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
 a {
   color: #1f4d3a;
 }

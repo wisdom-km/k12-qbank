@@ -127,11 +127,15 @@ def asset_file_refusal(
     page_file: bool,
     paper_file: bool,
     paper_checksum: bool,
+    intake_file: bool = False,
 ) -> str | None:
-    """Refuse a page photo or an issued-paper file before the id shape is checked.
+    """Refuse a page photo, an intake photo, or an issued-paper file.
 
     A file- prefix is a page file even when it also fails the pubfile shape.
+    purpose=intake is refused even when the id is shaped like a publication file.
     """
+    if intake_file:
+        return "intake_file_rejected"
     if file_id.startswith("file-"):
         return "page_file_rejected"
     if page_file:

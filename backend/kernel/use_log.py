@@ -26,6 +26,9 @@ def emit(
     target_kind: str = "",
     target_id: str = "",
     audit: bool = False,
+    detail: str = "",
+    action: str = "",
+    actor_role: str = "",
 ) -> None:
     elapsed = int((time.perf_counter() - started) * 1000)
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -41,6 +44,9 @@ def emit(
         target_kind=target_kind,
         target_id=target_id,
         audit=audit,
+        actor_role=actor_role,
+        action=action,
+        detail=detail,
     )
     try:
         logger.log(event_row)
