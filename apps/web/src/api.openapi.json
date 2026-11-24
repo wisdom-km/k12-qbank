@@ -1124,19 +1124,30 @@
         }
       }
     },
-    "/api/admin/catalog/drafts": {
+    "/api/admin/catalog/books/{book_id}/import": {
       "post": {
-        "summary": "Catalog Import",
-        "operationId": "catalog_import_api_admin_catalog_drafts_post",
+        "summary": "Catalog Import Book",
+        "operationId": "catalog_import_book_api_admin_catalog_books__book_id__import_post",
+        "parameters": [
+          {
+            "name": "book_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Book Id"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DraftImportBody"
+                "$ref": "#/components/schemas/BookImportBody"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1144,7 +1155,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DraftImportResponse"
+                  "$ref": "#/components/schemas/BookImportResponse"
                 }
               }
             }
@@ -1611,6 +1622,176 @@
         ],
         "title": "AttachPublicationAssetResponse"
       },
+      "BookImportBody": {
+        "properties": {
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          },
+          "pages": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "pairing": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Pairing",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "subject_id",
+          "pages"
+        ],
+        "title": "BookImportBody",
+        "description": "Known keys only. Extra keys stay visible so the use case can reject them."
+      },
+      "BookImportResponse": {
+        "properties": {
+          "book_id": {
+            "type": "string",
+            "title": "Book Id"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "written": {
+            "type": "boolean",
+            "title": "Written"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/BookPageReport"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/BookQuestionReport"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "staged": {
+            "type": "integer",
+            "title": "Staged"
+          },
+          "kept": {
+            "type": "integer",
+            "title": "Kept"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "conflict": {
+            "type": "integer",
+            "title": "Conflict"
+          }
+        },
+        "type": "object",
+        "required": [
+          "book_id",
+          "dry_run",
+          "written",
+          "reason",
+          "pages",
+          "questions",
+          "staged",
+          "kept",
+          "skipped",
+          "conflict"
+        ],
+        "title": "BookImportResponse"
+      },
+      "BookPageReport": {
+        "properties": {
+          "pdf_page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pdf Page"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pdf_page",
+          "role",
+          "outcome",
+          "reason"
+        ],
+        "title": "BookPageReport"
+      },
+      "BookQuestionReport": {
+        "properties": {
+          "original_key": {
+            "type": "string",
+            "title": "Original Key"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "question_version_id": {
+            "type": "string",
+            "title": "Question Version Id"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "original_key",
+          "key",
+          "question_version_id",
+          "outcome",
+          "reason"
+        ],
+        "title": "BookQuestionReport"
+      },
       "CatalogItem": {
         "properties": {
           "question_version_id": {
@@ -1712,66 +1893,6 @@
           "fixture_answer_id"
         ],
         "title": "ConfirmBody"
-      },
-      "DraftImportBody": {
-        "properties": {
-          "subject_id": {
-            "type": "string",
-            "title": "Subject Id"
-          },
-          "questions": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Questions"
-          },
-          "answers": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Answers"
-          }
-        },
-        "type": "object",
-        "required": [
-          "subject_id",
-          "questions",
-          "answers"
-        ],
-        "title": "DraftImportBody"
-      },
-      "DraftImportResponse": {
-        "properties": {
-          "staged": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Staged"
-          },
-          "kept": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Kept"
-          },
-          "skipped": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Skipped"
-          }
-        },
-        "type": "object",
-        "required": [
-          "staged",
-          "kept",
-          "skipped"
-        ],
-        "title": "DraftImportResponse"
       },
       "GrantBody": {
         "properties": {

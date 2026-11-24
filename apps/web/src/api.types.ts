@@ -484,7 +484,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/catalog/drafts": {
+    "/api/admin/catalog/books/{book_id}/import": {
         parameters: {
             query?: never;
             header?: never;
@@ -493,8 +493,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Catalog Import */
-        post: operations["catalog_import_api_admin_catalog_drafts_post"];
+        /** Catalog Import Book */
+        post: operations["catalog_import_book_api_admin_catalog_books__book_id__import_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -699,6 +699,79 @@ export interface components {
             /** Publication Asset Id */
             publication_asset_id?: string | null;
         };
+        /**
+         * BookImportBody
+         * @description Known keys only. Extra keys stay visible so the use case can reject them.
+         */
+        BookImportBody: {
+            /** Subject Id */
+            subject_id: string;
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
+            /** Pages */
+            pages: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Pairing
+             * @default []
+             */
+            pairing: {
+                [key: string]: unknown;
+            }[];
+        } & {
+            [key: string]: unknown;
+        };
+        /** BookImportResponse */
+        BookImportResponse: {
+            /** Book Id */
+            book_id: string;
+            /** Dry Run */
+            dry_run: boolean;
+            /** Written */
+            written: boolean;
+            /** Reason */
+            reason: string;
+            /** Pages */
+            pages: components["schemas"]["BookPageReport"][];
+            /** Questions */
+            questions: components["schemas"]["BookQuestionReport"][];
+            /** Staged */
+            staged: number;
+            /** Kept */
+            kept: number;
+            /** Skipped */
+            skipped: number;
+            /** Conflict */
+            conflict: number;
+        };
+        /** BookPageReport */
+        BookPageReport: {
+            /** Pdf Page */
+            pdf_page: number | null;
+            /** Role */
+            role: string;
+            /** Outcome */
+            outcome: string;
+            /** Reason */
+            reason: string;
+        };
+        /** BookQuestionReport */
+        BookQuestionReport: {
+            /** Original Key */
+            original_key: string;
+            /** Key */
+            key: string;
+            /** Question Version Id */
+            question_version_id: string;
+            /** Outcome */
+            outcome: string;
+            /** Reason */
+            reason: string;
+        };
         /** CatalogItem */
         CatalogItem: {
             /** Question Version Id */
@@ -740,28 +813,6 @@ export interface components {
              * @default
              */
             teacher_id: string;
-        };
-        /** DraftImportBody */
-        DraftImportBody: {
-            /** Subject Id */
-            subject_id: string;
-            /** Questions */
-            questions: {
-                [key: string]: unknown;
-            };
-            /** Answers */
-            answers: {
-                [key: string]: unknown;
-            }[];
-        };
-        /** DraftImportResponse */
-        DraftImportResponse: {
-            /** Staged */
-            staged: string[];
-            /** Kept */
-            kept: string[];
-            /** Skipped */
-            skipped: string[];
         };
         /** GrantBody */
         GrantBody: {
@@ -1861,16 +1912,18 @@ export interface operations {
             };
         };
     };
-    catalog_import_api_admin_catalog_drafts_post: {
+    catalog_import_book_api_admin_catalog_books__book_id__import_post: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                book_id: string;
+            };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DraftImportBody"];
+                "application/json": components["schemas"]["BookImportBody"];
             };
         };
         responses: {
@@ -1880,7 +1933,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DraftImportResponse"];
+                    "application/json": components["schemas"]["BookImportResponse"];
                 };
             };
             /** @description Validation Error */
