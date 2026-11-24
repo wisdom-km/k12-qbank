@@ -15,6 +15,7 @@ from backend.practice.application.ports import Authorizer, FileStore, PageRender
 from backend.practice.application.render_paper import render_paper
 from backend.practice.domain.confirm import PendingAnswer
 from backend.practice.domain.item import PracticeItem
+from backend.practice.domain.page_layout import pack_items
 
 
 def open_paper(
@@ -85,7 +86,10 @@ def open_paper(
             answer_version_id=paper.answer_version_id,
             stem_text=prepared.value.stem,
             answer_text=prepared.value.answer_text,
+            option_text=prepared.value.option_text,
         )
+        if paper.slots_per_page > 1:
+            copied = pack_items((copied,), paper.slots_per_page)[0]
         stored_item = read_store(
             lambda: items.set_items(paper.paper_id, (copied,)),
             logger,

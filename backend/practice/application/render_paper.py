@@ -12,7 +12,8 @@ from backend.kernel.use_log import emit, read_store
 from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeItems, PracticeStore
 from backend.practice.application.resolve_items import _resolve_items
 from backend.practice.domain.item import PracticeItem
-from backend.practice.domain.page_face import PaperPage, formula_from_stem
+from backend.practice.domain.page_face import PaperPage, SlotFace, formula_from_stem
+from backend.practice.domain.page_layout import slot_answer_box
 from backend.practice.domain.paper import Paper, mark_issued, mark_printable, recall_file
 
 
@@ -38,7 +39,7 @@ def render_paper(
         return _refuse(logger, request_id, started, "not_rendering", "only a paper waiting for render can become printable")
     # The stem and formula were copied at issue. A later bank edit must not change this page.
     resolved = _resolve_items(paper.paper_id, store, items)
-    faces = tuple(_face(paper, item, len(resolved)) for item in resolved)
+    faces = page_faces(paper, resolved)
     if len(faces) == 1:
         drawn = renderer.render(faces[0])
     else:
@@ -189,6 +190,53 @@ def read_file(
     if blocked is not None:
         return _refuse(logger, request_id, started, blocked.code, blocked.message)
     return Ok(data.value)
+
+
+def page_faces(paper: Paper, items: tuple[PracticeItem, ...]) -> tuple[PaperPage, ...]:
+    """slots_per_page 1 keeps one legacy page per item. 4 groups by page_no."""
+    if paper.slots_per_page <= 1:
+        count = len(items)
+        return tuple(_face(paper, item, count) for item in items)
+    grouped: dict[int, list[PracticeItem]] = {}
+    for item in items:
+        grouped.setdefault(max(item.page_no, 1), []).append(item)
+    count = max(grouped) if grouped else 1
+    faces: list[PaperPage] = []
+    for page_no in sorted(grouped):
+        group = grouped[page_no]
+        slots = tuple(_slot(paper.slots_per_page, item) for item in group)
+        first = group[0]
+        faces.append(
+            PaperPage(
+                question_version_id=first.question_version_id,
+                answer_version_id=first.answer_version_id,
+                formula="",
+                student_id=paper.student_id,
+                page_number=page_no,
+                item_order=paper.item_order,
+                asset_ids=paper.asset_ids,
+                layout_template_id=paper.layout_template_id,
+                paper_id=paper.paper_id,
+                page_count=count,
+                printed_external_id=paper.printed_external_id,
+                qr_printed=paper.qr_printed,
+                stem=first.stem_text,
+                slots=slots,
+            )
+        )
+    return tuple(faces)
+
+
+def _slot(slots_per_page: int, item: PracticeItem) -> SlotFace:
+    options = tuple(line for line in item.option_text.split("\n") if line)
+    return SlotFace(
+        order_no=item.order_no,
+        slot_no=item.slot_no,
+        slot_span=item.slot_span,
+        stem=item.stem_text,
+        options=options,
+        answer_box=slot_answer_box(slots_per_page, item.slot_no, item.slot_span),
+    )
 
 
 def _face(paper: Paper, item: PracticeItem, count: int) -> PaperPage:

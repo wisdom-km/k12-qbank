@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
 class PracticeItem:
-    """order_no is the frozen sequence. The paper row still keeps its own compatibility ids."""
+    """order_no is the frozen sequence. The paper row still keeps its own compatibility ids.
+
+    page_no, slot_no, and slot_span are the issue-time slot. Old rows default to 1.
+    option_text is the frozen choice lines. A later catalog edit does not change them.
+    """
 
     paper_id: str
     order_no: int
@@ -16,6 +20,15 @@ class PracticeItem:
     score: int | None = None
     stem_text: str = ""
     answer_text: str = ""
+    page_no: int = 1
+    slot_no: int = 1
+    slot_span: int = 1
+    option_text: str = ""
+
+
+def stored_item(paper_id: str, item: PracticeItem) -> PracticeItem:
+    """Copy every frozen field onto this paper. New fields must not be dropped."""
+    return replace(item, paper_id=paper_id)
 
 
 class PaperEmpty(Exception):

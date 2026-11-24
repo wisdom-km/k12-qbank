@@ -18,7 +18,7 @@ T = TypeVar("T")
 _COLUMNS = """
 question_version_id, answer_version_id, asset_ids, layout_template_id,
 question_approved, answer_approved, retired, subject_id, item_order, stem, answer_text,
-type, structure
+type, structure, option_text
 """
 
 
@@ -80,12 +80,13 @@ def _upsert(conn: Any, snapshot: ApprovalSnapshot) -> None:
         stem = EXCLUDED.stem,
         answer_text = EXCLUDED.answer_text,
         type = EXCLUDED.type,
-        structure = EXCLUDED.structure
+        structure = EXCLUDED.structure,
+        option_text = EXCLUDED.option_text
     """
     conn.execute(
         f"""
         INSERT INTO approvals ({_COLUMNS}) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         ON CONFLICT (question_version_id) DO UPDATE SET {assignments}
         """,
@@ -107,7 +108,7 @@ def _insert_new(conn: Any, snapshot: ApprovalSnapshot) -> bool:
     conn.execute(
         f"""
         INSERT INTO approvals ({_COLUMNS}) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         """,
         _params(snapshot),
@@ -181,6 +182,7 @@ def _params(snapshot: ApprovalSnapshot) -> tuple[object, ...]:
         snapshot.stem,
         snapshot.answer_text,
         *_stored_type(snapshot),
+        "\n".join(snapshot.options),
     )
 
 
@@ -199,6 +201,7 @@ def _snapshot(row: tuple[object, ...]) -> ApprovalSnapshot:
         answer_text=str(row[10]),
         type="" if row[11] is None else str(row[11]),
         structure="" if row[12] is None else str(row[12]),
+        options=_option_lines(row[13]),
     )
 
 
@@ -206,6 +209,12 @@ def _stored_type(snapshot: ApprovalSnapshot) -> tuple[str | None, str | None]:
     if TYPE_STRUCTURE.get(snapshot.type) != snapshot.structure or snapshot.type == "":
         return None, None
     return snapshot.type, snapshot.structure
+
+
+def _option_lines(value: object) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    return tuple(line for line in str(value).split("\n") if line)
 
 
 def _texts(value: object) -> tuple[str, ...]:

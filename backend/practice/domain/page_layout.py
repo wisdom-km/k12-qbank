@@ -1,10 +1,15 @@
-"""Fixed answer box and corner marks. Coordinates are a function of the page.
+"""Fixed answer box and corner marks.
 
-One item is one page. order_no is that page's number. The box is the same
-rectangle on every page, so a later crop can recover it from the paper record.
+Slot coordinates are a function of (slots_per_page, slot_no, slot_span) only.
+slots_per_page 1 is the old one-item page. slots_per_page 4 is the trial face.
 """
 
 from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import replace
+
+from backend.practice.domain.item import PracticeItem
 
 BOX_X = 72
 BOX_Y = 220
@@ -14,12 +19,40 @@ MARK = 18
 _PAGE_W = 595
 _PAGE_H = 842
 
+SLOTS_PER_PAGE = 4
+CONTENT_TOP = 700
+CONTENT_BOTTOM = 48
+SLOT_H = (CONTENT_TOP - CONTENT_BOTTOM) // SLOTS_PER_PAGE
+TEXT_X = 48
+TEXT_WIDTH = 480
+LINE_H = 16
+SLOT_BOX_H = 72
+SLOT_BOX_GAP = 6
+
 
 def answer_box(order_no: int) -> tuple[int, int, int, int]:
-    """Return x, y, width, height in PDF points. order_no selects the page."""
+    """Return x, y, width, height in PDF points. order_no selects the page.
+
+    This rectangle is the slots_per_page 1 box. A 4-slot page uses slot_answer_box.
+    """
     if order_no < 1:
         raise ValueError("order_no")
     return (BOX_X, BOX_Y, BOX_W, BOX_H)
+
+
+def slot_answer_box(slots_per_page: int, slot_no: int, slot_span: int) -> tuple[int, int, int, int]:
+    """Return x, y, width, height. The same inputs always return the same box."""
+    if slot_no < 1 or slot_span < 1:
+        raise ValueError("slot")
+    if slots_per_page == 1:
+        return answer_box(1)
+    if slots_per_page != SLOTS_PER_PAGE:
+        raise ValueError("slots_per_page")
+    if slot_no + slot_span - 1 > SLOTS_PER_PAGE:
+        raise ValueError("slot")
+    top = CONTENT_TOP - (slot_no - 1) * SLOT_H
+    bottom = top - slot_span * SLOT_H
+    return (BOX_X, bottom + SLOT_BOX_GAP, BOX_W, SLOT_BOX_H)
 
 
 def alignment_marks() -> tuple[tuple[int, int, int, int], ...]:
@@ -38,3 +71,97 @@ def qr_origin() -> tuple[int, int, int]:
     module = 3
     quiet = 18 + MARK + 8
     return (_PAGE_W - quiet - 29 * module, _PAGE_H - quiet - 29 * module, module)
+
+
+def line_capacity(slot_span: int) -> int:
+    """How many text lines fit above the answer box of a span this tall."""
+    if slot_span < 1:
+        raise ValueError("slot_span")
+    top = CONTENT_TOP
+    bottom = top - slot_span * SLOT_H
+    first = top - LINE_H
+    floor = bottom + SLOT_BOX_GAP + SLOT_BOX_H + 4
+    if first < floor:
+        return 1
+    return 1 + (first - floor) // LINE_H
+
+
+def pack_items(items: Sequence[PracticeItem], slots_per_page: int) -> tuple[PracticeItem, ...]:
+    """Assign page_no, slot_no, and slot_span. slots_per_page 1 is left as stored."""
+    if slots_per_page == 1:
+        return tuple(items)
+    if slots_per_page != SLOTS_PER_PAGE:
+        raise ValueError("slots_per_page")
+    page = 1
+    cursor = 1
+    packed: list[PracticeItem] = []
+    for item in items:
+        span = _span_for(item)
+        if cursor + span - 1 > SLOTS_PER_PAGE:
+            page += 1
+            cursor = 1
+        packed.append(replace(item, page_no=page, slot_no=cursor, slot_span=span))
+        cursor += span
+        if cursor > SLOTS_PER_PAGE:
+            page += 1
+            cursor = 1
+    return tuple(packed)
+
+
+def placed_slot_lines(
+    order_no: int,
+    slot_no: int,
+    slot_span: int,
+    stem: str,
+    options: Sequence[str],
+) -> tuple[tuple[str, int, int], ...]:
+    """Text lines for one slot, in PDF points. Lines that pass the box are dropped."""
+    top = CONTENT_TOP - (slot_no - 1) * SLOT_H
+    y = top - LINE_H
+    _x, box_y, _w, box_h = slot_answer_box(SLOTS_PER_PAGE, slot_no, slot_span)
+    floor = box_y + box_h + 4
+    rows: list[tuple[str, int, int]] = []
+    for line in item_text_lines(order_no, stem, options):
+        if y < floor:
+            break
+        rows.append((line, TEXT_X, y))
+        y -= LINE_H
+    return tuple(rows)
+
+
+def item_text_lines(order_no: int, stem: str, options: Sequence[str]) -> tuple[str, ...]:
+    """Question number, stem, and every option. Wrapping uses a fixed width."""
+    lines = list(_wrap(f"{order_no}. {stem}"))
+    for option in options:
+        if option:
+            lines.extend(_wrap(option))
+    return tuple(lines)
+
+
+def _span_for(item: PracticeItem) -> int:
+    options = tuple(line for line in item.option_text.split("\n") if line)
+    count = len(item_text_lines(item.order_no, item.stem_text, options))
+    for span in range(1, SLOTS_PER_PAGE + 1):
+        if count <= line_capacity(span):
+            return span
+    return SLOTS_PER_PAGE
+
+
+def _wrap(text: str) -> tuple[str, ...]:
+    if text == "":
+        return ("",)
+    lines: list[str] = []
+    current: list[str] = []
+    used = 0
+    for char in text:
+        width = 12 if ord(char) > 0x2E80 else 6
+        if current and used + width > TEXT_WIDTH:
+            lines.append("".join(current))
+            current = [char]
+            used = width
+        else:
+            current.append(char)
+            used += width
+    if current:
+        lines.append("".join(current))
+    return tuple(lines) or ("",)

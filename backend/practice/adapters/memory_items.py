@@ -6,7 +6,7 @@ import threading
 from collections.abc import Sequence
 
 from backend.practice.adapters.memory import MemoryPractice
-from backend.practice.domain.item import PracticeItem
+from backend.practice.domain.item import PracticeItem, stored_item
 from backend.practice.domain.paper import Paper
 
 
@@ -23,7 +23,7 @@ class MemoryPracticeItems:
 
     def set_items(self, paper_id: str, items: Sequence[PracticeItem]) -> None:
         """Delete this paper's rows, then insert the given sequence. Empty is legal."""
-        stored = tuple(_stored(paper_id, item) for item in items)
+        stored = tuple(stored_item(paper_id, item) for item in items)
         with self._lock:
             self._rows = {key: item for key, item in self._rows.items() if key[0] != paper_id}
             for item in stored:
@@ -42,13 +42,4 @@ class MemoryComposedWriter:
         self._items.set_items(paper.paper_id, items)
 
 
-def _stored(paper_id: str, item: PracticeItem) -> PracticeItem:
-    return PracticeItem(
-        paper_id=paper_id,
-        order_no=item.order_no,
-        question_version_id=item.question_version_id,
-        answer_version_id=item.answer_version_id,
-        score=item.score,
-        stem_text=item.stem_text,
-        answer_text=item.answer_text,
-    )
+

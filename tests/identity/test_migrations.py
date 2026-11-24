@@ -15,7 +15,7 @@ class MigrationFilesTest(unittest.TestCase):
         found = discover(ROOT)
         self.assertEqual(
             [item.version for item in found],
-            ["V001", "V002", "V003", "V004", "V005", "V006", "V007", "V008", "V009", "V010", "V011"],
+            ["V001", "V002", "V003", "V004", "V005", "V006", "V007", "V008", "V009", "V010", "V011", "V012"],
         )
         self.assertTrue(found[0].down.is_file())
         up = "\n".join(sql_statements(found[0].up.read_text(encoding="utf-8")))
@@ -174,6 +174,23 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertIn("DROP COLUMN IF EXISTS qr_printed", down11_sql)
         self.assertNotIn("pg_advisory", down11_sql)
         self.assertNotIn("schema_migrations", down11_sql)
+        self.assertTrue(found[11].down.is_file())
+        up12 = found[11].up.read_text(encoding="utf-8")
+        down12 = found[11].down.read_text(encoding="utf-8")
+        up12_sql = "\n".join(sql_statements(up12))
+        down12_sql = "\n".join(sql_statements(down12))
+        self.assertIn("ADD COLUMN slots_per_page integer NOT NULL DEFAULT 1", up12_sql)
+        self.assertIn("ADD COLUMN page_no integer NOT NULL DEFAULT 1", up12_sql)
+        self.assertIn("ADD COLUMN slot_no integer NOT NULL DEFAULT 1", up12_sql)
+        self.assertIn("ADD COLUMN slot_span integer NOT NULL DEFAULT 1", up12_sql)
+        self.assertIn("ADD COLUMN option_text text NOT NULL DEFAULT ''", up12_sql)
+        self.assertNotIn("UPDATE ", up12_sql)
+        self.assertNotIn("pg_advisory", up12_sql)
+        self.assertNotIn("schema_migrations", up12_sql)
+        self.assertIn("DROP COLUMN IF EXISTS slots_per_page", down12_sql)
+        self.assertIn("DROP COLUMN IF EXISTS option_text", down12_sql)
+        self.assertNotIn("pg_advisory", down12_sql)
+        self.assertNotIn("schema_migrations", down12_sql)
         sample = "DO $$\nBEGIN\n    RAISE EXCEPTION 'keep; this';\nEND\n$$;\nSELECT 1;\n"
         parts = sql_statements(sample)
         self.assertEqual(len(parts), 2)

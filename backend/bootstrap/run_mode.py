@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 import time
 from typing import NoReturn
 
 from backend.kernel.logger import Logger
 from backend.kernel.use_log import emit
+from backend.practice.adapters.pdf_font import MISSING_FONT, load_system_face
 
 
 def choose_persist(env_raw: str, dsn: str, logger: Logger) -> bool:
@@ -49,6 +51,16 @@ def require_file_dir(env_raw: str, directory: str, logger: Logger) -> None:
     """production with no page-byte directory exits before a connection."""
     if _mode(env_raw, logger) == "production" and not directory.strip():
         _refuse(logger, "file_dir_required")
+
+
+def require_pdf_font(env_raw: str, logger: Logger) -> None:
+    """production exits when no CJK face can be opened. development does not."""
+    if _mode(env_raw, logger) != "production":
+        return
+    if load_system_face() is not None:
+        return
+    sys.stderr.write(MISSING_FONT + "\n")
+    _refuse(logger, "pdf_font_missing")
 
 
 def _mode(env_raw: str, logger: Logger) -> str:

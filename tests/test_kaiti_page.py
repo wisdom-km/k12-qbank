@@ -2,31 +2,22 @@
 
 from __future__ import annotations
 
-import os
 import struct
 import unittest
 from pathlib import Path
 
 from backend.kernel.result import Err
-from backend.practice.adapters.pdf_font import _face_origin
+from backend.practice.adapters.pdf_font import _face_origin, load_system_face
 from backend.practice.adapters.pdf_page import StdPdf
 from backend.practice.domain.page_face import PaperPage
 
 ROOT = Path(__file__).resolve().parents[1]
 _MESSAGE = "this synthetic page cannot encode the formula"
-_FACES = (
-    ("simkai.ttf", "KaiTi"),
-    ("msyh.ttc", "MicrosoftYaHei"),
-    ("simhei.ttf", "SimHei"),
-)
-
-
 def _installed_face() -> str | None:
-    folder = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
-    for filename, name in _FACES:
-        if (folder / filename).is_file():
-            return name
-    return None
+    face = load_system_face()
+    if face is None:
+        return None
+    return face.name
 
 
 def _page(formula: str) -> PaperPage:
@@ -42,6 +33,15 @@ def _page(formula: str) -> PaperPage:
         paper_id="paper-1",
         page_count=1,
     )
+
+
+def _embedded_cff(pdf: bytes) -> bytes:
+    marker = pdf.index(b"/Subtype /CIDFontType0C")
+    window = pdf[marker - 80 : marker]
+    length_at = window.rindex(b"/Length ")
+    length = int(window[length_at + len(b"/Length ") :].split()[0])
+    start = pdf.index(b"stream\n", marker) + len(b"stream\n")
+    return pdf[start : start + length]
 
 
 def _embedded_ttf(pdf: bytes) -> bytes:
@@ -82,8 +82,7 @@ class KaitiPageTest(unittest.TestCase):
         if face is None:
             self.assertIsInstance(drawn, Err)
             assert isinstance(drawn, Err)
-            self.assertEqual(drawn.code, "not_rendered")
-            self.assertEqual(drawn.message, _MESSAGE)
+            self.assertEqual(drawn.code, "pdf_font_missing")
             return
         self.assertIsInstance(drawn, bytes)
         assert isinstance(drawn, bytes)
@@ -91,13 +90,23 @@ class KaitiPageTest(unittest.TestCase):
         self.assertIn(b"/BaseFont /Helvetica", drawn)
         self.assertIn(b"/Encoding /WinAnsiEncoding", drawn)
         self.assertIn(f"/BaseFont /K12QBK+{face}".encode("ascii"), drawn)
-        self.assertIn(b"/FontFile2", drawn)
-        self.assertNotIn(b"Noto", drawn)
-        ttf = _embedded_ttf(drawn)
-        self.assertEqual(ttf[:4], b"\x00\x01\x00\x00")
-        glyph = _cmap_glyph(ttf, ord("解"))
-        self.assertGreater(glyph, 0)
-        self.assertIn(f"{glyph:04X}".encode("ascii"), drawn)
+        if "Noto" not in face:
+            self.assertNotIn(b"Noto", drawn)
+        if b"/FontFile2" in drawn:
+            self.assertNotIn(b"/CIDFontType0C", drawn)
+            ttf = _embedded_ttf(drawn)
+            self.assertEqual(ttf[:4], b"\x00\x01\x00\x00")
+            glyph = _cmap_glyph(ttf, ord("解"))
+            self.assertGreater(glyph, 0)
+            self.assertIn(f"{glyph:04X}".encode("ascii"), drawn)
+            return
+        self.assertIn(b"/Subtype /CIDFontType0", drawn)
+        self.assertNotIn(b"/CIDToGIDMap", drawn)
+        program = _embedded_cff(drawn)
+        self.assertEqual(program[:2], b"\x01\x00")
+        self.assertGreater(len(program), 500)
+        self.assertLess(len(program), 250_000)
+        self.assertIn(b"<89E3>", drawn)
 
     def test_times_sign_stays_helvetica_and_radical_stays_waiting(self) -> None:
         drawn = StdPdf().render(_page("2\u00d73"))
@@ -106,6 +115,7 @@ class KaitiPageTest(unittest.TestCase):
         self.assertIn(b"/Encoding /WinAnsiEncoding", drawn)
         self.assertIn("formula 2\u00d73".encode("cp1252"), drawn)
         self.assertNotIn(b"/FontFile2", drawn)
+        self.assertNotIn(b"/CIDFontType0C", drawn)
         self.assertNotIn(b"K12QBK+", drawn)
         refused = StdPdf().render(_page("\u221a2"))
         self.assertIsInstance(refused, Err)
