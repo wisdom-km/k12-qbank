@@ -10,6 +10,9 @@ from backend.kernel.logger import Logger
 from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 from backend.practice.api import AttemptView, IssuePaperCommand, OpenedPaper
+from dataclasses import replace
+
+from backend.practice.application.issue_flow import place_flow
 from backend.practice.application.issue_paper import gate_active_publication, prepare_issue
 from backend.practice.application.ports import Authorizer, FileStore, PageRenderer, PracticeItems, PracticeStore
 from backend.practice.application.render_paper import render_paper
@@ -47,6 +50,31 @@ def open_paper(
     if isinstance(prepared, Err):
         return prepared
     paper = prepared.value.paper
+    flowed_item = None
+    if command.layout_kind == "flow":
+        snapshot = approvals.read_snapshot(paper.question_version_id)
+        if snapshot is None:
+            return _refuse(
+                logger,
+                request_id,
+                time.perf_counter(),
+                "question_not_approved",
+                "the question version is not approved",
+            )
+        seed = PracticeItem(
+            paper_id=paper.paper_id,
+            order_no=1,
+            question_version_id=paper.question_version_id,
+            answer_version_id=paper.answer_version_id,
+            stem_text=prepared.value.stem,
+            answer_text=prepared.value.answer_text,
+            option_text=prepared.value.option_text,
+        )
+        flowed = place_flow((seed,), (snapshot,))
+        if isinstance(flowed, Err):
+            return _refuse(logger, request_id, time.perf_counter(), flowed.code, flowed.message)
+        flowed_item = flowed[0][0]
+        paper = replace(paper, layout_kind="flow", layout_params=flowed[1], slots_per_page=1)
     if not attempt_text.strip():
         return _refuse(
             logger,
@@ -79,7 +107,7 @@ def open_paper(
     if isinstance(saved, Err):
         return saved
     if items is not None:
-        copied = PracticeItem(
+        copied = flowed_item or PracticeItem(
             paper_id=paper.paper_id,
             order_no=1,
             question_version_id=paper.question_version_id,
@@ -88,7 +116,7 @@ def open_paper(
             answer_text=prepared.value.answer_text,
             option_text=prepared.value.option_text,
         )
-        if paper.slots_per_page > 1:
+        if paper.layout_kind != "flow" and paper.slots_per_page > 1:
             copied = pack_items((copied,), paper.slots_per_page)[0]
         stored_item = read_store(
             lambda: items.set_items(paper.paper_id, (copied,)),

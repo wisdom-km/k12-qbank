@@ -26,6 +26,8 @@ def compose_multi_item_paper(
     qr_printed: bool = False,
     printed_external_id: str = "",
     slots_per_page: int = 1,
+    layout_kind: str = "slots",
+    layout_params: str = "",
 ) -> Ok[Paper] | Err:
     """Freeze two or more items. The paper column keeps items[0] for old readers."""
     shape = _shape_error(paper_id, items)
@@ -59,11 +61,13 @@ def compose_multi_item_paper(
         qr_printed=qr_printed,
         printed_external_id=printed_external_id,
         slots_per_page=slots_per_page,
+        layout_kind=layout_kind,
+        layout_params=layout_params,
     )
     if isinstance(paper, Err):
         return paper
     stored = tuple(stored_item(paper_id, item) for item in items)
-    if slots_per_page > 1:
+    if layout_kind != "flow" and slots_per_page > 1:
         stored = pack_items(stored, slots_per_page)
     writer.place_composed(paper, stored)
     return Ok(paper)

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from backend.practice.domain.confirm import Confirmation, OperationKey
+from backend.practice.domain.layout_params import LayoutError, load_layout
 from backend.practice.domain.paper import Paper
 
 __all__ = [
@@ -20,7 +21,19 @@ __all__ = [
     "OpenedPaper",
     "OperationKey",
     "Paper",
+    "paper_layout_problem",
 ]
+
+
+def paper_layout_problem() -> tuple[str, str]:
+    """Return (outcome, message). Both are empty when the layout file is valid.
+
+    The outcome is ``layout_invalid:<field>``. The message names that field.
+    """
+    loaded = load_layout()
+    if isinstance(loaded, LayoutError):
+        return "layout_invalid:" + loaded.field, loaded.message
+    return "", ""
 
 
 @dataclass(frozen=True)
@@ -33,6 +46,7 @@ class IssuePaperCommand:
     qr_printed: bool = False
     printed_external_id: str = ""
     slots_per_page: int = 1
+    layout_kind: str = "slots"
 
 
 @dataclass(frozen=True)

@@ -13,6 +13,11 @@ import {
   takeHandOut,
 } from "./confirm_gate.js";
 
+export function layoutIssueText(errorCode, error) {
+  if (errorCode !== "item_too_long" && errorCode !== "layout_invalid") return "";
+  return error || "";
+}
+
 export function createPaperActions(io) {
   const generation = { current: 0 };
   const paperNow = { current: null };

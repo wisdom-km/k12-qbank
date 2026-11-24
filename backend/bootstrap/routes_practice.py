@@ -102,7 +102,8 @@ def _issue(body: IssueBody, request: Request) -> JSONResponse:
             request_id=request.state.request_id,
             attempt_text=synthetic_attempt_text(),
             publications=loop.publications,
-            slots_per_page=4,
+            slots_per_page=1,
+            layout_kind="flow",
         )
     else:
         question_version_id = versions[0] if versions else body.question_version_id
@@ -115,7 +116,8 @@ def _issue(body: IssueBody, request: Request) -> JSONResponse:
                 review_version_id=body.review_version_id,
                 qr_printed=qr_printed,
                 printed_external_id=copied,
-                slots_per_page=4,
+                slots_per_page=1,
+                layout_kind="flow",
             ),
             loop.approvals,
             loop.auth,

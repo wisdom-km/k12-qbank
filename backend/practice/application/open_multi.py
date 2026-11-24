@@ -12,6 +12,7 @@ from backend.kernel.result import Err, Ok
 from backend.kernel.use_log import emit, read_store
 from backend.practice.api import OpenedPaper
 from backend.practice.application.compose_multi import compose_multi_item_paper
+from backend.practice.application.issue_flow import place_flow
 from backend.practice.application.ports import Authorizer, ComposedPaperStore, FileStore, PageRenderer, PracticeItems, PracticeStore
 from backend.practice.application.render_paper import render_paper
 from backend.practice.domain.confirm import PendingAnswer
@@ -28,6 +29,7 @@ def open_multi_paper(
     qr_printed: bool,
     printed_external_id: str,
     slots_per_page: int = 1,
+    layout_kind: str = "slots",
     approvals: ApprovalPort,
     auth: Authorizer,
     store: PracticeStore,
@@ -78,6 +80,20 @@ def open_multi_paper(
                 option_text="\n".join(snapshot.options),
             )
         )
+    layout_params = ""
+    if layout_kind == "flow":
+        snapshots = []
+        for version_id in question_version_ids:
+            found = approvals.read_snapshot(version_id)
+            if found is None:
+                return _refuse(logger, request_id, started, "question_not_approved", "the question version is not approved")
+            snapshots.append(found)
+        flowed = place_flow(tuple(built), tuple(snapshots))
+        if isinstance(flowed, Err):
+            return _refuse(logger, request_id, started, flowed.code, flowed.message)
+        built = list(flowed[0])
+        layout_params = flowed[1]
+        slots_per_page = 1
     composed = compose_multi_item_paper(
         paper_id,
         tuple(built),
@@ -90,6 +106,8 @@ def open_multi_paper(
         qr_printed=qr_printed,
         printed_external_id=printed_external_id,
         slots_per_page=slots_per_page,
+        layout_kind=layout_kind,
+        layout_params=layout_params,
     )
     if isinstance(composed, Err):
         return _refuse(logger, request_id, started, composed.code, composed.message)

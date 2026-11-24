@@ -2,7 +2,7 @@ import { useEffect, useReducer, useRef } from "react";
 import { Link } from "react-router-dom";
 import { call } from "./auth.js";
 import { attemptBlock, canHandOut, confirmReady, showConflictReload } from "./confirm_gate.js";
-import { createPaperActions } from "./paper_loop.js";
+import { createPaperActions, layoutIssueText } from "./paper_loop.js";
 import { initialPaperState, paperReducer } from "./paper_state.js";
 
 const REVIEW_VERSION_ID = "rev-1";
@@ -90,6 +90,7 @@ export function TeacherPage() {
   const approved = Boolean(item && item.question_approved && item.answer_approved && !item.retired);
   const waitingReason = paper && paper.status === "待渲染" && (paper.render_code || paper.render_message);
   const blocked = attemptBlock(errorCode);
+  const layoutNotice = layoutIssueText(errorCode, error);
 
   return (
     <main>
@@ -171,6 +172,7 @@ export function TeacherPage() {
         <button type="button" onClick={() => loop.issue()} disabled={!(approved || chosen.length >= 2)}>
           出卷
         </button>
+        {layoutNotice && <p className="error">{layoutNotice}</p>}
         {paper && (
           <dl>
             <dt>卷号</dt>

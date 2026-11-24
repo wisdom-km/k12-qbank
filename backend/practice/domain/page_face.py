@@ -39,6 +39,11 @@ class PaperPage:
     qr_printed: bool = False
     stem: str = ""
     slots: tuple[SlotFace, ...] = ()
+    flow: bool = False
+    flow_lines: tuple[tuple[str, float, float, float], ...] = ()
+    flow_boxes: tuple[tuple[float, float, float, float], ...] = ()
+    flow_marks: tuple[tuple[float, float, float, float], ...] = ()
+    flow_qr: tuple[float, float, float] | None = None
 
 
 def formula_from_stem(stem: str) -> str:

@@ -80,8 +80,10 @@ class ReviewLoopTest(unittest.TestCase):
             self.assertIn(b"synth-0001", pdf)
             self.assertNotIn(b"student-synth", pdf)
             self.assertNotIn(b"name-rule omit", pdf)
-            self.assertIn(b"page 1", pdf)
-            self.assertIn(b"pages 1", pdf)
+            self.assertNotIn(b"page 1", pdf)
+            self.assertNotIn(b"pages 1", pdf)
+            self.assertIn(b"<7B2C>", pdf)
+            self.assertIn(b"<9875>", pdf)
             self.assertNotIn(str(row["paper_id"]).encode(), pdf)
             self.assertNotIn(b"answer ", pdf)
 

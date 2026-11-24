@@ -22,7 +22,7 @@ from urllib.parse import quote
 
 _BOOK_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,23}$")
 _PAGE_NO = re.compile(r"page_(\d+)", re.IGNORECASE)
-_KNOWN_MANIFEST = {"book_id", "subject_id", "pairs"}
+_KNOWN_MANIFEST = {"book_id", "subject_id", "pairs", "answer_space"}
 _DEFAULT_SERVER = "http://127.0.0.1:8765"
 
 
@@ -94,6 +94,7 @@ def build_body(manifest: dict[str, object], pages: list[dict[str, object]], *, d
         "dry_run": dry_run,
         "pages": pages,
         "pairing": manifest.get("pairs", []),
+        "answer_space": manifest.get("answer_space", []),
     }
     for key, value in manifest.items():
         if key not in _KNOWN_MANIFEST:
@@ -308,11 +309,12 @@ def _failed(report: dict[str, object]) -> bool:
 
 def _print_totals(report: dict[str, object]) -> None:
     print(
-        "staged={staged} kept={kept} skipped={skipped} conflict={conflict} written={written} reason={reason}".format(
+        "staged={staged} kept={kept} skipped={skipped} conflict={conflict} space_changed={space_changed} written={written} reason={reason}".format(
             staged=report.get("staged"),
             kept=report.get("kept"),
             skipped=report.get("skipped"),
             conflict=report.get("conflict"),
+            space_changed=0 if report.get("space_changed") is None else report.get("space_changed"),
             written=report.get("written"),
             reason=report.get("reason") or "",
         )
@@ -385,6 +387,7 @@ def _public_report(payload: dict[str, object]) -> dict[str, object]:
         "kept": payload.get("kept"),
         "skipped": payload.get("skipped"),
         "conflict": payload.get("conflict"),
+        "space_changed": payload.get("space_changed"),
     }
 
 
@@ -407,11 +410,12 @@ def _report_text(report: dict[str, object]) -> str:
         "dry_run=" + str(report.get("dry_run")),
         "written=" + str(report.get("written")),
         "reason=" + str(report.get("reason") or ""),
-        "staged={staged} kept={kept} skipped={skipped} conflict={conflict}".format(
+        "staged={staged} kept={kept} skipped={skipped} conflict={conflict} space_changed={space_changed}".format(
             staged=report.get("staged"),
             kept=report.get("kept"),
             skipped=report.get("skipped"),
             conflict=report.get("conflict"),
+            space_changed=0 if report.get("space_changed") is None else report.get("space_changed"),
         ),
     ]
     pages = report.get("pages")

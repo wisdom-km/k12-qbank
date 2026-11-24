@@ -9,6 +9,7 @@ from backend.catalog.domain.approval import copy_issue_snapshot, issuable_snapsh
 from backend.catalog.domain.parse import parse_question_draft
 from backend.catalog.domain.validate import DraftFile, QuestionDraft, publication_blocked
 from backend.catalog.domain.publication import Asset, AttachResult, Publication, RemoveResult
+from backend.catalog.domain.answer_space import resolved_space
 from backend.catalog.domain.snapshot import ApprovalSnapshot, IssueSnapshot
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     "parse_answer_draft",
     "parse_question_draft",
     "publication_blocked",
+    "resolved_space",
 ]
 
 

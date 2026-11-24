@@ -18,7 +18,7 @@ T = TypeVar("T")
 _COLUMNS = """
 question_version_id, answer_version_id, asset_ids, layout_template_id,
 question_approved, answer_approved, retired, subject_id, item_order, stem, answer_text,
-type, structure, option_text
+type, structure, option_text, answer_space
 """
 
 
@@ -48,6 +48,16 @@ class PgApprovals:
             LIMIT 1
         """
         return _run(self._pool, lambda conn: _exists(conn, statement, (version_id, version_id)))
+
+    def set_answer_space(self, question_version_id: str, space: str | None) -> None:
+        """Update only the answer-space column. Issued papers keep their boxes."""
+        _run(
+            self._pool,
+            lambda conn: conn.execute(
+                "UPDATE approvals SET answer_space = %s WHERE question_version_id = %s",
+                (space, question_version_id),
+            ),
+        )
 
     def insert_if_absent(self, snapshot: ApprovalSnapshot) -> bool:
         try:
@@ -81,12 +91,13 @@ def _upsert(conn: Any, snapshot: ApprovalSnapshot) -> None:
         answer_text = EXCLUDED.answer_text,
         type = EXCLUDED.type,
         structure = EXCLUDED.structure,
-        option_text = EXCLUDED.option_text
+        option_text = EXCLUDED.option_text,
+        answer_space = EXCLUDED.answer_space
     """
     conn.execute(
         f"""
         INSERT INTO approvals ({_COLUMNS}) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         ON CONFLICT (question_version_id) DO UPDATE SET {assignments}
         """,
@@ -108,7 +119,7 @@ def _insert_new(conn: Any, snapshot: ApprovalSnapshot) -> bool:
     conn.execute(
         f"""
         INSERT INTO approvals ({_COLUMNS}) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         """,
         _params(snapshot),
@@ -183,6 +194,7 @@ def _params(snapshot: ApprovalSnapshot) -> tuple[object, ...]:
         snapshot.answer_text,
         *_stored_type(snapshot),
         "\n".join(snapshot.options),
+        snapshot.answer_space,
     )
 
 
@@ -202,6 +214,7 @@ def _snapshot(row: tuple[object, ...]) -> ApprovalSnapshot:
         type="" if row[11] is None else str(row[11]),
         structure="" if row[12] is None else str(row[12]),
         options=_option_lines(row[13]),
+        answer_space=None if row[14] is None else str(row[14]),
     )
 
 

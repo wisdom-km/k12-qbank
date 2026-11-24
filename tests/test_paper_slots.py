@@ -85,6 +85,8 @@ class PaperSlotTest(unittest.TestCase):
             self.assertIn(option.encode("ascii"), drawn)
         self.assertIn(b"<4E0B>", drawn)
         self.assertIn(b"synth-0001", drawn)
+        self.assertIn(b"page 1", drawn)
+        self.assertIn(b"pages 1", drawn)
         self.assertNotIn(b"student-synth", drawn)
         self.assertNotIn(b"name-rule", drawn)
         self.assertNotIn(b"synth-ans-hidden", drawn)
@@ -139,6 +141,9 @@ class PaperSlotTest(unittest.TestCase):
         self.assertIn(b"/Count 2", drawn)
         self.assertIn(b"72 220 451 220 re S", drawn)
         self.assertIn(b"formula ", drawn)
+        self.assertIn(b"page 1", drawn)
+        self.assertIn(b"pages 2", drawn)
+        self.assertIn(b"page 2", drawn)
 
     def test_development_issue_returns_pdf_font_missing(self) -> None:
         empty = tempfile.mkdtemp()

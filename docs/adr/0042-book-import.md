@@ -36,3 +36,11 @@
 ## 状态
 
 采纳。2026-11-24。
+
+## 修订（2026-11-24，R4d）
+
+书清单和请求体增加可选字段 `answer_space`。一项是 `page`、`key`、`space`。`key` 是核对页原键，`page` 是题目页页码。服务端按上面的命名空间换成带书号的键。取值只有 `letter`、`blanks`、`small`、`medium`、`large`、`full`。
+
+这一列不是题目内容。重导时只有它变了，结果是 `space_changed`，只更新 `approvals.answer_space`，不新增题目、答案或核准版本。报告和合计带上这个计数。再导入时不写这项覆盖，会把以前的覆盖清回空，同样记 `space_changed`。题干、选项、答案文本或 `type` 不同仍是 `conflict`，整本不写，答题区也不改。
+
+指不到题是 `no_question`。取值不在列表里是 `invalid_answer_space`。同一道题写两次是 `duplicate_answer_space`。都是整本拒绝、零写入。上文「只有四种结果」和审计「四种计数」是当时的决定，不删。审计现在在四种计数之后加上 `space_changed`，仍不记题干。

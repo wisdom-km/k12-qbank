@@ -48,7 +48,17 @@ class ImportBookScriptReadTest(unittest.TestCase):
             dry_run=True,
         )
         self.assertEqual(body["answer_box"], 1)
+        self.assertEqual(body["answer_space"], [])
         self.assertNotIn("book_id", body)
+
+    def test_answer_space_is_forwarded_once(self) -> None:
+        space = [{"page": 12, "key": "3:1", "space": "full"}]
+        body = build_body(
+            {"book_id": "synth-roles", "subject_id": "math", "pairs": [], "answer_space": space},
+            [],
+            dry_run=True,
+        )
+        self.assertEqual(body["answer_space"], space)
 
     def test_source_does_not_import_the_server_package(self) -> None:
         source = Path(__file__).resolve().parents[1].joinpath("scripts", "import_book.py").read_text(encoding="utf-8")
