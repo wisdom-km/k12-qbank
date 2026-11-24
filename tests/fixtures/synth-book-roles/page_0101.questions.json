@@ -1,0 +1,41 @@
+{
+  "contract": "k12-question-draft",
+  "contract_version": 1,
+  "schema_version": 1,
+  "ok": true,
+  "reason": "",
+  "preface": "",
+  "source": {
+    "pdf_page": 101
+  },
+  "questions": [
+    {
+      "key": "9:9",
+      "section": "一",
+      "number": "9",
+      "type": "single_choice",
+      "structure": "choice",
+      "status": "confirmed",
+      "stem": [
+        {
+          "type": "text",
+          "value": "synth-leftover-q-101"
+        }
+      ],
+      "options": [
+        {
+          "key": "A",
+          "content": [
+            {
+              "type": "text",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "subquestions": [],
+      "assets": [],
+      "geometry": null
+    }
+  ]
+}

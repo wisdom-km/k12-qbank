@@ -7,17 +7,15 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from backend.bootstrap.http_errors import error_response
 from backend.catalog.api import ApprovalSnapshot
-from backend.catalog.application.import_answer import import_answer_draft
-from backend.catalog.application.import_draft import import_question_draft
+from backend.catalog.application.import_book import import_book
 from backend.catalog.application.publish_version import publish_version, retire_version, revise_text
-from backend.catalog.application.stage_review import stage_review, subject_accepted
 from backend.identity.application.guard import admin_only, signed_in
 from backend.kernel.result import Err
-from backend.kernel.use_log import emit
+from backend.kernel.use_log import read_store
 
 
 class ReviseBody(BaseModel):
@@ -39,16 +37,43 @@ class CatalogListResponse(BaseModel):
     items: list[CatalogItem]
 
 
-class DraftImportBody(BaseModel):
+class BookImportBody(BaseModel):
+    """Known keys only. Extra keys stay visible so the use case can reject them."""
+
+    model_config = ConfigDict(extra="allow")
+
     subject_id: str
-    questions: dict[str, Any]
-    answers: list[dict[str, Any]]
+    dry_run: bool = False
+    pages: list[dict[str, Any]]
+    pairing: list[dict[str, Any]] = []
 
 
-class DraftImportResponse(BaseModel):
-    staged: list[str]
-    kept: list[str]
-    skipped: list[str]
+class BookPageReport(BaseModel):
+    pdf_page: int | None
+    role: str
+    outcome: str
+    reason: str
+
+
+class BookQuestionReport(BaseModel):
+    original_key: str
+    key: str
+    question_version_id: str
+    outcome: str
+    reason: str
+
+
+class BookImportResponse(BaseModel):
+    book_id: str
+    dry_run: bool
+    written: bool
+    reason: str
+    pages: list[BookPageReport]
+    questions: list[BookQuestionReport]
+    staged: int
+    kept: int
+    skipped: int
+    conflict: int
 
 
 def register_catalog(app: FastAPI) -> None:
@@ -74,40 +99,37 @@ def register_catalog(app: FastAPI) -> None:
         )
         return JSONResponse(body.model_dump())
 
-    @app.post("/api/admin/catalog/drafts", response_model=DraftImportResponse)
-    def catalog_import(body: DraftImportBody, request: Request) -> JSONResponse:
+    @app.post("/api/admin/catalog/books/{book_id}/import", response_model=BookImportResponse)
+    def catalog_import_book(book_id: str, body: BookImportBody, request: Request) -> JSONResponse:
         refused = admin_only(request.state.actor)
         if refused is not None:
             return error_response(request.state.request_id, refused)
-        if not subject_accepted(body.subject_id):
-            return error_response(request.state.request_id, Err("validation_failed", "validation_failed"))
         loop = request.app.state.loop
         request_id = request.state.request_id
-        imported = import_question_draft(body.questions, loop.questions, loop.logger, request_id)
-        if isinstance(imported, Err):
-            return error_response(request_id, imported)
-        stored = []
-        for payload in body.answers:
-            saved = import_answer_draft(payload, loop.answers, loop.logger, request_id)
-            if isinstance(saved, Err):
-                return error_response(request_id, saved)
-            stored.append(saved.value)
-        staged = stage_review(imported.value, tuple(stored), loop.approvals, body.subject_id)
-        emit(
+        started = time.perf_counter()
+        saved = read_store(
+            lambda: import_book(
+                book_id,
+                body.subject_id,
+                body.pages,
+                body.pairing,
+                loop.questions,
+                loop.answers,
+                loop.approvals,
+                loop.logger,
+                request_id,
+                dry_run=body.dry_run,
+                unknown_fields=bool(body.model_extra),
+                actor_user_id=getattr(request.state.actor, "user_id", ""),
+            ),
             loop.logger,
-            level="INFO",
-            event="import_review",
-            request_id=request_id,
-            module="catalog.import",
-            outcome="ok",
-            started=time.perf_counter(),
-            actor_user_id=getattr(request.state.actor, "user_id", ""),
-            target_kind="catalog",
-            target_id="",
-            audit=True,
+            request_id,
+            "catalog.import_book",
+            started,
         )
-        result = DraftImportResponse(staged=list(staged.staged), kept=list(staged.kept), skipped=list(staged.skipped))
-        return JSONResponse(result.model_dump())
+        if isinstance(saved, Err):
+            return error_response(request_id, saved)
+        return JSONResponse(saved.value.as_dict())
 
     @app.get("/api/catalog/{question_version_id}")
     def catalog_get(question_version_id: str, request: Request) -> JSONResponse:

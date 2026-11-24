@@ -42,6 +42,34 @@ def seed_synthetic(
     return Ok(None)
 
 
+def seed_smoke_admin(
+    db: object,
+    deps: Deps,
+    *,
+    user_id: str,
+    username: str,
+    secret: str,
+) -> Ok[None]:
+    """One memory-only admin for the HTTP smoke. The secret is not logged."""
+    if db.users.by_username(username) is not None:  # type: ignore[attr-defined]
+        return Ok(None)
+    now = deps.clock.now()
+    db.users.insert(  # type: ignore[attr-defined]
+        User(
+            user_id=user_id,
+            username=username,
+            role="admin",
+            status="active",
+            password_hash=_hash(deps, secret),
+            password_algo="argon2id",
+            created_at=now,
+            updated_at=now,
+            must_change_password=False,
+        )
+    )
+    return Ok(None)
+
+
 def session_students(db: object, teacher_id: str) -> tuple[str, ...]:
     found: list[str] = []
     for grant in db.grants.list_all():  # type: ignore[attr-defined]

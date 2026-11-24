@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from backend.bootstrap.synthetic import ACTOR_TEACHER_ID, SYNTH_SECRET  # noqa: E402
+from backend.bootstrap.synthetic import ACTOR_ADMIN_ID, ACTOR_TEACHER_ID, SYNTH_SECRET  # noqa: E402
 
 
 def main() -> int:
@@ -62,12 +62,100 @@ def main() -> int:
     if b"student-synth" in pdf or b"name-rule omit" in pdf or paper_id in pdf or b"answer " in pdf:
         print("SMOKE HTTP FAIL: pdf prints the internal id, a name rule, the paper id, or an answer")
         return 1
+    refused_import = _json(
+        _open(base + "/api/admin/catalog/books/synth-smoke/import", _smoke_page(True), expect=403)
+    )
+    if refused_import.get("code") != "permission_denied":
+        print("SMOKE HTTP FAIL: teacher import code " + str(refused_import.get("code")))
+        return 1
+    _CSRF["value"] = _login(base, ACTOR_ADMIN_ID)
+    dry = _json(_open(base + "/api/admin/catalog/books/synth-smoke/import", _smoke_page(True)))
+    if dry.get("written") is not False or int(dry.get("staged") or 0) < 1 or dry.get("reason"):
+        print(_smoke_fail("dry_run", dry))
+        return 1
+    saved = _json(_open(base + "/api/admin/catalog/books/synth-smoke/import", _smoke_page(False)))
+    if saved.get("written") is not True or int(saved.get("staged") or 0) < 1 or saved.get("reason"):
+        print(_smoke_fail("write", saved))
+        return 1
+    again = _json(_open(base + "/api/admin/catalog/books/synth-smoke/import", _smoke_page(False)))
+    if (
+        again.get("written") is not True
+        or int(again.get("kept") or 0) < 1
+        or int(again.get("staged") or 0) != 0
+        or again.get("reason")
+    ):
+        print(_smoke_fail("rerun", again))
+        return 1
     print("SMOKE HTTP PASS")
     return 0
 
 
-def _login(base: str) -> str:
-    body = _json(_open(base + "/api/login", {"username": ACTOR_TEACHER_ID, "secret": SYNTH_SECRET}))
+def _smoke_fail(step: str, report: dict[str, object]) -> str:
+    return (
+        "SMOKE HTTP FAIL: "
+        + step
+        + " staged="
+        + str(report.get("staged"))
+        + " kept="
+        + str(report.get("kept"))
+        + " written="
+        + str(report.get("written"))
+        + " reason="
+        + str(report.get("reason"))
+    )
+
+
+def _smoke_page(dry_run: bool) -> dict[str, object]:
+    question = {
+        "contract": "k12-question-draft",
+        "contract_version": 1,
+        "schema_version": 1,
+        "ok": True,
+        "reason": "",
+        "preface": "",
+        "source": {"pdf_page": 1},
+        "questions": [
+            {
+                "key": "1:1",
+                "section": "一",
+                "number": "1",
+                "type": "single_choice",
+                "structure": "choice",
+                "status": "confirmed",
+                "stem": [{"type": "text", "value": "synth-smoke"}],
+                "options": [{"key": "A", "content": [{"type": "text", "value": "2"}]}],
+                "subquestions": [],
+                "assets": [],
+                "geometry": None,
+            }
+        ],
+    }
+    answer = {
+        "contract": "k12-answer-draft",
+        "contract_version": 1,
+        "schema_version": 1,
+        "ok": True,
+        "reason": "",
+        "question_key": "1:1",
+        "key": "1:1:ocr:1",
+        "origin": "ocr",
+        "status": "confirmed",
+        "applicable": True,
+        "source": {"pdf_page": 1},
+        "content": [{"type": "text", "value": "synth-smoke-a"}],
+        "parts": [],
+        "assets": [],
+    }
+    return {
+        "subject_id": "math",
+        "dry_run": dry_run,
+        "pages": [{"pdf_page": 1, "role": "questions", "questions": question, "answers": [answer]}],
+        "pairing": [],
+    }
+
+
+def _login(base: str, username: str = ACTOR_TEACHER_ID) -> str:
+    body = _json(_open(base + "/api/login", {"username": username, "secret": SYNTH_SECRET}))
     token = body.get("csrf_token")
     if not isinstance(token, str) or not token:
         print("SMOKE HTTP FAIL: login did not return a csrf token")

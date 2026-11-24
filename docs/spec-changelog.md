@@ -55,4 +55,6 @@
 | 2026-11-20 | `V005__catalog_subtables.sql` 建 `question_option`、`sub_question`、`question_asset`、`answer_part`、`answer_asset`。核准带真实题型时写子行，不再写 `unresolved`。`figure_geometry` 和 `answer_decision` 仍不建。 | 用户确认父键、行标识、`position`、jsonb、可空题型和 `sub_key`。不改 ADR 0013、0014、0039 正文。 |
 | 2026-11-20 | knowledge 切片增加端口和内存适配器。挂标签检查已核准题目、主知识点和学科。不建表，不写 V006。 | 用户要求按 ADR 0015 和 0016 起内存目录，并补上学科一致与不提供摘标签。不改 ADR 正文。 |
 
+| 2026-11-24 | 删除 `POST /api/admin/catalog/drafts`。新增 `POST /api/admin/catalog/books/{book_id}/import`。整书规则、书和页命名空间、答案配对都在这条路由。见 ADR 0042。 | 用户要求整书导入。不改契约文件。不改已有题目、答案、核准行。 |
+
 方案里的 DEC-01 到 DEC-06 仍是待机构确认。本仓库没有替机构填写这些决定。

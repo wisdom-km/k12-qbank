@@ -28,10 +28,16 @@ class CatalogImportBoundaryTest(unittest.TestCase):
         app = _app()
         with TestClient(app) as admin:
             token = _login_admin(admin)
-            created = admin.post("/api/admin/catalog/drafts", json=_body(), headers=_csrf(token))
+            bait = admin.post(_IMPORT, json=_bait(), headers=_csrf(token))
+            self.assertEqual(bait.status_code, 200, bait.text)
+            self.assertEqual(bait.json()["reason"], "unknown_field")
+            self.assertNotIn(BAIT_ID, bait.text)
+            self.assertNotIn(BAIT_NAME, bait.text)
+            created = admin.post(_IMPORT, json=_body(), headers=_csrf(token))
             self.assertEqual(created.status_code, 200, created.text)
         text = _audit_text(app)
-        self.assertIn("import_review", text)
+        self.assertIn("import_book", text)
+        self.assertNotIn("import_review", text)
         self.assertNotIn(BAIT_ID, text)
         self.assertNotIn(BAIT_NAME, text)
         self.assertNotIn("计算", text)
@@ -44,11 +50,12 @@ class CatalogImportBoundaryTest(unittest.TestCase):
                 with TestClient(app) as admin:
                     token = _login_admin(admin)
                     with mock.patch.object(MemoryDrafts, "save", side_effect=RuntimeError("forced-store")):
-                        failed = admin.post("/api/admin/catalog/drafts", json=_body(), headers=_csrf(token))
+                        failed = admin.post(_IMPORT, json=_body(), headers=_csrf(token))
                     app.state.errors.wait()  # type: ignore[attr-defined]
             self.assertEqual(failed.status_code, 409)
             self.assertNotIn(BAIT_ID, failed.text)
             self.assertNotIn(BAIT_NAME, failed.text)
+            self.assertNotIn("计算", failed.text)
             self.assertEqual(server.hits, 1)  # type: ignore[attr-defined]
             body = json.loads(server.received[0].decode("utf-8"))  # type: ignore[attr-defined]
         finally:
@@ -64,11 +71,12 @@ class CatalogImportBoundaryTest(unittest.TestCase):
         with TestClient(app) as admin:
             token = _login_admin(admin)
             with redirect_stdout(buffer):
-                created = admin.post("/api/admin/catalog/drafts", json=_body(), headers=_csrf(token))
+                created = admin.post(_IMPORT, json=_body(), headers=_csrf(token))
                 self.assertEqual(created.status_code, 200, created.text)
         text = buffer.getvalue()
         self.assertNotIn(BAIT_ID, text)
         self.assertNotIn(BAIT_NAME, text)
+        self.assertNotIn("计算", text)
         self.assertNotIn("api_key", text.lower())
 
 
@@ -144,54 +152,70 @@ def _csrf(token: str) -> dict[str, str]:
     return {"X-K12-CSRF": token}
 
 
+_IMPORT = "/api/admin/catalog/books/synth-r3/import"
+
+
 def _body() -> dict[str, object]:
     return {
         "subject_id": "math",
-        "questions": {
-            "contract": "k12-question-draft",
-            "contract_version": 1,
-            "schema_version": 1,
-            "ok": True,
-            "reason": "",
-            "preface": "",
-            "source": {"pdf_page": 1},
-            "questions": [
-                {
-                    "key": "r3:1",
-                    "section": "一",
-                    "number": "1",
-                    "type": "single_choice",
-                    "structure": "choice",
-                    "status": "confirmed",
-                    "stem": [{"type": "text", "value": "计算："}, {"type": "math", "latex": "(-3)+5"}],
-                    "options": [{"key": "A", "content": [{"type": "text", "value": "2"}]}],
-                    "subquestions": [],
-                    "assets": [],
-                    "geometry": None,
-                }
-            ],
-        },
-        "answers": [
+        "dry_run": False,
+        "pairing": [],
+        "pages": [
             {
-                "contract": "k12-answer-draft",
-                "contract_version": 1,
-                "schema_version": 1,
-                "ok": True,
-                "reason": "",
-                "question_key": "r3:1",
-                "key": "r3:1:ocr:1",
-                "origin": "ocr",
-                "status": "confirmed",
-                "applicable": True,
-                "source": {"pdf_page": 1},
-                "content": [{"type": "text", "value": "2"}],
-                "parts": [],
-                "assets": [],
+                "pdf_page": 1,
+                "role": "questions",
+                "questions": {
+                    "contract": "k12-question-draft",
+                    "contract_version": 1,
+                    "schema_version": 1,
+                    "ok": True,
+                    "reason": "",
+                    "preface": "",
+                    "source": {"pdf_page": 1},
+                    "questions": [
+                        {
+                            "key": "r3:1",
+                            "section": "一",
+                            "number": "1",
+                            "type": "single_choice",
+                            "structure": "choice",
+                            "status": "confirmed",
+                            "stem": [{"type": "text", "value": "计算："}, {"type": "math", "latex": "(-3)+5"}],
+                            "options": [{"key": "A", "content": [{"type": "text", "value": "2"}]}],
+                            "subquestions": [],
+                            "assets": [],
+                            "geometry": None,
+                        }
+                    ],
+                },
+                "answers": [
+                    {
+                        "contract": "k12-answer-draft",
+                        "contract_version": 1,
+                        "schema_version": 1,
+                        "ok": True,
+                        "reason": "",
+                        "question_key": "r3:1",
+                        "key": "r3:1:ocr:1",
+                        "origin": "ocr",
+                        "status": "confirmed",
+                        "applicable": True,
+                        "source": {"pdf_page": 1},
+                        "content": [{"type": "text", "value": "2"}],
+                        "parts": [],
+                        "assets": [],
+                    }
+                ],
             }
         ],
-        "external_id": BAIT_ID,
-        "name": BAIT_NAME,
     }
+
+
+def _bait() -> dict[str, object]:
+    body = _body()
+    body["external_id"] = BAIT_ID
+    body["name"] = BAIT_NAME
+    return body
 
 
 def _audit_text(app: object) -> str:

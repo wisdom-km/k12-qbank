@@ -66,8 +66,8 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | Catalog PG | A set `K12_PG_DSN` writes the V002 runtime tables, V004 `questions` and `answers`, the five V005 child tables, V007 `publication`, and V008 `publication_asset`, and applies V009 `publication_one_active`. `figure_geometry` and `answer_decision` are still not built. Asset byte upload is still not done |
 | Practice PG | A set `K12_PG_DSN` writes papers, paper_pages, attempts, confirmations, file metadata, and V006 `practice_item`. V011 stores whether that issue printed a QR, the student number copied onto the page, and each item's stem and answer snapshot. Page bytes use `K12_FILE_DIR`. The issue HTTP body can send several approved questions. One question still draws one page |
 | Stack | Python 3.12, FastAPI, and React are pinned. PostgreSQL connects and migrates when `K12_PG_DSN` is set |
-| Question draft import | Accepts `k12-question-draft` version 1. Stored in memory. Not issuable |
-| Answer draft import | Accepts `k12-answer-draft` version 1. Stored in memory. Not issuable. A running approval can also write V004 `answers` plus V005 `answer_part` and `answer_asset`. `answer_decision` is still not created |
+| Question draft import | Accepts `k12-question-draft` version 1. The operator entry is a whole-book import. See “Import a book” below |
+| Answer draft import | Accepts `k12-answer-draft` version 1. A running approval can also write V004 `answers` plus V005 `answer_part` and `answer_asset`. `answer_decision` is still not created. The operator entry is a whole-book import |
 | Contract check | JSON Schema in `backend/catalog/contracts/`. No new package. See [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md) |
 | Publication, knowledge, multi-item papers | Columns are in ADR 0015. The knowledge ports have an in-memory adapter. Knowledge tables are not created. V006 creates `practice_item`. V007 creates `publication`. V008 creates `publication_asset`. V009 adds `publication_one_active`. `compose_multi_item_paper` can freeze several items. Two or more questions in the issue HTTP body draw one page each. `K12_PAPER_QR` prints a code unless the value is `off`. An issued paper keeps the question, the answer, and the QR flag from issue time |
 | Methods and error causes | Columns are in [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md). The method ports have an in-memory adapter. An error cause is a suggestion. Tables are not created |
@@ -106,6 +106,10 @@ Remote checks are the [Actions job named check](https://github.com/wisdom-km/k12
 | Minimal core tests | `python -m unittest discover -s tests -v` |
 | Full check | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
 | Full check, clean environment | `bash scripts/check` |
+
+## Import a book
+
+Double-click `scripts/import_book.cmd`. The script only reads a directory, signs in, calls `POST /api/admin/catalog/books/{book_id}/import`, and writes a report under the book's `_import_reports/`. The rules stay on the server. Steps, the book manifest, and what to do with a conflict are in [docs/ops/import-book.md](docs/ops/import-book.md). The decision is [docs/adr/0042-book-import.md](docs/adr/0042-book-import.md).
 
 ## Read first
 
