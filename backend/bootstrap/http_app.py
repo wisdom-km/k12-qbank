@@ -14,13 +14,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.bootstrap.compose import Loop, attach_identity, compose, repo_root
 from backend.bootstrap.ready import ReadyWindow, database_ready
-from backend.bootstrap.run_mode import choose_persist, cors_origins, require_paper_layout, require_pdf_font
+from backend.ai.application.recognize import recover_open_runs
+from backend.bootstrap.run_mode import (
+    choose_persist,
+    cors_origins,
+    require_ai_provider,
+    require_paper_layout,
+    require_pdf_font,
+)
 from backend.bootstrap.stdout_log import StdoutLogger
 from backend.bootstrap.http_errors import error_response
 from backend.bootstrap.http_gate import gate
 from backend.bootstrap.routes_admin import register_admin
 from backend.bootstrap.routes_catalog import register_catalog
 from backend.bootstrap.routes_observability import register_observability
+from backend.bootstrap.routes_ai import register_ai
 from backend.bootstrap.routes_intake import register_intake
 from backend.bootstrap.routes_practice import register_practice
 from backend.bootstrap.routes_session import register_session
@@ -40,6 +48,7 @@ def create_app(
     persist: bool = False,
 ) -> FastAPI:
     """Build the HTTP app. persist=True connects and migrates. A passed loop never does."""
+    require_ai_provider(os.environ.get("K12_ENV", ""), StdoutLogger())
     origins = cors_origins(
         os.environ.get("K12_ENV", ""),
         os.environ.get("K12_CORS_ORIGINS"),
@@ -49,6 +58,7 @@ def create_app(
     if seed:
         load_fixture(wired)
     bootstrap_from_env(wired)
+    recover_open_runs(wired.ai_runs)
     app = _fastapi(_openapi_on(openapi))
     app.state.loop = wired
     app.state.opener = wired.opener
@@ -64,6 +74,7 @@ def create_app(
     register_catalog(app)
     register_practice(app)
     register_intake(app)
+    register_ai(app)
     _mount_web(app)
     return app
 

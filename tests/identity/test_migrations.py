@@ -30,6 +30,7 @@ class MigrationFilesTest(unittest.TestCase):
                 "V012",
                 "V013",
                 "V014",
+                "V015",
             ],
         )
         self.assertTrue(found[0].down.is_file())

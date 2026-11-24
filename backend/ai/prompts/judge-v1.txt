@@ -1,0 +1,4 @@
+根据题干、标准答案和转写结果给出建议。不要说这是最终成绩。
+返回 JSON，对象含 items。每一项含 order_no、verdict、reason。
+verdict 只能是 correct、incorrect、partial、unsure 之一。reason 不能空。
+每道题都要有，不能增删。

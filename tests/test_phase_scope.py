@@ -81,14 +81,14 @@ class PhaseScopeTest(unittest.TestCase):
     def test_default_check_passes(self) -> None:
         result = self._run_check(None)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("phase scope (catalog knowledge identity practice, from check.conf)", result.stdout)
+        self.assertIn("phase scope (catalog knowledge identity practice ai, from check.conf)", result.stdout)
 
     def test_narrow_env_refuses_practice(self) -> None:
         result = self._run_check("catalog")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("F-13", result.stdout)
         self.assertIn("outside the current phase (catalog, from env)", result.stdout)
-        outside = ("backend/identity", "backend/practice", "backend/knowledge")
+        outside = ("backend/ai", "backend/identity", "backend/practice", "backend/knowledge")
         self.assertTrue(any(name in result.stdout for name in outside))
 
     def test_health_body_is_status_only(self) -> None:

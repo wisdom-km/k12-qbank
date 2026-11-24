@@ -1,6 +1,7 @@
 /** Whole-page intake. The server checks the paper, the page, and the teacher again. */
 
 import { useEffect, useRef, useState } from "react";
+import { AiPanel } from "./ai_panel.jsx";
 import { preparePhoto, splitPayload } from "./intake_decode.js";
 
 export function IntakePanel({ papers, call, initialShots }) {
@@ -190,6 +191,21 @@ export function IntakePanel({ papers, call, initialShots }) {
                   {missing.length ? "，缺第 " + missing.join("、") + " 页" : ""}
                 </li>
               );
+            })}
+          </ul>
+          <h3>已收</h3>
+          <ul>
+            {papers.flatMap((paper) => {
+              const body = progress[paper.paper_id];
+              if (!body) return [];
+              return body.pages
+                .filter((page) => page.received && page.intake_id)
+                .map((page) => (
+                  <li key={page.intake_id}>
+                    {numberOf(paper)}，第 {page.page_no} 页
+                    <AiPanel intakeId={page.intake_id} call={call} />
+                  </li>
+                ));
             })}
           </ul>
         </>

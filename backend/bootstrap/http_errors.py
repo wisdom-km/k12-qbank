@@ -34,6 +34,8 @@ _STATUS = {
     "qr_mismatch": 409,
     "page_already_received": 409,
     "file_purpose_conflict": 409,
+    "ai_run_in_progress": 409,
+    "ai_daily_limit": 429,
 }
 _GENERIC = {"invalid_credentials", "unauthenticated"}
 

@@ -1,0 +1,6 @@
+只转写学生写在答题框里的内容。不要判断对错。看不清就标记，并给出 0 到 1 的 confidence。
+返回 JSON，对象含 seen_external_id、seen_page_no 和 items。
+items 的每一项含 order_no、transcription、unreadable、confidence。
+题号必须和下面的列表一致，不能增删。
+下面只有题号、题型和答题框相对位置。没有标准答案，没有题干。
+seen_external_id 是照片上印的学号，没有则用 null。seen_page_no 是照片上印的页码，没有则用 null。

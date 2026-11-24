@@ -37,6 +37,7 @@ def open_postgres() -> Loop:
     attempts = PgAttempts(pool)
     deps = make_deps(attempts, logger)
     approvals, practice, files, items, intake = _catalog_stores(pool)
+    from backend.ai.adapters.pg_runs import PgRuns
     from backend.catalog.adapters.pg_answers import PgAnswers
     from backend.catalog.adapters.pg_publications import PgPublications
     from backend.catalog.adapters.pg_questions import PgQuestions
@@ -57,6 +58,7 @@ def open_postgres() -> Loop:
         items=items,
         composed=items,
         intake=intake,
+        ai_runs=PgRuns(pool),
     )
 
 

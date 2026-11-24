@@ -16,6 +16,8 @@
 
 2026-11-24：0044 已采纳。二维码在浏览器里用 jsQR 读。服务端核对卷号、页码和出卷老师，后端不加图片库。0041 只在文末追加修订，不删原文。
 
+2026-11-24：0045 已采纳。新增切片 `ai`，两步识别、本机判分、脱敏和失败降级。0004 和 0041 只在文末追加修订，不删原文。
+
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
 | [0001](0001-long-lived-tier.md) | 按长期项目做 | accepted | 全库 |
@@ -62,3 +64,4 @@
 | [0042](0042-book-import.md) | 整书导入：书和页命名空间、答案配对 | accepted | catalog |
 | [0043](0043-answer-space-and-layout.md) | 答题区大小与按高度排版 | accepted | catalog, practice |
 | [0044](0044-browser-qr-decode.md) | 二维码在浏览器里读 | accepted | practice |
+| [0045](0045-ai-suggestions.md) | AI 识别建议 | accepted | ai |
