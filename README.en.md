@@ -27,7 +27,7 @@ Online answering, student accounts, parent accounts, parent weekly or monthly re
 The trial still needs both the web page and Android to finish the loop. The code is narrower than that:
 
 1. The server holds the rules for issuing a paper and for the teacher's confirmation.
-2. The first slice is the browser: check a question, issue a paper, and confirm, in `catalog` and `practice`. As of 2026-11-18, `PHASE_SLICES` also lists `identity`. As of 2026-11-20 it also lists the in-memory `knowledge` ports. A blank value still falls back to `catalog` and `practice`. See `docs/exec-plans/active/identity-and-audit.md` and `docs/exec-plans/active/knowledge-slice.md`.
+2. The first slice is the browser: check a question, issue a paper, and confirm, in `catalog` and `practice`. As of 2026-11-18, `PHASE_SLICES` also lists `identity`. As of 2026-11-20 it also lists the in-memory `knowledge` ports. As of 2026-11-24 it also lists `ai`. See `docs/adr/0045-ai-suggestions.md`. A blank value still falls back to `catalog` and `practice`. See `docs/exec-plans/active/identity-and-audit.md` and `docs/exec-plans/active/knowledge-slice.md`.
 3. Android photo, upload, and missing-page handling come after that slice.
 4. A desktop install shell comes later, after the web page can check a question and open a formula PDF on the teacher's computer. The candidate is stable Tauri 2. Electron is not the fallback.
 
@@ -88,7 +88,7 @@ Open `http://127.0.0.1:8765/login`. A signed-out visit lands on the login page. 
 
 ## Intake
 
-The teacher page has an intake section. The browser reads the QR with jsQR, shrinks the photo, and re-encodes JPEG before upload. When the code is missing, the teacher picks one of their own papers and a page. The server checks the paper, the page, and the issuing teacher again. Only that teacher and an admin can read the photo, and each read is audited. Steps, missing pages, and a phone on the same Wi-Fi are in [docs/ops/intake.md](docs/ops/intake.md). Per-question crop and model checks are not in this batch.
+The teacher page has an intake section. The browser reads the QR with jsQR, shrinks the photo, and re-encodes JPEG before upload. When the code is missing, the teacher picks one of their own papers and a page. The server checks the paper, the page, and the issuing teacher again. Only that teacher and an admin can read the photo, and each read is audited. Steps, missing pages, and a phone on the same Wi-Fi are in [docs/ops/intake.md](docs/ops/intake.md). A received photo has an AI recognition button. The default provider is mock and does not call the network. The two-step flow and the Ark switch are in [docs/ops/ai.md](docs/ops/ai.md). A suggestion is not a result until the teacher confirms it. Per-question crop is not done. Adopt, revise, and reject are not in this batch.
 
 When the site is already listening on port 8765, run `python scripts/smoke_http.py` in another window. To re-check:
 

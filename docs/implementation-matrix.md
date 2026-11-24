@@ -38,11 +38,13 @@ M-14：`GET /api/admin/errors` 只读近 24 小时的 ERROR。`K12_ERROR_WEBHOOK
 
 2026-11-24：V014 允许 `files.purpose` 为 `intake`，不改已有 `page` 行。给 `papers` 增加可空的 `issued_on`，只在新出的卷上写入，不回填。新建 `intake_page`。同一张卷的同一页同时只有一条 `superseded_at` 为空的记录。老师页用 jsQR 读码，上传前缩小并重新编码成 JPEG。服务端核对卷号、页码和出卷老师。按题裁切和模型认学号页码仍未做。
 
+2026-11-24：V015 建 `ai_run` 和 `ai_suggestion`。识别建议不写入 `confirmations`。转写和判断分两步。选择题以及纯数字或纯字母的填空在本机比对。模型读回的学号和页码只存 `consistent`、`mismatch` 或 `unread`。默认适配器是 mock。见 ADR 0045。
+
 契约测试指：每个端口一套测试，假适配器和真实适配器都跑。草稿形状的 schema 测试算 core 测试，不算这一列。identity 与审计的一次本机走查写在 `docs/evidence/identity-audit-2026-11-18.md`。catalog 与 practice 的一次本机走查写在 `docs/evidence/catalog-practice-pg-2026-11-18.md`。这两页都不是试用，也不是 AC-01。`test_http_loop` 是本机合成 HTTP，不是端到端。
 
 改了某一格，同一个 PR 里改本表，并勾选 PR 模板里的对应项。
 
-当前结论：V004–V013 已在仓库。`figure_geometry` 与 `answer_decision` 仍未建。issue #66 已于 2026-11-22 由 PR #68 关闭。资产字节上传仍未做。HTTP 出卷可以一次放入多道已核准的题，新卷按题型高度排版。收卷和识别仍未做。
+当前结论：V004–V015 已在仓库。`figure_geometry` 与 `answer_decision` 仍未建。issue #66 已于 2026-11-22 由 PR #68 关闭。资产字节上传仍未做。HTTP 出卷可以一次放入多道已核准的题，新卷按题型高度排版。收卷照片已接（V014）。识别建议已接（V015，`ai` 切片）。按题裁切仍未做。采用、修改、驳回建议的界面仍未做。
 
 | 切片 | 端口 | 内存适配器 | 持久适配器 | core 测试 | 契约测试 | 端到端 | 文档 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -51,5 +53,6 @@ M-14：`GET /api/admin/errors` 只读近 24 小时的 ERROR。`K12_ERROR_WEBHOOK
 | identity | 会话、用户、学生、授权。practice 仍只通过 Authorizer 读授权结果 | `MemoryDb` | `PgDb`。连接由 `K12_PG_DSN` 注入 | `tests/identity` | 内存每次都跑。PostgreSQL 在 `K12_PG_DSN` 有值时跑同一套 | `docs/evidence/identity-audit-2026-11-18.md` | ADR 0025、0026、0027、0028、0029、0033、0034、0036、0038。0033 的清理、0034 的咨询锁、0036 的首次改口令和 0038 的最后一名管理员已接上 |
 | audit | 审计写入、审计查询、近期 ERROR | `MemoryAuditBook`、`ErrorRing` | `AuditPg` 写 `audit_events`。表在 identity 的 V001 | `test_audit_sink`、`tests/identity`、`test_error_webhook` | 内存每次都跑。PostgreSQL 与 identity 同一套 | 同上。地址非空时 webhook 发送五个字段。外部接收方仍未对接 | ADR 0030、0037。0037 的读审计已接上。不是 ADR 0004 的第七个切片 |
 | practice | 练习存储、文件、卷面渲染、授权、`PracticeItems` | `MemoryPractice`、`MemoryPracticeItems`、`MemoryFiles`、`MemoryIntake`、`MemoryAuth`。`StdPdf` 是标准库渲染，不是存储。拉丁用 Helvetica，中文用部署环境的字体 | `PgPractice` / `PgPracticeItems` / `PgFiles` / `PgIntake`。页字节在 `K12_FILE_DIR`。目录为空时字节仍在内存 | `test_core_loop`、`test_paper_status`、`test_confirm_rules`、`test_http_loop`、`test_m1_review`、`test_service_probe`、`test_kaiti_page`、`test_multi_paper`、`test_paper_slots`、`test_paper_face_boundary`、`test_flow_layout`、`tests/practice/test_qr_code`、`test_intake_http`、`test_intake_pg` | `test_catalog_practice_contract`、`tests/practice/test_practice_item_contract`。内存每次都跑。PostgreSQL 在 `K12_PG_DSN` 有值时跑同一套 | `docs/evidence/catalog-practice-pg-2026-11-18.md`、`docs/evidence/practice-item-2026-11-21.md` | ADR 0006、0015、0024、0039、0043。0039 的运行表已接上。ADR 0015 第 7 条 `practice_item` 已接。V013 的 `practice_item_box` 已接。新卷 `layout_kind` 为 `flow`。旧 `papers.question_version_id` 保留作兼容。`slots_per_page` 为 1 或 4 的卷不重排。V014 的 `intake_page` 已接。收卷照片 purpose 为 `intake`。`publication_asset` 拒绝 intake 文件。见 ADR 0041、0044 |
+| ai | `VisionModel`。`transcribe` 与 `judge` | `MockModel`、`MemoryRuns` | `VolcengineModel` 用已钉死的 httpx。`PgRuns` 在 `K12_PG_DSN` 有值时接入。默认 provider 是 mock | `test_ai_grade`、`test_ai_flow`、`test_ai_http`、`test_ai_provider`、`test_ai_volcengine` | `test_ai_pg`。内存每次都跑前面的 core。PostgreSQL 在 `K12_PG_DSN` 有值时跑 V015 的 up / down / up。火山引擎适配器用本机假 HTTP，不连外网 | 老师页只读建议见 `apps/web/tests/ai_panel.test.jsx`。真实样张识别率未测 | ADR 0045。建议不进确认表。按题裁切仍未做。采用、修改、驳回仍未做 |
 | analysis | 作答分析、练习推荐、任务。只在架构文档 | 无 | 无 | 无 | 未写 | 未写 | ADR 0005、0016。切片目录未建 |
 | delivery | 排版和导出。代码里没有这个切片 | 无。面向学生的单页 PDF 在 practice 的 `StdPdf` | 无 | 无 | 未写 | 未写 | ADR 0004。切片目录未建 |

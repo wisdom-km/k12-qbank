@@ -27,7 +27,7 @@
 产品试用时，网页和安卓都要走完。写代码的顺序更窄：
 
 1. 服务端先守住出卷和老师确认。
-2. 第一段先做浏览器里的核验、出卷和确认，目录有 `catalog` 和 `practice`。2026-11-18 起 `PHASE_SLICES` 加上 `identity`，见 [docs/exec-plans/active/identity-and-audit.md](docs/exec-plans/active/identity-and-audit.md)。2026-11-20 起加上 `knowledge` 的内存端口，见 [docs/exec-plans/active/knowledge-slice.md](docs/exec-plans/active/knowledge-slice.md)。空白配置仍回落前两项。
+2. 第一段先做浏览器里的核验、出卷和确认，目录有 `catalog` 和 `practice`。2026-11-18 起 `PHASE_SLICES` 加上 `identity`，见 [docs/exec-plans/active/identity-and-audit.md](docs/exec-plans/active/identity-and-audit.md)。2026-11-20 起加上 `knowledge` 的内存端口，见 [docs/exec-plans/active/knowledge-slice.md](docs/exec-plans/active/knowledge-slice.md)。2026-11-24 起加上 `ai`，见 [docs/adr/0045-ai-suggestions.md](docs/adr/0045-ai-suggestions.md)。空白配置仍回落前两项。
 3. 安卓拍照、上传和缺页排在这段之后。
 4. 桌面安装壳更后。等老师这台电脑上，网页已经能核验、能打开带公式的 PDF。优先试 Tauri 2 的稳定版。Electron 不是退路。
 
@@ -96,7 +96,7 @@ python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --
 
 ## 收卷
 
-老师页有「收卷」。可以拍照，也可以从相册选。浏览器里用 jsQR 读二维码，缩小后重新编码成 JPEG，再上传。读不出码时，从自己出过的卷里选卷和页。服务端核对卷号、页码和出卷老师。只有出卷老师和管理员能看照片，每次读取写审计。操作步骤、缺页和手机连本机见 [docs/ops/intake.md](docs/ops/intake.md)。按题裁切和模型认学号页码还没做。
+老师页有「收卷」。可以拍照，也可以从相册选。浏览器里用 jsQR 读二维码，缩小后重新编码成 JPEG，再上传。读不出码时，从自己出过的卷里选卷和页。服务端核对卷号、页码和出卷老师。只有出卷老师和管理员能看照片，每次读取写审计。操作步骤、缺页和手机连本机见 [docs/ops/intake.md](docs/ops/intake.md)。已收的照片可以点「AI 识别」。默认是 mock，不访问网络。两步识别、本机判分和切到方舟见 [docs/ops/ai.md](docs/ops/ai.md)。建议在老师确认前不是结果。按题裁切还没做。采用、修改、驳回建议的界面还没做。
 
 服务已经在 8765 端口时，另开一个窗口执行 `python scripts/smoke_http.py`。复验：
 

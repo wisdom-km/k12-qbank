@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
-SLICES = ("catalog", "knowledge", "identity", "practice", "analysis", "delivery")
+SLICES = ("catalog", "knowledge", "identity", "practice", "ai", "analysis", "delivery")
 ALWAYS_TOP = frozenset({"kernel", "bootstrap"})
 DEFAULT_SLICES = frozenset({"catalog", "practice"})
 KNOWN_TOP = ALWAYS_TOP | frozenset(SLICES)
@@ -48,6 +48,7 @@ BACKEND_IMPORT = (
     "backend.knowledge",
     "backend.identity",
     "backend.practice",
+    "backend.ai",
     "backend.analysis",
     "backend.delivery",
     "backend.bootstrap",

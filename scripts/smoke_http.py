@@ -6,6 +6,7 @@ import http.cookiejar
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -119,6 +120,25 @@ def _intake(base: str, paper_id: str) -> int:
         return 1
     if b"EXIF-MARKER-SYNTH" in body or b"student-synth" in body or b"synth-0001" in body:
         print("SMOKE HTTP FAIL: intake image still has capture data or an id")
+        return 1
+    started = _json(_open(base + "/api/practice/intake/" + intake_id + "/ai-runs", {}, 202))
+    run_id = started.get("run_id")
+    if not isinstance(run_id, str) or not run_id.startswith("run-"):
+        print("SMOKE HTTP FAIL: ai run")
+        return 1
+    deadline = time.time() + 5
+    report: dict[str, object] = {}
+    while time.time() < deadline:
+        report = _json(_open(base + "/api/practice/ai-runs/" + run_id))
+        if report.get("status") in {"succeeded", "failed"}:
+            break
+        time.sleep(0.05)
+    if report.get("status") != "succeeded":
+        print("SMOKE HTTP FAIL: ai status " + str(report.get("status")) + " " + str(report.get("error_code")))
+        return 1
+    suggestions = report.get("suggestions")
+    if not isinstance(suggestions, list) or not suggestions:
+        print("SMOKE HTTP FAIL: ai suggestions")
         return 1
     return 0
 

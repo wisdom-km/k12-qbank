@@ -18,6 +18,8 @@
 | paper_created | INFO | practice | 学生卷标识 |
 | intake_uploaded | INFO | practice | audit=true。paper_id、page_no、located_by、replaced。不记学号，不记图片字节 |
 | intake_read | INFO | practice | audit=true。paper_id、page_no、located_by。不记学号，不记图片字节 |
+| ai_run_started | INFO | ai | audit=true。run_id、provider、model、status、duration_ms、input_tokens、output_tokens。不记学号、照片、转写、提示词、密钥 |
+| ai_run_finished | INFO | ai | audit=true。字段与上一行相同。失败时 outcome 为 err |
 | page_stored | INFO | 文件适配器 | 文件标识 |
 | analysis_finished | INFO | analysis | 任务标识、结果类别 |
 | attempt_confirmed | INFO | practice | 确认记录标识 |

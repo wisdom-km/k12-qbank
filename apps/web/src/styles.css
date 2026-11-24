@@ -149,6 +149,10 @@ label {
   border-radius: 8px;
 }
 
+.ai-panel {
+  margin-top: 0.75rem;
+}
+
 .intake-file input {
   position: absolute;
   width: 1px;

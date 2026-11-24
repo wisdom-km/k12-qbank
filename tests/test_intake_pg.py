@@ -280,11 +280,21 @@ def _v014_round_trip(dsn: str) -> None:
 
     root = repo_root()
     migrate(dsn, root, "up")
-    item = next(row for row in discover(root) if row.version == "V014")
+    found = discover(root)
+    item = next(row for row in found if row.version == "V014")
+    # Later migrations can reference intake_page. Peel them before V014's own down.
+    later = [row for row in found if row.version > "V014"]
     _expect_v014(dsn, True)
     try:
         with psycopg.connect(dsn) as conn:
             with conn.transaction():
+                for row in reversed(later):
+                    for statement in sql_statements(row.down.read_text(encoding="utf-8")):
+                        conn.execute(statement)
+                    conn.execute(
+                        "DELETE FROM schema_migrations WHERE version = %s",
+                        (row.version,),
+                    )
                 for statement in sql_statements(item.down.read_text(encoding="utf-8")):
                     conn.execute(statement)
                 conn.execute("DELETE FROM schema_migrations WHERE version = %s", ("V014",))

@@ -27,6 +27,8 @@ from backend.identity.application.run import memory_scope
 from backend.kernel.log_event import LogEvent
 from backend.kernel.logger import CompositeLogger, Logger
 from backend.practice.adapters.files import MemoryFiles
+from backend.ai.adapters.memory_runs import MemoryRuns
+from backend.ai.adapters.mock_model import MockModel
 from backend.practice.adapters.memory import MemoryPractice
 from backend.practice.adapters.memory_intake import MemoryIntake
 from backend.practice.adapters.memory_items import MemoryComposedWriter, MemoryPracticeItems
@@ -55,6 +57,8 @@ class Loop:
     items: object = field(default_factory=MemoryPracticeItems)
     composed: object | None = None
     intake: object = field(default_factory=MemoryIntake)
+    ai_runs: object = field(default_factory=MemoryRuns)
+    model: object = field(default_factory=MockModel)
 
 
 def compose() -> Loop:
@@ -119,6 +123,12 @@ def _loop(**kwargs: object) -> Loop:
         "answers": MemoryAnswers(),
     }
     values.update(kwargs)
+    if "ai_runs" not in values:
+        values["ai_runs"] = MemoryRuns()
+    if "model" not in values:
+        from backend.bootstrap.ai_wire import build_model
+
+        values["model"] = build_model()
     loop = Loop(**values)  # type: ignore[arg-type]
     if loop.composed is None:
         loop = replace(loop, composed=MemoryComposedWriter(loop.practice, loop.items))  # type: ignore[arg-type]

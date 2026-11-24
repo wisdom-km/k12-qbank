@@ -35,6 +35,7 @@
 | 改界面，不改规则 | [DESIGN.md](DESIGN.md)；ARCHITECTURE 的依赖规则 |
 | 改业务规则 | PRD 里对应的 US 和 AC；ARCHITECTURE 的不变量 R1–R6 |
 | 加适配器或换模型 | ARCHITECTURE 的端口；[docs/adr/0005-analysis-ports.md](docs/adr/0005-analysis-ports.md) |
+| 识别建议 | [docs/adr/0045-ai-suggestions.md](docs/adr/0045-ai-suggestions.md)。运行步骤见 [docs/ops/ai.md](docs/ops/ai.md)。测试和 CI 只用 mock |
 | 排查 bug | 先按 request_id 看日志，命令见下；再读 ARCHITECTURE 的运行日志 |
 | 第一段：网页核验、出卷、确认 | [docs/exec-plans/active/rational-number-loop.md](docs/exec-plans/active/rational-number-loop.md)。该计划停在 main `aa629cd`。其后的草稿导入和 ADR 0016 已在 main。产品顺序见 [docs/adr/0015-publication-and-practice.md](docs/adr/0015-publication-and-practice.md) |
 | 登录、授权和审计 | [docs/exec-plans/active/identity-and-audit.md](docs/exec-plans/active/identity-and-audit.md)。`PHASE_SLICES` 含 identity。会话见 [docs/adr/0025-roles-and-session.md](docs/adr/0025-roles-and-session.md)。库见 [docs/adr/0028-postgres-and-memory.md](docs/adr/0028-postgres-and-memory.md) |
@@ -63,7 +64,7 @@
 | 文档冒烟 | `python scripts/smoke_docs.py` |
 | 最小 core 测试 | `python -m unittest discover -s tests -v` |
 | 页面测试 | `npm test --prefix apps/web` |
-| 边界、相对导入和阶段范围 | `python scripts/check_boundaries.py`。允许的业务切片是 `scripts/check.conf` 的 `PHASE_SLICES`，当前 `catalog practice identity knowledge`。空白配置回落 `catalog practice`。非空环境变量同名时覆盖 |
+| 边界、相对导入和阶段范围 | `python scripts/check_boundaries.py`。允许的业务切片是 `scripts/check.conf` 的 `PHASE_SLICES`，当前 `catalog practice identity knowledge ai`。空白配置回落 `catalog practice`。非空环境变量同名时覆盖 |
 | 日志规则 | `python scripts/check_logging.py` |
 | 文件备份演练 | `python scripts/drill_backup.py`。夹具记录在 `docs/evidence/backup-drill-2026-11-14.md`，不是正式数据 |
 | 全量检查 | `powershell -ExecutionPolicy Bypass -File scripts/check.ps1` |
@@ -82,7 +83,7 @@
 
 ## 何时停下问人
 
-规格和方案 1.1 冲突；要改门禁；要花钱调用模型；要动真实学生数据；DEC-01 到 DEC-06 仍空着却必须替机构做决定；缺了端口契约。
+规格和方案 1.1 冲突；要改门禁；要花钱调用模型；要动真实学生数据；DEC-01、DEC-02、DEC-04、DEC-05、DEC-06 仍待机构确认，却必须替机构做决定；缺了端口契约。DEC-03 已有同意记录。真实模型调用仍按 A-09 和 ADR 0045。
 
 ## 容易误导
 
@@ -92,4 +93,4 @@
 
 核对页写出的 `.questions.json` 用 `import_question_draft` 直接保存。形状先过 `backend/catalog/contracts/` 的 JSON Schema，见 [docs/adr/0017-contract-schema.md](docs/adr/0017-contract-schema.md)。不要再设计一套题目 JSON。题目表见 [docs/adr/0013-draft-and-geometry.md](docs/adr/0013-draft-and-geometry.md)。OCR 答案在 `{题干文件名}.answers/` 里，一份文件一条答案，用 `import_answer_draft` 直接保存。不要再设计一套答案 JSON。答案表见 [docs/adr/0014-answer-versions.md](docs/adr/0014-answer-versions.md)。扫描件和模型候选不要拆成两套表。知识点和解题方法是目录，错因只作建议，见 [docs/adr/0016-knowledge-and-methods.md](docs/adr/0016-knowledge-and-methods.md)。不要把错因写进题目行，也不要让分析用例新建目录行。第一次有真实行写入 PostgreSQL 时才建表。
 
-第一段合成闭环停在 `aa629cd`。题目草稿、OCR 答案导入和 ADR 0016 已在其后的 main。`PHASE_SLICES` 现为 `catalog practice identity knowledge`。knowledge 的内存端口已接，表未建，见 [docs/exec-plans/active/knowledge-slice.md](docs/exec-plans/active/knowledge-slice.md)。`analysis`、`delivery` 仍不建。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。登录和审计见 ADR 0025 到 0031。
+第一段合成闭环停在 `aa629cd`。题目草稿、OCR 答案导入和 ADR 0016 已在其后的 main。`PHASE_SLICES` 现为 `catalog practice identity knowledge ai`。knowledge 的内存端口已接，表未建，见 [docs/exec-plans/active/knowledge-slice.md](docs/exec-plans/active/knowledge-slice.md)。`ai` 是识别建议切片，见 [docs/adr/0045-ai-suggestions.md](docs/adr/0045-ai-suggestions.md)。`analysis`、`delivery` 仍不建。不要一次建满六个切片，不要建安卓工程，不要打包桌面。Electron 不是退路。ADR 0011 仍是提议。登录和审计见 ADR 0025 到 0031。

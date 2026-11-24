@@ -65,6 +65,28 @@ def require_pdf_font(env_raw: str, logger: Logger) -> None:
     _refuse(logger, "pdf_font_missing")
 
 
+def require_ai_provider(env_raw: str, logger: Logger) -> None:
+    """production exits when volcengine is selected and a setting is missing.
+
+    The missing names go to stderr. The values do not.
+    """
+    provider = os.environ.get("K12_AI_PROVIDER", "").strip() or "mock"
+    if provider not in {"mock", "volcengine"}:
+        sys.stderr.write("K12_AI_PROVIDER\n")
+        _refuse(logger, "ai_provider_unknown")
+    if provider != "volcengine" or _mode(env_raw, logger) != "production":
+        return
+    missing = [
+        name
+        for name in ("K12_AI_BASE_URL", "K12_AI_MODEL", "K12_AI_API_KEY")
+        if not os.environ.get(name, "").strip()
+    ]
+    if not missing:
+        return
+    sys.stderr.write("missing " + " ".join(missing) + "\n")
+    _refuse(logger, "ai_provider_incomplete")
+
+
 def require_paper_layout(env_raw: str, logger: Logger) -> None:
     """production exits when the layout file is illegal. development does not."""
     if _mode(env_raw, logger) != "production":
