@@ -31,6 +31,11 @@ class MemoryDecisions:
             rows = [row for row in self._rows.values() if row.paper_id == paper_id]
         return tuple(sorted(rows, key=lambda row: (row.order_no, row.decided_at, row.decision_id)))
 
+    def all_current(self) -> tuple[TeacherDecision, ...]:
+        with self._lock:
+            rows = [row for row in self._rows.values() if not row.voided_at]
+        return tuple(sorted(rows, key=lambda row: (row.decided_at, row.paper_id, row.order_no)))
+
     def replace(self, row: TeacherDecision) -> None:
         """Void the current row, then insert. The new row is the only current one."""
         with self._lock:

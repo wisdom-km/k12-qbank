@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { call, callWithId } from "./auth.js";
+import { AiAccuracyPanel } from "./ai_accuracy_panel.jsx";
 import { BookImportPanel } from "./book_import_panel.jsx";
 
 const EMPTY = { username: "", secret: "", externalId: "", name: "", grade: "", subjectId: "", teacherId: "", studentId: "" };
@@ -67,6 +68,7 @@ export function AdminPage() {
         </p>
       )}
       <BookImportPanel onImported={() => reload().catch(setError)} />
+      <AiAccuracyPanel />
       <section>
         <h2>老师</h2>
         <label>用户名<input name="teacher-username" value={form.username} onChange={setField("username")} /></label>

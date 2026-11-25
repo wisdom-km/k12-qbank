@@ -9,9 +9,12 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from backend.ai.application.accuracy import accuracy_report
 from backend.ai.application.load import load_context
 from backend.ai.application.recognize import perform, read_run, start_run
 from backend.bootstrap.http_errors import error_response
+from backend.bootstrap.schemas.accuracy import AccuracyResponse
+from backend.identity.application.guard import admin_only
 from backend.kernel.result import Err
 from backend.kernel.use_log import emit
 
@@ -80,6 +83,17 @@ def register_ai(app: FastAPI) -> None:
         if isinstance(result, Err):
             return error_response(request.state.request_id, result)
         return JSONResponse(result.value)
+
+    @app.get("/api/admin/ai/accuracy", response_model=AccuracyResponse)
+    def ai_accuracy(request: Request, provider: str = "", model: str = "") -> JSONResponse:
+        refused = admin_only(request.state.actor)
+        if refused is not None:
+            return error_response(request.state.request_id, refused)
+        loop = request.app.state.loop
+        body = AccuracyResponse.model_validate(
+            accuracy_report(loop.ai_runs, loop.decisions, provider=provider, model=model)
+        )
+        return JSONResponse(body.model_dump())
 
 
 def _execute(app: FastAPI, run_id: str, request_id: str, actor_id: str, actor_role: str) -> None:

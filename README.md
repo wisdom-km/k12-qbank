@@ -60,7 +60,7 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | 业务代码 `catalog` / `practice` | 合成题目上可以拒绝未核准出卷，生成 PDF，并按操作键确认一条作答 |
 | 教学服务 | 本机合成 HTTP 已接上会话。默认不连库。还没有对外发布。页面是 `/login`、`/`、`/admin` 和 `/account` |
 | 登录 | 页面 `/login`。未登录打开 `/`、`/admin` 或 `/account` 会到登录页。会话 cookie 是 `k12_sid`。写操作带 `X-K12-CSRF` |
-| 管理员后台 | 页面 `/admin`。管理员可建老师和学生、授权和撤销、查看审计与错误，并一次吊销自己的活跃会话。也可以在这一页拖入或选择书文件夹，先预演再确认写入。老师打开该页得到 permission_denied |
+| 管理员后台 | 页面 `/admin`。管理员可建老师和学生、授权和撤销、查看审计与错误，并一次吊销自己的活跃会话。也可以在这一页拖入或选择书文件夹，先预演再确认写入。同一页有只读的「识别率对账」。老师打开该页得到 permission_denied |
 | PostgreSQL 已连接 | 仅当 `K12_PG_DSN` 有值时连接并迁移 identity、审计、catalog 与 practice。页字节在 `K12_FILE_DIR`。`K12_ENV` 默认 development；production 缺少连接串或页字节目录时退出。默认进程和单测不连接。CI 的 `postgres` 作业包含 up、down、up，以及 identity、catalog/practice 契约和迁移锁 |
 | 运行模式 | `K12_ENV` 默认 development。production 缺少连接串或 `K12_FILE_DIR` 时退出。development 且连接串为空时用内存 |
 | catalog PG | 设置 `K12_PG_DSN` 时写入 V002 运行表、V004 题目和答案、V005 五张子表、V007 `publication`、V008 `publication_asset`，并应用 V009 的 `publication_one_active`。V018 建 `book` 与 `book_lesson`，并给 `approvals` 增加可空的 `book_id`、`pdf_page`，不回填旧行。`figure_geometry` 和 `answer_decision` 仍未建。资产字节上传仍未做 |

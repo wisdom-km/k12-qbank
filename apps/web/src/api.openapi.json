@@ -1914,10 +1914,97 @@
           }
         }
       }
+    },
+    "/api/admin/ai/accuracy": {
+      "get": {
+        "summary": "Ai Accuracy",
+        "operationId": "ai_accuracy_api_admin_ai_accuracy_get",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Provider"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccuracyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AccuracyResponse": {
+        "properties": {
+          "current_threshold": {
+            "type": "number",
+            "title": "Current Threshold"
+          },
+          "available_models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelName"
+            },
+            "type": "array",
+            "title": "Available Models"
+          },
+          "runs": {
+            "$ref": "#/components/schemas/RunOverview"
+          },
+          "items": {
+            "$ref": "#/components/schemas/ItemOverview"
+          },
+          "thresholds": {
+            "items": {
+              "$ref": "#/components/schemas/ThresholdRow"
+            },
+            "type": "array",
+            "title": "Thresholds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_threshold",
+          "available_models",
+          "runs",
+          "items",
+          "thresholds"
+        ],
+        "title": "AccuracyResponse"
+      },
       "AttachPublicationAssetBody": {
         "properties": {
           "file_id": {
@@ -2498,6 +2585,118 @@
         ],
         "title": "IssueItem"
       },
+      "ItemOverview": {
+        "properties": {
+          "decided_total": {
+            "type": "integer",
+            "title": "Decided Total"
+          },
+          "linked_ai": {
+            "type": "integer",
+            "title": "Linked Ai"
+          },
+          "unlinked_manual": {
+            "type": "integer",
+            "title": "Unlinked Manual"
+          },
+          "by_source": {
+            "$ref": "#/components/schemas/SourceCounts"
+          },
+          "ai_decisive": {
+            "type": "integer",
+            "title": "Ai Decisive"
+          },
+          "ai_unsure_or_unreadable": {
+            "type": "integer",
+            "title": "Ai Unsure Or Unreadable"
+          },
+          "agreed": {
+            "type": "integer",
+            "title": "Agreed"
+          },
+          "disagreed": {
+            "type": "integer",
+            "title": "Disagreed"
+          },
+          "agreement_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement Rate"
+          },
+          "by_judged_by": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JudgeCounts"
+            },
+            "type": "object",
+            "title": "By Judged By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decided_total",
+          "linked_ai",
+          "unlinked_manual",
+          "by_source",
+          "ai_decisive",
+          "ai_unsure_or_unreadable",
+          "agreed",
+          "disagreed",
+          "agreement_rate",
+          "by_judged_by"
+        ],
+        "title": "ItemOverview"
+      },
+      "JudgeCounts": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "decisive": {
+            "type": "integer",
+            "title": "Decisive"
+          },
+          "agreed": {
+            "type": "integer",
+            "title": "Agreed"
+          },
+          "disagreed": {
+            "type": "integer",
+            "title": "Disagreed"
+          },
+          "unsure_or_unreadable": {
+            "type": "integer",
+            "title": "Unsure Or Unreadable"
+          },
+          "agreement_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "decisive",
+          "agreed",
+          "disagreed",
+          "unsure_or_unreadable",
+          "agreement_rate"
+        ],
+        "title": "JudgeCounts"
+      },
       "LoginBody": {
         "properties": {
           "username": {
@@ -2515,6 +2714,47 @@
           "secret"
         ],
         "title": "LoginBody"
+      },
+      "MatchCounts": {
+        "properties": {
+          "matched": {
+            "type": "integer",
+            "title": "Matched"
+          },
+          "mismatched": {
+            "type": "integer",
+            "title": "Mismatched"
+          },
+          "missing": {
+            "type": "integer",
+            "title": "Missing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matched",
+          "mismatched",
+          "missing"
+        ],
+        "title": "MatchCounts"
+      },
+      "ModelName": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "ModelName"
       },
       "PasswordBody": {
         "properties": {
@@ -2757,6 +2997,60 @@
         ],
         "title": "ReviseBody"
       },
+      "RunOverview": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "succeeded": {
+            "type": "integer",
+            "title": "Succeeded"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "active": {
+            "type": "integer",
+            "title": "Active"
+          },
+          "failed_by_code": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Failed By Code"
+          },
+          "external_match": {
+            "$ref": "#/components/schemas/MatchCounts"
+          },
+          "page_match": {
+            "$ref": "#/components/schemas/MatchCounts"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "succeeded",
+          "failed",
+          "active",
+          "failed_by_code",
+          "external_match",
+          "page_match",
+          "input_tokens",
+          "output_tokens"
+        ],
+        "title": "RunOverview"
+      },
       "SecretBody": {
         "properties": {
           "secret": {
@@ -2769,6 +3063,29 @@
           "secret"
         ],
         "title": "SecretBody"
+      },
+      "SourceCounts": {
+        "properties": {
+          "adopted": {
+            "type": "integer",
+            "title": "Adopted"
+          },
+          "revised": {
+            "type": "integer",
+            "title": "Revised"
+          },
+          "manual": {
+            "type": "integer",
+            "title": "Manual"
+          }
+        },
+        "type": "object",
+        "required": [
+          "adopted",
+          "revised",
+          "manual"
+        ],
+        "title": "SourceCounts"
       },
       "StudentBody": {
         "properties": {
@@ -2821,6 +3138,63 @@
           "secret"
         ],
         "title": "TeacherBody"
+      },
+      "ThresholdRow": {
+        "properties": {
+          "threshold": {
+            "type": "number",
+            "title": "Threshold"
+          },
+          "confident_count": {
+            "type": "integer",
+            "title": "Confident Count"
+          },
+          "confident_agreed": {
+            "type": "integer",
+            "title": "Confident Agreed"
+          },
+          "false_confident": {
+            "type": "integer",
+            "title": "False Confident"
+          },
+          "review_needed_count": {
+            "type": "integer",
+            "title": "Review Needed Count"
+          },
+          "confident_accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confident Accuracy"
+          },
+          "coverage_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "threshold",
+          "confident_count",
+          "confident_agreed",
+          "false_confident",
+          "review_needed_count",
+          "confident_accuracy",
+          "coverage_rate"
+        ],
+        "title": "ThresholdRow"
       },
       "ValidationError": {
         "properties": {

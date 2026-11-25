@@ -825,10 +825,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/ai/accuracy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ai Accuracy */
+        get: operations["ai_accuracy_api_admin_ai_accuracy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccuracyResponse */
+        AccuracyResponse: {
+            /** Current Threshold */
+            current_threshold: number;
+            /** Available Models */
+            available_models: components["schemas"]["ModelName"][];
+            runs: components["schemas"]["RunOverview"];
+            items: components["schemas"]["ItemOverview"];
+            /** Thresholds */
+            thresholds: components["schemas"]["ThresholdRow"][];
+        };
         /** AttachPublicationAssetBody */
         AttachPublicationAssetBody: {
             /** File Id */
@@ -1138,12 +1166,67 @@ export interface components {
             /** Question Version Id */
             question_version_id: string;
         };
+        /** ItemOverview */
+        ItemOverview: {
+            /** Decided Total */
+            decided_total: number;
+            /** Linked Ai */
+            linked_ai: number;
+            /** Unlinked Manual */
+            unlinked_manual: number;
+            by_source: components["schemas"]["SourceCounts"];
+            /** Ai Decisive */
+            ai_decisive: number;
+            /** Ai Unsure Or Unreadable */
+            ai_unsure_or_unreadable: number;
+            /** Agreed */
+            agreed: number;
+            /** Disagreed */
+            disagreed: number;
+            /** Agreement Rate */
+            agreement_rate: number | null;
+            /** By Judged By */
+            by_judged_by: {
+                [key: string]: components["schemas"]["JudgeCounts"];
+            };
+        };
+        /** JudgeCounts */
+        JudgeCounts: {
+            /** Total */
+            total: number;
+            /** Decisive */
+            decisive: number;
+            /** Agreed */
+            agreed: number;
+            /** Disagreed */
+            disagreed: number;
+            /** Unsure Or Unreadable */
+            unsure_or_unreadable: number;
+            /** Agreement Rate */
+            agreement_rate: number | null;
+        };
         /** LoginBody */
         LoginBody: {
             /** Username */
             username: string;
             /** Secret */
             secret: string;
+        };
+        /** MatchCounts */
+        MatchCounts: {
+            /** Matched */
+            matched: number;
+            /** Mismatched */
+            mismatched: number;
+            /** Missing */
+            missing: number;
+        };
+        /** ModelName */
+        ModelName: {
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
         };
         /** PasswordBody */
         PasswordBody: {
@@ -1235,10 +1318,40 @@ export interface components {
             /** Answer Text */
             answer_text: string;
         };
+        /** RunOverview */
+        RunOverview: {
+            /** Total */
+            total: number;
+            /** Succeeded */
+            succeeded: number;
+            /** Failed */
+            failed: number;
+            /** Active */
+            active: number;
+            /** Failed By Code */
+            failed_by_code: {
+                [key: string]: number;
+            };
+            external_match: components["schemas"]["MatchCounts"];
+            page_match: components["schemas"]["MatchCounts"];
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+        };
         /** SecretBody */
         SecretBody: {
             /** Secret */
             secret: string;
+        };
+        /** SourceCounts */
+        SourceCounts: {
+            /** Adopted */
+            adopted: number;
+            /** Revised */
+            revised: number;
+            /** Manual */
+            manual: number;
         };
         /** StudentBody */
         StudentBody: {
@@ -1257,6 +1370,23 @@ export interface components {
             username: string;
             /** Secret */
             secret: string;
+        };
+        /** ThresholdRow */
+        ThresholdRow: {
+            /** Threshold */
+            threshold: number;
+            /** Confident Count */
+            confident_count: number;
+            /** Confident Agreed */
+            confident_agreed: number;
+            /** False Confident */
+            false_confident: number;
+            /** Review Needed Count */
+            review_needed_count: number;
+            /** Confident Accuracy */
+            confident_accuracy: number | null;
+            /** Coverage Rate */
+            coverage_rate: number | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -2831,6 +2961,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_accuracy_api_admin_ai_accuracy_get: {
+        parameters: {
+            query?: {
+                provider?: string;
+                model?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccuracyResponse"];
                 };
             };
             /** @description Validation Error */

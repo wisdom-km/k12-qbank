@@ -7,9 +7,11 @@ content is refused. The review version is checked apart from the key.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 from backend.practice.domain.confirm import Confirmation, OperationKey
+from backend.practice.domain.decision import review_threshold
 from backend.practice.domain.formula import plain_has_command, unsupported_commands
 from backend.practice.domain.layout_params import LayoutError, load_layout
 from backend.practice.domain.paper import Paper
@@ -22,10 +24,16 @@ __all__ = [
     "OpenedPaper",
     "OperationKey",
     "Paper",
+    "current_review_threshold",
     "paper_layout_problem",
     "plain_has_command",
     "unsupported_commands",
 ]
+
+
+def current_review_threshold() -> float:
+    """The cutoff adopt-confident already uses. Empty or unusable values stay at 0.6."""
+    return review_threshold(os.environ.get("K12_AI_REVIEW_THRESHOLD", ""))
 
 
 def paper_layout_problem() -> tuple[str, str]:
