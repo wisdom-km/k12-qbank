@@ -90,3 +90,13 @@ issue #101：模型读出照片上印的学号和页码，和收卷定位的结�
 ## 状态
 
 采纳。2026-11-24。
+
+## 修订（2026-11-25，R6a 对账报表）
+
+管理员只读 `GET /api/admin/ai/accuracy`。查询参数 `provider`、`model` 可省略。省略时统计全部运行和全部未作废老师结论。写上时去首尾空白后精确匹配 `ai_run.provider`、`ai_run.model`。运行计数只含匹配的运行。老师结论只计入其 `ai_run_id` 落在这些运行里的记录；没有 `ai_run_id` 的纯手评归入 `unlinked_manual`，不进该模型的分子分母；指向其他模型的结论整行不进这一次筛选。响应另给库里出现过的不重复 `(provider, model)`，不含密钥和地址。
+
+关联键是 `teacher_decision.ai_run_id` 加上 `paper_id`、`order_no`，对上同一次运行里的 `ai_suggestion`。已作废结论（`voided_at` 非空）不计入。存储里的判定是 `correct`、`incorrect`、`partial`、`unsure`，没有 `wrong`。对账里的「错」就是 `incorrect`。有把握是看清了且判定为 `correct` 或 `incorrect`。看不清或 `unsure` 计入不确定。`partial` 两边都不进。学号和页码只统计成功运行：库存的 `consistent`、`mismatch`、`unread`（或空）分别记成 `matched`、`mismatched`、`missing`。
+
+阈值表固定算 `0.5`、`0.6`、`0.7`、`0.8`、`0.9`。当前生效值读 `K12_AI_REVIEW_THRESHOLD`，与批改里同一函数，空着或不可用仍是 `0.6`。若当前值不在这五档里，并入后按升序去重。某一档的高把握题是有把握且置信度大于等于该档。高把握却和老师结论不同的题数是 `false_confident`。覆盖率是高把握题数除以关联到建议的题数。分母为 0 时比率为空，不除零。本修订不改默认阈值，不改提示词，不改批改写入。
+
+成功读取不写审计。响应只有计数、比率、provider、model 和错误码计数。不返回学号、姓名、题干、标准答案、转写、改正转写、批注或文件路径。真实样张实测、模型选型和阈值拍板仍未做。步骤见 [docs/ops/ai-accuracy.md](../ops/ai-accuracy.md)。上文不改。

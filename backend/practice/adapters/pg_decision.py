@@ -49,6 +49,16 @@ class PgDecisions:
             ),
         )
 
+    def all_current(self) -> tuple[TeacherDecision, ...]:
+        return _run(
+            self._pool,
+            lambda conn: _many(
+                conn,
+                "WHERE voided_at IS NULL ORDER BY decided_at, paper_id, order_no",
+                (),
+            ),
+        )
+
     def replace(self, row: TeacherDecision) -> None:
         def work(conn: Any) -> None:
             conn.execute(

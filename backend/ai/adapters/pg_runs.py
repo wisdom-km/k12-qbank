@@ -93,6 +93,35 @@ class PgRuns:
 
         return _run(self._pool, work)
 
+    def all_runs(self) -> tuple[Run, ...]:
+        def work(conn: Any) -> tuple[Run, ...]:
+            rows = conn.execute(
+                """
+                SELECT run_id, intake_id, provider, model, prompt_version, status,
+                       error_code, started_at, finished_at, input_tokens, output_tokens,
+                       external_match, page_match
+                FROM ai_run
+                ORDER BY started_at, run_id
+                """
+            ).fetchall()
+            suggestions = conn.execute(
+                """
+                SELECT run_id, paper_id, order_no, transcription, unreadable, confidence,
+                       verdict, reason, judged_by
+                FROM ai_suggestion
+                ORDER BY run_id, order_no
+                """
+            ).fetchall()
+            grouped: dict[str, list[Suggestion]] = {}
+            for item in suggestions:
+                grouped.setdefault(str(item[0]), []).append(_suggestion(item))
+            return tuple(
+                _run_row(row, tuple(grouped.get(str(row[0]), ())))
+                for row in rows
+            )
+
+        return _run(self._pool, work)
+
     def count_started_on(self, day: str) -> int:
         start = datetime.fromisoformat(day + "T00:00:00+00:00")
         end = start + timedelta(days=1)

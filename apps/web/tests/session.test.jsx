@@ -283,6 +283,9 @@ describe("session pages", () => {
       if (path === "/api/admin/grants") return jsonResponse(200, { grants: [] });
       if (path === "/api/admin/audit") return jsonResponse(200, { events: [] });
       if (path === "/api/admin/errors") return jsonResponse(200, { errors: [] });
+      if (path.startsWith("/api/admin/ai/accuracy")) {
+        return jsonResponse(200, { current_threshold: 0.6, available_models: [], runs: { total: 0 }, items: { decided_total: 0 }, thresholds: [] });
+      }
       return jsonResponse(404, { code: "not_found", message: "not_found", request_id: "req-test" });
     });
     await renderAt("/admin");
