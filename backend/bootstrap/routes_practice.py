@@ -14,6 +14,7 @@ from backend.identity.application.students import get_visible_student
 from backend.kernel.result import Err
 from backend.practice.api import ConfirmCommand, IssuePaperCommand, Paper
 from backend.practice.application.confirm_attempt import confirm_attempt
+from backend.practice.application.follow_up import issue_follow_up
 from backend.practice.application.open_multi import open_multi_paper
 from backend.practice.application.open_paper import open_paper, read_attempt
 from backend.practice.application.paper_qr import paper_qr_enabled
@@ -33,6 +34,11 @@ class IssueBody(BaseModel):
     review_version_id: str
     teacher_id: str = ""
     items: list[IssueItem] = []
+
+
+class FollowUpBody(BaseModel):
+    order_nos: list[int] = []
+    review_version_id: str = ""
 
 
 class ConfirmBody(BaseModel):
@@ -68,6 +74,10 @@ def register_practice(app: FastAPI) -> None:
     @app.post("/api/practice/papers/{paper_id}/handout")
     def handout(paper_id: str, request: Request) -> JSONResponse:
         return _handout(paper_id, request)
+
+    @app.post("/api/practice/papers/{paper_id}/follow-up")
+    def follow_up(paper_id: str, request: Request, body: FollowUpBody | None = None) -> JSONResponse:
+        return _follow_up(paper_id, body or FollowUpBody(), request)
 
     @app.get("/api/practice/papers/{paper_id}/attempt")
     def attempt(paper_id: str, request: Request) -> JSONResponse:
@@ -151,6 +161,52 @@ def _issue(body: IssueBody, request: Request) -> JSONResponse:
             request=request,
         )
     )
+
+
+def _follow_up(paper_id: str, body: FollowUpBody, request: Request) -> JSONResponse:
+    loop = request.app.state.loop
+    actor = _actor(request)
+    result = issue_follow_up(
+        paper_id,
+        order_nos=body.order_nos,
+        review_version_id=body.review_version_id,
+        actor_teacher_id=actor,
+        approvals=loop.approvals,
+        auth=loop.auth,
+        store=loop.practice,
+        items=loop.items,
+        decisions=loop.decisions,
+        writer=loop.composed,
+        files=loop.files,
+        renderer=loop.renderer,
+        publications=loop.publications,
+        logger=loop.logger,
+        request_id=request.state.request_id,
+        qr_printed=paper_qr_enabled(),
+        printed_external_id=_copied_external_id(request, _student_id(loop, paper_id)),
+        attempt_text=_attempt_text(),
+        bind_attempt=not _production(),
+    )
+    if isinstance(result, Err):
+        return error_response(request.state.request_id, result)
+    opened = result.value
+    return JSONResponse(
+        _paper_body(
+            opened.paper,
+            opened.fixture_answer_id,
+            opened.render_code,
+            opened.render_message,
+            request=request,
+        )
+    )
+
+
+def _student_id(loop: object, paper_id: str) -> str:
+    """Copy the student number only after the paper is known. Do not log it."""
+    paper = loop.practice.get_paper(paper_id)  # type: ignore[attr-defined]
+    if paper is None:
+        return ""
+    return str(paper.student_id)
 
 
 def _handout(paper_id: str, request: Request) -> JSONResponse:
@@ -272,6 +328,7 @@ def _paper_body(
         page_count = pages_of(paper, found)
     body: dict[str, object] = {
         "paper_id": paper.paper_id,
+        "source_paper_id": paper.source_paper_id,
         "status": paper.status,
         "student_id": paper.student_id,
         "subject_id": paper.subject_id,

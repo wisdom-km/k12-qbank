@@ -31,6 +31,7 @@ def compose_multi_item_paper(
     slots_per_page: int = 1,
     layout_kind: str = "slots",
     layout_params: str = "",
+    source_paper_id: str = "",
 ) -> Ok[Paper] | Err:
     """Freeze two or more items. The paper column keeps items[0] for old readers."""
     shape = _shape_error(paper_id, items)
@@ -67,6 +68,7 @@ def compose_multi_item_paper(
         layout_kind=layout_kind,
         layout_params=layout_params,
         issued_on=datetime.now(timezone.utc).date().isoformat(),
+        source_paper_id=source_paper_id,
     )
     if isinstance(paper, Err):
         return paper

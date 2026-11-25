@@ -42,6 +42,7 @@ def open_multi_paper(
     attempt_text: str,
     publications: Publications,
     bind_attempt: bool = True,
+    source_paper_id: str = "",
 ) -> Ok[OpenedPaper] | Err:
     """Copy each approved stem and answer, then draw the packed pages."""
     started = time.perf_counter()
@@ -111,6 +112,7 @@ def open_multi_paper(
         slots_per_page=slots_per_page,
         layout_kind=layout_kind,
         layout_params=layout_params,
+        source_paper_id=source_paper_id,
     )
     if isinstance(composed, Err):
         return _refuse(logger, request_id, started, composed.code, composed.message)

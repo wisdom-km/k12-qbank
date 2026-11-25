@@ -16,7 +16,8 @@ T = TypeVar("T")
 _PAPER = """
 paper_id, teacher_id, student_id, subject_id, question_version_id, answer_version_id,
 asset_ids, layout_template_id, review_version_id, file_id, status, item_order, file_checksum, formula,
-qr_printed, printed_external_id, slots_per_page, layout_kind, layout_params, issued_on
+qr_printed, printed_external_id, slots_per_page, layout_kind, layout_params, issued_on,
+source_paper_id
 """
 
 
@@ -121,7 +122,7 @@ def _insert_paper(conn: Any, paper: Paper) -> None:
     conn.execute(
         f"""
         INSERT INTO papers ({_PAPER})
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULLIF(%s, '')::date)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULLIF(%s, '')::date, NULLIF(%s, ''))
         """,
         (
             paper.paper_id,
@@ -144,6 +145,7 @@ def _insert_paper(conn: Any, paper: Paper) -> None:
             paper.layout_kind,
             paper.layout_params or None,
             paper.issued_on,
+            paper.source_paper_id,
         ),
     )
 

@@ -228,6 +228,15 @@ def _grade(base: str) -> int:
     if done.get("done") is not True or int(done.get("confirmed") or 0) != 3:
         print("SMOKE HTTP FAIL: grade done")
         return 1
+    followed = _json(_open(base + "/api/practice/papers/" + paper_id + "/follow-up", {}))
+    new_id = str(followed.get("paper_id") or "")
+    if not new_id or new_id == paper_id or followed.get("source_paper_id") != paper_id:
+        print("SMOKE HTTP FAIL: follow-up")
+        return 1
+    kept = _json(_open(base + "/api/practice/papers/" + paper_id + "/review"))
+    if kept.get("done") is not True:
+        print("SMOKE HTTP FAIL: follow-up source")
+        return 1
     return 0
 
 

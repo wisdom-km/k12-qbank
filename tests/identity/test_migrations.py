@@ -34,6 +34,7 @@ class MigrationFilesTest(unittest.TestCase):
                 "V016",
                 "V017",
                 "V018",
+                "V019",
             ],
         )
         self.assertTrue(found[0].down.is_file())
@@ -299,3 +300,15 @@ class MigrationFilesTest(unittest.TestCase):
                 self.assertNotIn("psycopg", text)
                 self.assertNotIn("INSERT ", text)
                 self.assertNotIn("SELECT ", text)
+
+    def test_v019_adds_a_nullable_source_without_a_lock(self) -> None:
+        found = discover(ROOT)
+        item = next(row for row in found if row.version == "V019")
+        up = "\n".join(sql_statements(item.up.read_text(encoding="utf-8")))
+        down = "\n".join(sql_statements(item.down.read_text(encoding="utf-8")))
+        self.assertIn("ADD COLUMN source_paper_id text NULL", up)
+        self.assertNotIn("REFERENCES", up)
+        self.assertNotIn("schema_migrations", up)
+        self.assertNotIn("pg_advisory", up)
+        self.assertIn("DROP COLUMN IF EXISTS source_paper_id", down)
+        self.assertNotIn("schema_migrations", down)
