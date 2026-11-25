@@ -363,4 +363,87 @@ describe("session pages", () => {
       { question_version_id: "q-v2" },
     ]);
   });
+
+  it("selects every issuable question in one lesson", async () => {
+    const ready = (id, extra) => ({
+      question_version_id: id,
+      subject_id: "math",
+      stem: "synth-stem",
+      answer_text: "2",
+      question_approved: true,
+      answer_approved: true,
+      retired: false,
+      book_id: "synth-r4f",
+      chapter_title: "synth-ch",
+      section_title: "synth-sec",
+      lesson_title: "synth-les",
+      lesson_order: 1,
+      pdf_page: 1,
+      ...extra,
+    });
+    const rows = [
+      ready("q-les-1", {}),
+      ready("q-les-2", {}),
+      ready("q-les-bad", { formula_note: "公式未结构化" }),
+      ready("q-les-draft", { question_approved: false, answer_approved: false }),
+      ready("q-loose", { book_id: "", lesson_order: 0 }),
+    ];
+    installFetch((path) => {
+      if (path === "/api/session") return jsonResponse(200, teacher);
+      if (path === "/api/catalog") return jsonResponse(200, { items: rows });
+      if (path.startsWith("/api/catalog/")) {
+        const id = path.slice("/api/catalog/".length);
+        return jsonResponse(200, rows.find((item) => item.question_version_id === id) || rows[0]);
+      }
+      if (path === "/api/practice/papers") return jsonResponse(200, { count: 0, papers: [] });
+      return jsonResponse(404, { code: "not_found", message: "not_found", request_id: "req-test" });
+    });
+    await renderAt("/");
+    await settle(() => document.querySelectorAll('input[type="checkbox"]').length === 1);
+    expect(document.body.textContent).toContain("未归类");
+    expect(document.body.textContent).toContain("synth-r4f");
+    const lesson = [...document.querySelectorAll(".lesson-block")].find((block) =>
+      block.textContent.includes("课时 1"),
+    );
+    expect(lesson.textContent).toContain("2 道可出卷");
+    await act(async () => {
+      [...lesson.querySelectorAll("button")].find((item) => item.textContent.startsWith("展开")).click();
+    });
+    await act(async () => {
+      [...lesson.querySelectorAll("button")].find((item) => item.textContent === "选中本课时全部可出卷的题").click();
+    });
+    const checked = [...lesson.querySelectorAll('input[type="checkbox"]')].filter((box) => box.checked);
+    expect(checked).toHaveLength(2);
+    expect(lesson.textContent).toContain("q-les-bad");
+    const bad = [...lesson.querySelectorAll("li")].find((item) => item.textContent.includes("q-les-bad"));
+    expect(bad.querySelector('input[type="checkbox"]').checked).toBe(false);
+  });
+
+  it("hides the loose block when every question is in a lesson", async () => {
+    const row = {
+      question_version_id: "q-placed",
+      subject_id: "math",
+      stem: "synth-stem",
+      answer_text: "2",
+      question_approved: true,
+      answer_approved: true,
+      retired: false,
+      book_id: "synth-r4f",
+      chapter_title: "synth-ch",
+      section_title: "synth-sec",
+      lesson_title: "synth-les",
+      lesson_order: 1,
+      pdf_page: 1,
+    };
+    installFetch((path) => {
+      if (path === "/api/session") return jsonResponse(200, teacher);
+      if (path === "/api/catalog") return jsonResponse(200, { items: [row] });
+      if (path.startsWith("/api/catalog/")) return jsonResponse(200, row);
+      if (path === "/api/practice/papers") return jsonResponse(200, { count: 0, papers: [] });
+      return jsonResponse(404, { code: "not_found", message: "not_found", request_id: "req-test" });
+    });
+    await renderAt("/");
+    await settle(() => document.body.textContent.includes("synth-r4f"));
+    expect(document.body.textContent).not.toContain("未归类");
+  });
 });

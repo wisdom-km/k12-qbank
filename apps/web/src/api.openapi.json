@@ -1173,6 +1173,43 @@
         }
       }
     },
+    "/api/catalog/books/{book_id}/lessons": {
+      "get": {
+        "summary": "Catalog Lessons",
+        "operationId": "catalog_lessons_api_catalog_books__book_id__lessons_get",
+        "parameters": [
+          {
+            "name": "book_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Book Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/catalog/{question_version_id}": {
       "get": {
         "summary": "Catalog Get",
@@ -1982,6 +2019,20 @@
             "type": "array",
             "title": "Answer Space",
             "default": []
+          },
+          "toc": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Toc",
+            "default": []
+          },
+          "toc_page_offset": {
+            "type": "integer",
+            "title": "Toc Page Offset",
+            "default": 0
           }
         },
         "additionalProperties": true,
@@ -2045,6 +2096,37 @@
             "type": "integer",
             "title": "Space Changed",
             "default": 0
+          },
+          "toc_changed": {
+            "type": "boolean",
+            "title": "Toc Changed",
+            "default": false
+          },
+          "toc_chapters": {
+            "type": "integer",
+            "title": "Toc Chapters",
+            "default": 0
+          },
+          "toc_sections": {
+            "type": "integer",
+            "title": "Toc Sections",
+            "default": 0
+          },
+          "toc_lessons": {
+            "type": "integer",
+            "title": "Toc Lessons",
+            "default": 0
+          },
+          "toc_unparsed": {
+            "items": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Toc Unparsed",
+            "default": []
           }
         },
         "type": "object",
@@ -2086,6 +2168,16 @@
           "reason": {
             "type": "string",
             "title": "Reason"
+          },
+          "volume": {
+            "type": "string",
+            "title": "Volume",
+            "default": ""
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint",
+            "default": ""
           }
         },
         "type": "object",
@@ -2118,6 +2210,17 @@
           "reason": {
             "type": "string",
             "title": "Reason"
+          },
+          "lesson_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lesson Order"
           }
         },
         "type": "object",
@@ -2174,6 +2277,36 @@
             "type": "string",
             "title": "Formula Note",
             "default": ""
+          },
+          "book_id": {
+            "type": "string",
+            "title": "Book Id",
+            "default": ""
+          },
+          "chapter_title": {
+            "type": "string",
+            "title": "Chapter Title",
+            "default": ""
+          },
+          "section_title": {
+            "type": "string",
+            "title": "Section Title",
+            "default": ""
+          },
+          "lesson_title": {
+            "type": "string",
+            "title": "Lesson Title",
+            "default": ""
+          },
+          "lesson_order": {
+            "type": "integer",
+            "title": "Lesson Order",
+            "default": 0
+          },
+          "pdf_page": {
+            "type": "integer",
+            "title": "Pdf Page",
+            "default": 0
           }
         },
         "type": "object",

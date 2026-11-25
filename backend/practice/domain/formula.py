@@ -42,6 +42,7 @@ _KNOWN = set(_SYMBOLS) | set(_SPACES) | {
     "left",
     "right",
     "text",
+    "textcircled",
     "mathrm",
     "%",
     "{",
@@ -399,6 +400,11 @@ def _one(cur: _Cur, stop: str) -> object | None:
             cur.command()
             closer = _delimiter(cur)
             return ("delim", opener, inner, closer)
+        if name == "textcircled":
+            number = _circled_number(_group(cur))
+            if number is None:
+                raise FormulaFault("formula_unsupported", "\\textcircled")
+            return ("sym", chr(0x2460 + number - 1))
         if name in {"text", "mathrm"}:
             return ("row", _group(cur))
         if name == "%":
@@ -448,6 +454,24 @@ def _script_body(cur: _Cur) -> object:
     if one is None:
         raise FormulaFault("formula_unsupported", "^")
     return one
+
+
+def _circled_number(nodes: tuple[object, ...]) -> int | None:
+    """1 through 20. Anything else is unsupported. The glyph is U+2460 plus the index."""
+    digits: list[str] = []
+    for node in nodes:
+        if not isinstance(node, tuple) or len(node) < 2 or node[0] != "ch":
+            return None
+        char = node[1]
+        if not isinstance(char, str) or len(char) != 1 or not char.isdigit():
+            return None
+        digits.append(char)
+    if not digits:
+        return None
+    number = int("".join(digits))
+    if number < 1 or number > 20:
+        return None
+    return number
 
 
 def _group(cur: _Cur) -> tuple[object, ...]:

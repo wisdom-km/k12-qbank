@@ -44,3 +44,11 @@
 这一列不是题目内容。重导时只有它变了，结果是 `space_changed`，只更新 `approvals.answer_space`，不新增题目、答案或核准版本。报告和合计带上这个计数。再导入时不写这项覆盖，会把以前的覆盖清回空，同样记 `space_changed`。题干、选项、答案文本或 `type` 不同仍是 `conflict`，整本不写，答题区也不改。
 
 指不到题是 `no_question`。取值不在列表里是 `invalid_answer_space`。同一道题写两次是 `duplicate_answer_space`。都是整本拒绝、零写入。上文「只有四种结果」和审计「四种计数」是当时的决定，不删。审计现在在四种计数之后加上 `space_changed`，仍不记题干。
+
+## 修订（2026-11-25，R4f）
+
+书清单增加可选字段 `question_dir`、`answer_dir`、`toc_dir`、`toc_page_offset`。路径相对 `import-book.json`，不接受绝对路径。不写 `question_dir` 时，题目页仍是书目录本身。
+
+每一页带上所在的册：`questions` 或 `answers`。页码只在同一册里要求唯一。`answer_dir` 里的页一律按答案页读 `.answers\`。这一页没有 `.answers\`、却有 `.questions.json` 时，整本拒绝，原因 `answer_page_not_marked`。写了 `answer_dir` 却没有 `pairs` 时，答案页是 `unpaired_answer`，本批不按课时自动配对。
+
+目录由服务端解析成章、节、课时。题目按题目册页码归课。见 ADR 0048。未知字段仍是 `unknown_field`。上文「字段是 `book_id`、`subject_id`、`pairs`」是当时的决定，不删。

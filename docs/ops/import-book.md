@@ -113,6 +113,44 @@ import-{book_id}-{UTC时间}.txt
 
 不要改了题干再对同一个 `book_id` 重导。服务端会整本拒绝，已经在库里的内容不变。
 
+## 题目册、答案册、目录分开放
+
+三份核对页输出的页码都从 1 开始时，不要放进同一个目录。在它们的上一级放 `import-book.json`：
+
+```json
+{
+  "book_id": "kkl-math-7a",
+  "subject_id": "math",
+  "question_dir": "Seven_question",
+  "answer_dir": "Seven_solution",
+  "toc_dir": "Seven_catalog",
+  "toc_page_offset": 0,
+  "pairs": [{ "answer_page": 1, "question_page": 1 }]
+}
+```
+
+三个目录都相对这份清单。不写 `question_dir` 时，题目页仍是清单所在的目录，和上面的单目录布局相同。
+
+题目册按题目页读 `.questions.json`。答案册一律按答案页读 `.answers\`，不看 `.page-role.txt`。答案册某一页没有 `.answers\`、却有 `.questions.json`：整本拒绝，原因 `answer_page_not_marked`，提示「在核对页把这一页切到参考答案页再保存」。写了 `answer_dir` 却没有 `pairs`：答案页是 `unpaired_answer`，这一批不会按课时自动配对。
+
+页码只在同一册里要求唯一。两册都有第 1 页不是 `duplicate_page`。`pairs` 里的 `answer_page` 是答案册页码，`question_page` 是题目册页码。
+
+`_review_backups/`、`_export_backups/` 和以点开头的目录都不读。
+
+`toc_dir` 里每一页的 `.md` 按页码顺序原样交给服务端。服务端把它解析成章、节、课时：
+
+- `##` 二级标题是章
+- 章下面、行尾没有页码的行是节
+- 标题后面是省略号（`……`、`…`、`...` 或连续的点）再加行尾数字，这一行是课时
+- `#` 一级标题、空行、含「参考答案」的行忽略
+- 认不出的行记 `toc_unparsed_line`，报告里只有目录页页码和行号，不收录原文，也不挡导入
+
+课时从「印的页码 + `toc_page_offset`」开始，到下一课的前一页结束。最后一课收到题目册的最后一页。题目落在哪一课的页码范围里，就归哪一课。落不到的在老师页显示为「未归类」。
+
+同一本书再导入时，目录变了会替换这本书的课时行，报告里 `toc_changed` 为 true。题目内容和已经发出的卷不改。清单里不带 `toc_dir` 时，不删除已经存下的课时。
+
+预演和写入都会在清单旁边生成 `_import_reports\`。原目录要保持只读时，先复制到别处再导入。本机空库的启动见 [local-trial.md](local-trial.md)。
+
 ## 常见问题
 
 Python 版本不对：窗口或脚本会写明当前版本。使用 conda 环境 `k12-qbank`，或设置 `K12_PYTHON` 指向 3.12。

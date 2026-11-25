@@ -185,6 +185,28 @@ label {
   .grade-actions {
     flex-direction: column;
   }
+
+  .lesson-actions,
+  .lesson-actions button {
+    width: 100%;
+  }
+}
+
+.catalog-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lesson-block {
+  margin: 0.35rem 0 0.35rem 0.5rem;
+}
+
+.lesson-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .intake-file input {

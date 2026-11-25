@@ -501,6 +501,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/catalog/books/{book_id}/lessons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catalog Lessons */
+        get: operations["catalog_lessons_api_catalog_books__book_id__lessons_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/catalog/{question_version_id}": {
         parameters: {
             query?: never;
@@ -865,6 +882,18 @@ export interface components {
             answer_space: {
                 [key: string]: unknown;
             }[];
+            /**
+             * Toc
+             * @default []
+             */
+            toc: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Toc Page Offset
+             * @default 0
+             */
+            toc_page_offset: number;
         } & {
             [key: string]: unknown;
         };
@@ -895,6 +924,33 @@ export interface components {
              * @default 0
              */
             space_changed: number;
+            /**
+             * Toc Changed
+             * @default false
+             */
+            toc_changed: boolean;
+            /**
+             * Toc Chapters
+             * @default 0
+             */
+            toc_chapters: number;
+            /**
+             * Toc Sections
+             * @default 0
+             */
+            toc_sections: number;
+            /**
+             * Toc Lessons
+             * @default 0
+             */
+            toc_lessons: number;
+            /**
+             * Toc Unparsed
+             * @default []
+             */
+            toc_unparsed: {
+                [key: string]: number;
+            }[];
         };
         /** BookPageReport */
         BookPageReport: {
@@ -906,6 +962,16 @@ export interface components {
             outcome: string;
             /** Reason */
             reason: string;
+            /**
+             * Volume
+             * @default
+             */
+            volume: string;
+            /**
+             * Hint
+             * @default
+             */
+            hint: string;
         };
         /** BookQuestionReport */
         BookQuestionReport: {
@@ -919,6 +985,8 @@ export interface components {
             outcome: string;
             /** Reason */
             reason: string;
+            /** Lesson Order */
+            lesson_order?: number | null;
         };
         /** CatalogItem */
         CatalogItem: {
@@ -951,6 +1019,36 @@ export interface components {
              * @default
              */
             formula_note: string;
+            /**
+             * Book Id
+             * @default
+             */
+            book_id: string;
+            /**
+             * Chapter Title
+             * @default
+             */
+            chapter_title: string;
+            /**
+             * Section Title
+             * @default
+             */
+            section_title: string;
+            /**
+             * Lesson Title
+             * @default
+             */
+            lesson_title: string;
+            /**
+             * Lesson Order
+             * @default 0
+             */
+            lesson_order: number;
+            /**
+             * Pdf Page
+             * @default 0
+             */
+            pdf_page: number;
         };
         /** CatalogListResponse */
         CatalogListResponse: {
@@ -2117,6 +2215,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BookImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_lessons_api_catalog_books__book_id__lessons_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

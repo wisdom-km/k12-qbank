@@ -1,7 +1,8 @@
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { call } from "./auth.js";
 import { attemptBlock, canHandOut, confirmReady, showConflictReload } from "./confirm_gate.js";
+import { groupCatalog, lessonChoiceIds } from "./lesson_groups.js";
 import { createPaperActions, layoutIssueText } from "./paper_loop.js";
 import { IntakePanel } from "./intake_panel.jsx";
 import { initialPaperState, paperReducer } from "./paper_state.js";
@@ -86,12 +87,14 @@ export function TeacherPage() {
     });
   }
 
+  const [openLessons, setOpenLessons] = useState(() => new Set(["loose"]));
   const { session, items, chosen, item, studentId, paper, papers, attempt, decision, operationKey } = state;
   const { confirmation, savedPayload, message, error, errorCode, issuing } = state;
   const approved = Boolean(item && item.question_approved && item.answer_approved && !item.retired);
   const waitingReason = paper && paper.status === "待渲染" && (paper.render_code || paper.render_message);
   const blocked = attemptBlock(errorCode);
   const layoutNotice = layoutIssueText(errorCode, error);
+  const grouped = groupCatalog(items);
 
   return (
     <main>
@@ -107,35 +110,53 @@ export function TeacherPage() {
       <section>
         <h2>核验</h2>
         {items.length > 0 && (
-          <ul>
-            {items.map((row) => {
-              const ready = row.question_approved && row.answer_approved && !row.retired;
-              return (
-                <li key={row.question_version_id}>
-                  <button type="button" onClick={() => loop.selectQuestion(row.question_version_id)}>
-                    {row.question_version_id} · {ready ? "已核验" : "未核验"}
-                    {row.stem ? " · " + row.stem.slice(0, 24) : ""}
-                  </button>
-                  {ready && (
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={chosen.includes(row.question_version_id)}
-                        onChange={() =>
-                          set("chosen")(
-                            chosen.includes(row.question_version_id)
-                              ? chosen.filter((id) => id !== row.question_version_id)
-                              : chosen.concat(row.question_version_id),
-                          )
-                        }
-                      />
-                      纳入本卷
-                    </label>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div className="catalog-tree">
+            {grouped.books.map((book) => (
+              <section key={book.bookId} className="lesson-book">
+                <h3>{book.bookId}</h3>
+                {book.chapters.map((chapter) => (
+                  <div key={book.bookId + chapter.title}>
+                    {chapter.title && <h4>{chapter.title}</h4>}
+                    {chapter.sections.map((section) => (
+                      <div key={book.bookId + chapter.title + section.title}>
+                        {section.title && <p className="note">{section.title}</p>}
+                        {section.lessons.map((lesson) => {
+                          const key = book.bookId + ":" + lesson.order;
+                          return (
+                            <LessonBlock
+                              key={key}
+                              title={"课时 " + lesson.order + " " + lesson.title}
+                              count={lessonChoiceIds(lesson.items).length}
+                              open={openLessons.has(key)}
+                              onToggle={() => toggleLesson(setOpenLessons, key)}
+                              onSelect={() => selectLesson(set, chosen, lesson.items)}
+                              rows={lesson.items}
+                              chosen={chosen}
+                              onOpen={(id) => loop.selectQuestion(id)}
+                              onToggleRow={(id) => toggleChosen(set, chosen, id)}
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </section>
+            ))}
+            {grouped.loose.length > 0 && (
+              <LessonBlock
+                title="未归类"
+                count={lessonChoiceIds(grouped.loose).length}
+                open={openLessons.has("loose")}
+                onToggle={() => toggleLesson(setOpenLessons, "loose")}
+                onSelect={() => selectLesson(set, chosen, grouped.loose)}
+                rows={grouped.loose}
+                chosen={chosen}
+                onOpen={(id) => loop.selectQuestion(id)}
+                onToggleRow={(id) => toggleChosen(set, chosen, id)}
+              />
+            )}
+          </div>
         )}
         {item && (
           <>
@@ -161,7 +182,7 @@ export function TeacherPage() {
       <section>
         <h2>出卷</h2>
         <label>
-          合成学生
+          学生
           <select value={studentId} onChange={(event) => setStudentId(event.target.value)}>
             {(session ? session.student_ids : []).map((value) => (
               <option key={value} value={value}>
@@ -273,4 +294,63 @@ export function TeacherPage() {
       </section>
     </main>
   );
+}
+
+function LessonBlock({ title, count, open, onToggle, onSelect, rows, chosen, onOpen, onToggleRow }) {
+  return (
+    <div className="lesson-block">
+      <div className="lesson-actions">
+        <button type="button" onClick={onToggle}>
+          {open ? "收起" : "展开"} {title}
+        </button>
+        <button type="button" onClick={onSelect}>
+          选中本课时全部可出卷的题
+        </button>
+        <span>{count} 道可出卷</span>
+      </div>
+      {open && (
+        <ul>
+          {rows.map((row) => {
+            const ready = row.question_approved && row.answer_approved && !row.retired;
+            return (
+              <li key={row.question_version_id}>
+                <button type="button" onClick={() => onOpen(row.question_version_id)}>
+                  {row.question_version_id} · {ready ? "已核验" : "未核验"}
+                  {row.stem ? " · " + row.stem.slice(0, 24) : ""}
+                </button>
+                {ready && (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={chosen.includes(row.question_version_id)}
+                      onChange={() => onToggleRow(row.question_version_id)}
+                    />
+                    纳入本卷
+                  </label>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function toggleLesson(setOpen, key) {
+  setOpen((current) => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
+}
+
+function selectLesson(set, chosen, rows) {
+  const ids = lessonChoiceIds(rows);
+  set("chosen")(Array.from(new Set(chosen.concat(ids))));
+}
+
+function toggleChosen(set, chosen, id) {
+  set("chosen")(chosen.includes(id) ? chosen.filter((item) => item !== id) : chosen.concat(id));
 }

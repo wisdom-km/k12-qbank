@@ -11,6 +11,8 @@ from collections import Counter
 from dataclasses import dataclass, replace
 from typing import Protocol
 
+from backend.catalog.application.answer_text import answer_plain
+from backend.catalog.application.book_toc import TocResult, lesson_order_for, lessons_changed, parse_toc
 from backend.catalog.application.import_space import parse_answer_space
 from backend.catalog.application.stage_review import _plain, _version_id, stage_review, subject_accepted
 from backend.catalog.domain.answer import AnswerDraft, parse_answer_draft
@@ -24,7 +26,8 @@ from backend.kernel.use_log import emit
 from backend.practice.api import unsupported_commands
 
 _MAX_PAGES = 600
-_PAGE_KEYS = {"pdf_page", "role", "questions", "answers"}
+_PAGE_KEYS = {"pdf_page", "role", "questions", "answers", "volume", "has_question_file"}
+_ANSWER_PAGE_HINT = "在核对页把这一页切到参考答案页再保存"
 _PAIR_KEYS = {"answer_page", "question_page", "keys"}
 
 
@@ -52,6 +55,8 @@ class PageResult:
     role: str
     outcome: str
     reason: str
+    volume: str = ""
+    hint: str = ""
 
 
 @dataclass(frozen=True)
@@ -61,6 +66,7 @@ class QuestionResult:
     question_version_id: str
     outcome: str
     reason: str
+    lesson_order: int | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +82,11 @@ class BookImportReport:
     conflict: int
     reason: str = ""
     space_changed: int = 0
+    toc_changed: bool = False
+    toc_chapters: int = 0
+    toc_sections: int = 0
+    toc_lessons: int = 0
+    toc_unparsed: tuple[tuple[int, int], ...] = ()
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -89,6 +100,8 @@ class BookImportReport:
                     "role": page.role,
                     "outcome": page.outcome,
                     "reason": page.reason,
+                    "volume": page.volume,
+                    "hint": page.hint,
                 }
                 for page in self.pages
             ],
@@ -99,6 +112,7 @@ class BookImportReport:
                     "question_version_id": row.question_version_id,
                     "outcome": row.outcome,
                     "reason": row.reason,
+                    "lesson_order": row.lesson_order,
                 }
                 for row in self.questions
             ],
@@ -107,6 +121,11 @@ class BookImportReport:
             "skipped": self.skipped,
             "conflict": self.conflict,
             "space_changed": self.space_changed,
+            "toc_changed": self.toc_changed,
+            "toc_chapters": self.toc_chapters,
+            "toc_sections": self.toc_sections,
+            "toc_lessons": self.toc_lessons,
+            "toc_unparsed": [{"pdf_page": page, "line": line} for page, line in self.toc_unparsed],
         }
 
 
@@ -118,6 +137,7 @@ class _Page:
     file_page: int | None
     questions: list[tuple[str, QuestionDraft]]
     answers: list[AnswerDraft]
+    volume: str = ""
 
 
 @dataclass
@@ -131,6 +151,7 @@ class _Planned:
     version_id: str
     save_question: bool
     wanted_space: str | None = None
+    lesson_order: int | None = None
 
 
 @dataclass(frozen=True)
@@ -155,6 +176,9 @@ def import_book(
     unknown_fields: bool = False,
     actor_user_id: str = "",
     answer_space: object = None,
+    toc: object = None,
+    toc_page_offset: object = 0,
+    books: object | None = None,
 ) -> BookImportReport:
     """Validate the whole book, then write staged rows. A page error writes nothing."""
     started = time.perf_counter()
@@ -169,6 +193,9 @@ def import_book(
         dry_run=dry_run,
         unknown_fields=unknown_fields,
         answer_space=answer_space,
+        toc=toc,
+        toc_page_offset=toc_page_offset,
+        books=books,
     )
     _audit(logger, request_id, actor_user_id, book_id, pages, report, started)
     return report
@@ -186,6 +213,9 @@ def _build(
     dry_run: bool,
     unknown_fields: bool,
     answer_space: object = None,
+    toc: object = None,
+    toc_page_offset: object = 0,
+    books: object | None = None,
 ) -> BookImportReport:
     if unknown_fields:
         return _finish(book_id, dry_run, (), (), "unknown_field", False)
@@ -200,6 +230,9 @@ def _build(
     loaded, envelope = _load_pages(pages)
     if envelope:
         return _finish(book_id, dry_run, _page_rows(loaded), (), envelope, False)
+    toc_result, toc_reason = parse_toc(toc, toc_page_offset, _last_question_page(loaded))
+    if toc_reason:
+        return _finish(book_id, dry_run, _page_rows(loaded), (), toc_reason, False)
     pairs, pair_reason = _load_pairs(pairing)
     if pair_reason:
         return _finish(book_id, dry_run, _page_rows(loaded), (), pair_reason, False)
@@ -210,15 +243,25 @@ def _build(
     planned, pair_pages = _assign(book_id, loaded, pairs)
     space_pages = _bind_space(planned, overrides)
     _classify(planned, questions, approvals)
+    lessons = () if toc_result is None else toc_result.lessons
+    for item in planned:
+        if toc_result is not None:
+            item.lesson_order = lesson_order_for(item.page, lessons)
+    stored = () if books is None or toc_result is None else books.lessons_of(book_id)  # type: ignore[attr-defined]
+    changed = False if toc_result is None else lessons_changed(stored, lessons)
     page_rows = _page_rows(loaded)
     page_rows.extend(pair_pages)
     page_rows.extend(space_pages)
     blocked = any(page.reason for page in page_rows) or any(item.outcome == "conflict" for item in planned)
     question_rows = _question_rows(planned)
     if blocked or dry_run:
-        return _finish(book_id, dry_run, tuple(page_rows), question_rows, "", False)
-    _persist(planned, questions, answers, approvals, subject_id)
-    return _finish(book_id, dry_run, tuple(page_rows), question_rows, "", True)
+        return _finish(book_id, dry_run, tuple(page_rows), question_rows, "", False, toc_result, changed)
+    _persist(planned, questions, answers, approvals, subject_id, book_id)
+    if books is not None:
+        books.remember(book_id, subject_id)  # type: ignore[attr-defined]
+        if toc_result is not None:
+            books.replace_lessons(book_id, subject_id, lessons)  # type: ignore[attr-defined]
+    return _finish(book_id, dry_run, tuple(page_rows), question_rows, "", True, toc_result, changed)
 
 
 def _finish(
@@ -228,6 +271,8 @@ def _finish(
     questions: tuple[QuestionResult, ...],
     reason: str,
     written: bool,
+    toc_result: TocResult | None = None,
+    toc_changed: bool = False,
 ) -> BookImportReport:
     rows = tuple(pages)
     return BookImportReport(
@@ -242,6 +287,11 @@ def _finish(
         conflict=sum(row.outcome == "conflict" for row in questions),
         reason=reason,
         space_changed=sum(row.outcome == "space_changed" for row in questions),
+        toc_changed=toc_changed,
+        toc_chapters=0 if toc_result is None else toc_result.chapters,
+        toc_sections=0 if toc_result is None else toc_result.sections,
+        toc_lessons=0 if toc_result is None else len(toc_result.lessons),
+        toc_unparsed=() if toc_result is None else tuple((item.pdf_page, item.line) for item in toc_result.unparsed),
     )
 
 
@@ -252,33 +302,44 @@ def _load_pages(pages: list[object]) -> tuple[list[_Page], str]:
             return loaded, "unknown_field"
         role = raw.get("role")
         number = _whole_page(raw.get("pdf_page"))
+        volume = raw.get("volume", "")
+        marked = raw.get("has_question_file", False)
+        if volume not in {"", "questions", "answers"} or not isinstance(marked, bool):
+            return loaded, "unknown_field"
+        if volume == "answers":
+            role = "answers"
+        elif volume == "questions":
+            role = "questions"
         if role not in {"questions", "answers"}:
-            loaded.append(_Page(number, "" if role is None else str(role), "unknown_field", None, [], []))
+            loaded.append(_Page(number, "" if role is None else str(role), "unknown_field", None, [], [], volume))
             continue
         if number is None:
-            loaded.append(_Page(None, role, "page_missing", None, [], []))
+            loaded.append(_Page(None, role, "page_missing", None, [], [], volume))
             continue
         if role == "answers" and raw.get("questions") not in (None,):
             if "questions" in raw and raw.get("questions") is not None:
-                loaded.append(_Page(number, role, "unknown_field", None, [], []))
+                loaded.append(_Page(number, role, "unknown_field", None, [], [], volume))
                 continue
         draft = raw.get("questions")
         answer_rows = raw.get("answers", [])
-        if role == "questions" and not isinstance(draft, dict):
-            loaded.append(_Page(number, role, "page_missing", None, [], []))
-            continue
         if not isinstance(answer_rows, list):
             return loaded, "unknown_field"
+        if role == "answers" and marked and not answer_rows:
+            loaded.append(_Page(number, role, "answer_page_not_marked", None, [], [], volume))
+            continue
+        if role == "questions" and not isinstance(draft, dict):
+            loaded.append(_Page(number, role, "page_missing", None, [], [], volume))
+            continue
         reason, file_page = _declared_source(draft if isinstance(draft, dict) else None, answer_rows, number, role)
         if reason:
-            loaded.append(_Page(number, role, reason, file_page, [], []))
+            loaded.append(_Page(number, role, reason, file_page, [], [], volume))
             continue
         questions, answers, parse_reason = _parse_page(draft if isinstance(draft, dict) else None, answer_rows, role)
         if parse_reason:
-            loaded.append(_Page(number, role, parse_reason, file_page, [], []))
+            loaded.append(_Page(number, role, parse_reason, file_page, [], [], volume))
             continue
         dup = _duplicate_key(questions, answers)
-        loaded.append(_Page(number, role, dup, file_page, questions, answers))
+        loaded.append(_Page(number, role, dup, file_page, questions, answers, volume))
     return loaded, ""
 
 
@@ -375,21 +436,42 @@ def _load_pairs(pairing: list[object]) -> tuple[list[_Pair], str]:
 
 
 def _mark_duplicates(pages: list[_Page]) -> None:
-    numbers = [page.pdf_page for page in pages if page.pdf_page is not None]
-    repeated = {number for number, count in Counter(numbers).items() if count > 1}
+    grouped: dict[str, list[int]] = {}
     for page in pages:
-        if page.reason:
+        if page.pdf_page is None:
             continue
-        if page.pdf_page in repeated:
+        grouped.setdefault(page.volume, []).append(page.pdf_page)
+    repeated = {
+        volume: {number for number, count in Counter(numbers).items() if count > 1}
+        for volume, numbers in grouped.items()
+    }
+    for page in pages:
+        if page.reason or page.pdf_page is None:
+            continue
+        if page.pdf_page in repeated.get(page.volume, set()):
             page.reason = "duplicate_page"
 
 
 def _assign(book_id: str, pages: list[_Page], pairs: list[_Pair]) -> tuple[list[_Planned], list[PageResult]]:
-    by_number = {page.pdf_page: page for page in pages if page.pdf_page is not None and not page.reason}
+    index = {
+        (page.volume, page.pdf_page): page
+        for page in pages
+        if page.pdf_page is not None and not page.reason
+    }
+    volumed = any(page.volume for page in pages)
+
+    def host(kind: str, number: int) -> _Page | None:
+        if volumed:
+            return index.get((kind, number))
+        page = index.get(("", number))
+        if page is None or page.role != kind:
+            return None
+        return page
+
     questions_on: dict[int, set[str]] = {
         number: {key for key, _question in page.questions}
-        for number, page in by_number.items()
-        if page.role == "questions"
+        for (volume, number), page in index.items()
+        if volume == "questions" or (volume == "" and page.role == "questions")
     }
     extra: list[PageResult] = []
     assigned: dict[tuple[int, str], int] = {}
@@ -428,10 +510,10 @@ def _assign(book_id: str, pages: list[_Page], pairs: list[_Pair]) -> tuple[list[
     for pair in pairs:
         if pair.keys is None:
             continue
-        host = by_number.get(pair.answer_page)
+        found = host("answers", pair.answer_page)
         known = set()
-        if host is not None and host.role == "answers" and not host.reason:
-            known = {answer.question_key for answer in host.answers}
+        if found is not None and found.role == "answers" and not found.reason:
+            known = {answer.question_key for answer in found.answers}
         for key in pair.keys:
             if key not in known:
                 extra.append(PageResult(pair.answer_page, "answers", "rejected", "no_question"))
@@ -559,7 +641,7 @@ def _same_snapshot(question: QuestionDraft, answer: AnswerDraft, snapshot: Appro
     return (
         _plain(question.stem) == snapshot.stem
         and _option_text(question) == snapshot.options
-        and _plain(answer.content) == snapshot.answer_text
+        and answer_plain(answer) == snapshot.answer_text
         and question.type == snapshot.type
     )
 
@@ -574,6 +656,7 @@ def _persist(
     answers: _Answers,
     approvals: _Approvals,
     subject_id: str,
+    book_id: str,
 ) -> None:
     grouped: dict[int, list[QuestionDraft]] = {}
     for item in planned:
@@ -597,6 +680,8 @@ def _persist(
             tuple(item.answer for item in staged if item.answer is not None),
             approvals,
             subject_id,
+            book_id,
+            {item.question.key: item.page for item in staged},
         )
     for item in planned:
         if item.outcome == "space_changed" or (item.outcome == "staged" and item.wanted_space is not None):
@@ -624,9 +709,24 @@ def _page_rows(pages: list[_Page]) -> list[PageResult]:
             page.role,
             "rejected" if page.reason else "ok",
             page.reason,
+            page.volume,
+            _ANSWER_PAGE_HINT if page.reason == "answer_page_not_marked" else "",
         )
         for page in pages
     ]
+
+
+def _last_question_page(pages: list[_Page]) -> int:
+    numbers = [
+        page.pdf_page
+        for page in pages
+        if page.pdf_page is not None
+        and page.volume != "answers"
+        and not (page.volume == "" and page.role != "questions")
+    ]
+    if not numbers:
+        return 0
+    return max(numbers)
 
 
 def _question_rows(planned: list[_Planned]) -> tuple[QuestionResult, ...]:
@@ -637,6 +737,7 @@ def _question_rows(planned: list[_Planned]) -> tuple[QuestionResult, ...]:
             item.version_id,
             item.outcome,
             item.reason,
+            item.lesson_order,
         )
         for item in planned
     )

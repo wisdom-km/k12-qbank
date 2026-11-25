@@ -24,6 +24,8 @@ class ApprovalSnapshot:
     answer_space: str | None = None
     stem_parts: tuple[tuple[str, str], ...] | None = None
     option_parts: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] | None = None
+    book_id: str | None = None
+    pdf_page: int | None = None
 
 
 @dataclass(frozen=True)
