@@ -15,6 +15,7 @@ from backend.bootstrap.stdout_log import StdoutLogger
 from backend.catalog.adapters.answer_memory import MemoryAnswers
 from backend.catalog.adapters.draft_memory import MemoryDrafts
 from backend.catalog.adapters.memory import MemoryApprovals
+from backend.catalog.adapters.memory_books import MemoryBooks
 from backend.catalog.adapters.memory_publications import MemoryPublications
 from backend.identity.adapters.argon2_hasher import Argon2Hasher
 from backend.identity.adapters.authorizer import GrantAuthorizer
@@ -61,6 +62,7 @@ class Loop:
     ai_runs: object = field(default_factory=MemoryRuns)
     model: object = field(default_factory=MockModel)
     decisions: object = field(default_factory=MemoryDecisions)
+    books: object = field(default_factory=MemoryBooks)
 
 
 def compose() -> Loop:

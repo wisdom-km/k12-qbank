@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 from backend.bootstrap.http_errors import error_response
 from backend.catalog.api import ApprovalSnapshot, resolved_space
 from backend.catalog.application.import_book import import_book
+from backend.catalog.application.lesson_view import lesson_tree, placement
 from backend.catalog.application.publish_version import publish_version, retire_version, revise_text
 from backend.identity.application.guard import admin_only, signed_in
 from backend.kernel.result import Err
@@ -34,6 +35,12 @@ class CatalogItem(BaseModel):
     answer_space: str = ""
     answer_space_is_default: bool = True
     formula_note: str = ""
+    book_id: str = ""
+    chapter_title: str = ""
+    section_title: str = ""
+    lesson_title: str = ""
+    lesson_order: int = 0
+    pdf_page: int = 0
 
 
 class CatalogListResponse(BaseModel):
@@ -50,6 +57,8 @@ class BookImportBody(BaseModel):
     pages: list[dict[str, Any]]
     pairing: list[dict[str, Any]] = []
     answer_space: list[dict[str, Any]] = []
+    toc: list[dict[str, Any]] = []
+    toc_page_offset: int = 0
 
 
 class BookPageReport(BaseModel):
@@ -57,6 +66,8 @@ class BookPageReport(BaseModel):
     role: str
     outcome: str
     reason: str
+    volume: str = ""
+    hint: str = ""
 
 
 class BookQuestionReport(BaseModel):
@@ -65,6 +76,7 @@ class BookQuestionReport(BaseModel):
     question_version_id: str
     outcome: str
     reason: str
+    lesson_order: int | None = None
 
 
 class BookImportResponse(BaseModel):
@@ -79,6 +91,11 @@ class BookImportResponse(BaseModel):
     skipped: int
     conflict: int
     space_changed: int = 0
+    toc_changed: bool = False
+    toc_chapters: int = 0
+    toc_sections: int = 0
+    toc_lessons: int = 0
+    toc_unparsed: list[dict[str, int]] = []
 
 
 def register_catalog(app: FastAPI) -> None:
@@ -87,9 +104,16 @@ def register_catalog(app: FastAPI) -> None:
         refused = signed_in(request.state.actor)
         if refused is not None:
             return error_response(request.state.request_id, refused)
-        rows = request.app.state.loop.approvals.list_snapshots()
-        body = CatalogListResponse(
-            items=[
+        loop = request.app.state.loop
+        rows = loop.approvals.list_snapshots()
+        cached: dict[str, tuple[object, ...]] = {}
+        items = []
+        for row in rows:
+            book_id = row.book_id or ""
+            if book_id not in cached:
+                cached[book_id] = () if not book_id else loop.books.lessons_of(book_id)
+            placed = placement(row, cached[book_id])
+            items.append(
                 CatalogItem(
                     question_version_id=row.question_version_id,
                     subject_id=row.subject_id,
@@ -101,11 +125,15 @@ def register_catalog(app: FastAPI) -> None:
                     answer_space=_space_value(row),
                     answer_space_is_default=_space_default(row),
                     formula_note=_formula_note(row),
+                    book_id=str(placed["book_id"]),
+                    chapter_title=str(placed["chapter_title"]),
+                    section_title=str(placed["section_title"]),
+                    lesson_title=str(placed["lesson_title"]),
+                    lesson_order=int(placed["lesson_order"]),
+                    pdf_page=int(placed["pdf_page"]),
                 )
-                for row in rows
-            ]
-        )
-        return JSONResponse(body.model_dump())
+            )
+        return JSONResponse(CatalogListResponse(items=items).model_dump())
 
     @app.post("/api/admin/catalog/books/{book_id}/import", response_model=BookImportResponse)
     def catalog_import_book(book_id: str, body: BookImportBody, request: Request) -> JSONResponse:
@@ -130,6 +158,9 @@ def register_catalog(app: FastAPI) -> None:
                 unknown_fields=bool(body.model_extra),
                 actor_user_id=getattr(request.state.actor, "user_id", ""),
                 answer_space=body.answer_space,
+                toc=body.toc,
+                toc_page_offset=body.toc_page_offset,
+                books=loop.books,
             ),
             loop.logger,
             request_id,
@@ -139,6 +170,18 @@ def register_catalog(app: FastAPI) -> None:
         if isinstance(saved, Err):
             return error_response(request_id, saved)
         return JSONResponse(saved.value.as_dict())
+
+    @app.get("/api/catalog/books/{book_id}/lessons")
+    def catalog_lessons(book_id: str, request: Request) -> JSONResponse:
+        refused = signed_in(request.state.actor)
+        if refused is not None:
+            return error_response(request.state.request_id, refused)
+        loop = request.app.state.loop
+        if not loop.books.has_book(book_id):
+            return error_response(request.state.request_id, Err("not_found", "the book does not exist"))
+        lessons = loop.books.lessons_of(book_id)
+        snapshots = loop.approvals.list_snapshots()
+        return JSONResponse(lesson_tree(book_id, lessons, snapshots))
 
     @app.get("/api/catalog/{question_version_id}")
     def catalog_get(question_version_id: str, request: Request) -> JSONResponse:

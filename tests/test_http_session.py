@@ -172,7 +172,7 @@ class HttpSessionTest(unittest.TestCase):
             self.skipTest("apps/web/dist is produced by npm run build")
         app = create_app(seed=False, openapi=True)
         with TestClient(app) as client:
-            for path in ("/", "/login", "/admin", "/account"):
+            for path in ("/", "/login", "/admin", "/account", "/papers/paper-synth/grade"):
                 page = client.get(path)
                 self.assertEqual(page.status_code, 200, path)
                 self.assertIn('id="root"', page.text)
@@ -186,4 +186,5 @@ class HttpSessionTest(unittest.TestCase):
         self.assertNotIn("/login", paths)
         self.assertNotIn("/admin", paths)
         self.assertNotIn("/account", paths)
+        self.assertNotIn("/papers/{paper_id}/grade", paths)
         self.assertIn("/api/account/sessions", paths)

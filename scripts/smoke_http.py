@@ -97,6 +97,8 @@ def main() -> int:
     ):
         print(_smoke_fail("rerun", again))
         return 1
+    if _volumes(base) != 0:
+        return 1
     print("SMOKE HTTP PASS")
     return 0
 
@@ -314,6 +316,43 @@ def _smoke_fail(step: str, report: dict[str, object]) -> str:
         + " reason="
         + str(report.get("reason"))
     )
+
+
+def _volumes(base: str) -> int:
+    """Import one synthetic book that keeps page 1 in both volumes, then read its lessons."""
+    saved = _json(_open(base + "/api/admin/catalog/books/synth-r4f-vol/import", _volume_body(False)))
+    if saved.get("written") is not True or int(saved.get("staged") or 0) < 1 or saved.get("reason"):
+        print(_smoke_fail("volumes", saved))
+        return 1
+    reasons = [row.get("reason") for row in saved.get("pages", []) if isinstance(row, dict)]  # type: ignore[union-attr]
+    if "duplicate_page" in reasons or int(saved.get("toc_lessons") or 0) != 1:
+        print(_smoke_fail("volumes", saved))
+        return 1
+    lessons = _json(_open(base + "/api/catalog/books/synth-r4f-vol/lessons"))
+    chapters = lessons.get("chapters")
+    if lessons.get("book_id") != "synth-r4f-vol" or not isinstance(chapters, list) or not chapters:
+        print("SMOKE HTTP FAIL: lessons")
+        return 1
+    return 0
+
+
+def _volume_body(dry_run: bool) -> dict[str, object]:
+    question = _smoke_page(dry_run)["pages"][0]  # type: ignore[index]
+    assert isinstance(question, dict)
+    carried = question["answers"]
+    question["volume"] = "questions"
+    question["answers"] = []
+    return {
+        "subject_id": "math",
+        "dry_run": dry_run,
+        "pages": [
+            question,
+            {"pdf_page": 1, "role": "answers", "volume": "answers", "answers": carried},
+        ],
+        "pairing": [{"answer_page": 1, "question_page": 1}],
+        "toc": [{"pdf_page": 1, "text": "## 一、synth-ch\nsynth-sec\nsynth-les \u2026 1\n"}],
+        "toc_page_offset": 0,
+    }
 
 
 def _smoke_page(dry_run: bool) -> dict[str, object]:

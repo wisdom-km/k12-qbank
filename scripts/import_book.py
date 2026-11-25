@@ -22,7 +22,16 @@ from urllib.parse import quote
 
 _BOOK_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,23}$")
 _PAGE_NO = re.compile(r"page_(\d+)", re.IGNORECASE)
-_KNOWN_MANIFEST = {"book_id", "subject_id", "pairs", "answer_space"}
+_KNOWN_MANIFEST = {
+    "book_id",
+    "subject_id",
+    "pairs",
+    "answer_space",
+    "question_dir",
+    "answer_dir",
+    "toc_dir",
+    "toc_page_offset",
+}
 _DEFAULT_SERVER = "http://127.0.0.1:8765"
 
 
@@ -85,10 +94,17 @@ def build_request(book_dir: str) -> tuple[str, dict[str, object]]:
     book_id = manifest.get("book_id", "")
     if not isinstance(book_id, str):
         book_id = ""
-    return book_id, build_body(manifest, read_pages(root), dry_run=False)
+    pages, toc = read_book(root, manifest)
+    return book_id, build_body(manifest, pages, dry_run=False, toc=toc)
 
 
-def build_body(manifest: dict[str, object], pages: list[dict[str, object]], *, dry_run: bool) -> dict[str, object]:
+def build_body(
+    manifest: dict[str, object],
+    pages: list[dict[str, object]],
+    *,
+    dry_run: bool,
+    toc: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
     body: dict[str, object] = {
         "subject_id": manifest.get("subject_id", ""),
         "dry_run": dry_run,
@@ -96,13 +112,43 @@ def build_body(manifest: dict[str, object], pages: list[dict[str, object]], *, d
         "pairing": manifest.get("pairs", []),
         "answer_space": manifest.get("answer_space", []),
     }
+    if toc:
+        body["toc"] = toc
+    if "toc_page_offset" in manifest:
+        body["toc_page_offset"] = manifest["toc_page_offset"]
     for key, value in manifest.items():
         if key not in _KNOWN_MANIFEST:
             body[key] = value
     return body
 
 
-def read_pages(root: Path) -> list[dict[str, object]]:
+def read_book(root: Path, manifest: dict[str, object]) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Read question and answer volumes. An omitted question_dir keeps the old single directory."""
+    question_dir = _relative_dir(root, manifest.get("question_dir"))
+    answer_dir = _relative_dir(root, manifest.get("answer_dir"))
+    toc_dir = _relative_dir(root, manifest.get("toc_dir"))
+    if question_dir is None and answer_dir is None:
+        pages = read_pages(root)
+    else:
+        pages = read_pages(question_dir or root, volume="questions")
+        if answer_dir is not None:
+            pages.extend(read_pages(answer_dir, volume="answers"))
+    toc = [] if toc_dir is None else read_toc(toc_dir)
+    return pages, toc
+
+
+def _relative_dir(root: Path, raw: object) -> Path | None:
+    if raw is None or raw == "":
+        return None
+    if not isinstance(raw, str):
+        raise ValueError("manifest")
+    path = Path(raw)
+    if path.is_absolute():
+        raise ValueError("manifest")
+    return root / path
+
+
+def read_pages(root: Path, volume: str = "") -> list[dict[str, object]]:
     grouped: dict[str, dict[str, object]] = {}
     for path in root.rglob("*"):
         if not path.is_file():
@@ -127,35 +173,53 @@ def read_pages(root: Path) -> list[dict[str, object]]:
         number = _page_number(stem)
         if number is None:
             continue
+        if volume == "answers":
+            role = "answers"
+        elif volume == "questions":
+            role = "questions"
         if role == "questions":
             question_path = slot.get("questions_path")
             if not isinstance(question_path, Path):
                 continue
             payload = json.loads(question_path.read_text(encoding="utf-8"))
-            pages.append(
-                {
-                    "pdf_page": number,
-                    "role": "questions",
-                    "questions": payload,
-                    "answers": [],
-                }
-            )
+            page = {
+                "pdf_page": number,
+                "role": "questions",
+                "questions": payload,
+                "answers": [],
+            }
+            if volume:
+                page["volume"] = volume
+            pages.append(page)
             continue
         answer_paths = slot.get("answer_paths")
+        has_questions = isinstance(slot.get("questions_path"), Path)
         if not isinstance(answer_paths, list) or not answer_paths:
+            if volume == "answers" and has_questions:
+                pages.append(
+                    {
+                        "pdf_page": number,
+                        "role": "answers",
+                        "volume": "answers",
+                        "questions": None,
+                        "answers": [],
+                        "has_question_file": True,
+                    }
+                )
             continue
         answers = [
             json.loads(path.read_text(encoding="utf-8"))
             for path in sorted(answer_paths, key=lambda item: item.name)
         ]
-        pages.append(
-            {
-                "pdf_page": number,
-                "role": "answers",
-                "questions": None,
-                "answers": answers,
-            }
-        )
+        page = {
+            "pdf_page": number,
+            "role": "answers",
+            "questions": None,
+            "answers": answers,
+        }
+        if volume:
+            page["volume"] = volume
+        pages.append(page)
     pages.sort(key=lambda item: (int(item["pdf_page"]), str(item["role"])))  # type: ignore[arg-type]
     return pages
 
@@ -190,7 +254,7 @@ def _pick_dir() -> str:
 
 def _ignored(relative: Path) -> bool:
     for part in relative.parts:
-        if part.startswith(".") or part == "_review_backups":
+        if part.startswith(".") or part in {"_review_backups", "_export_backups"}:
             return True
     name = relative.name
     return ".reviewed." in name or name.endswith(".reviewed")
@@ -210,6 +274,22 @@ def _stem(relative: Path) -> str | None:
         stem_name = parent.name[: -len(".answers")]
         return parent.with_name(stem_name).as_posix()
     return None
+
+
+def read_toc(directory: Path) -> list[dict[str, object]]:
+    pages: list[dict[str, object]] = []
+    if not directory.is_dir():
+        raise ValueError("manifest")
+    for path in directory.rglob("*.md"):
+        relative = path.relative_to(directory)
+        if _ignored(relative):
+            continue
+        number = _page_number(relative.as_posix())
+        if number is None:
+            continue
+        pages.append({"pdf_page": number, "text": path.read_text(encoding="utf-8")})
+    pages.sort(key=lambda item: int(item["pdf_page"]))  # type: ignore[arg-type]
+    return pages
 
 
 def _page_number(value: str) -> int | None:
@@ -309,7 +389,7 @@ def _failed(report: dict[str, object]) -> bool:
 
 def _print_totals(report: dict[str, object]) -> None:
     print(
-        "staged={staged} kept={kept} skipped={skipped} conflict={conflict} space_changed={space_changed} written={written} reason={reason}".format(
+        "staged={staged} kept={kept} skipped={skipped} conflict={conflict} space_changed={space_changed} written={written} reason={reason} toc_chapters={toc_chapters} toc_sections={toc_sections} toc_lessons={toc_lessons} toc_unparsed={toc_unparsed} toc_changed={toc_changed}".format(
             staged=report.get("staged"),
             kept=report.get("kept"),
             skipped=report.get("skipped"),
@@ -317,6 +397,11 @@ def _print_totals(report: dict[str, object]) -> None:
             space_changed=0 if report.get("space_changed") is None else report.get("space_changed"),
             written=report.get("written"),
             reason=report.get("reason") or "",
+            toc_chapters=report.get("toc_chapters") or 0,
+            toc_sections=report.get("toc_sections") or 0,
+            toc_lessons=report.get("toc_lessons") or 0,
+            toc_unparsed=len(report.get("toc_unparsed") or []),
+            toc_changed=bool(report.get("toc_changed")),
         )
     )
 
@@ -357,6 +442,8 @@ def _public_report(payload: dict[str, object]) -> dict[str, object]:
                     "role": page.get("role"),
                     "outcome": page.get("outcome"),
                     "reason": page.get("reason"),
+                    "volume": page.get("volume") or "",
+                    "hint": page.get("hint") or "",
                 }
             )
     questions = []
@@ -372,10 +459,14 @@ def _public_report(payload: dict[str, object]) -> dict[str, object]:
                     "question_version_id": row.get("question_version_id"),
                     "outcome": row.get("outcome"),
                     "reason": row.get("reason"),
+                    "lesson_order": row.get("lesson_order"),
                 }
             )
     book_id = payload.get("book_id")
     safe = book_id if isinstance(book_id, str) and _BOOK_ID.fullmatch(book_id) else ""
+    unparsed = payload.get("toc_unparsed")
+    if not isinstance(unparsed, list):
+        unparsed = []
     return {
         "book_id": safe,
         "dry_run": payload.get("dry_run"),
@@ -388,6 +479,15 @@ def _public_report(payload: dict[str, object]) -> dict[str, object]:
         "skipped": payload.get("skipped"),
         "conflict": payload.get("conflict"),
         "space_changed": payload.get("space_changed"),
+        "toc_changed": bool(payload.get("toc_changed")),
+        "toc_chapters": payload.get("toc_chapters") or 0,
+        "toc_sections": payload.get("toc_sections") or 0,
+        "toc_lessons": payload.get("toc_lessons") or 0,
+        "toc_unparsed": [
+            {"pdf_page": row.get("pdf_page"), "line": row.get("line")}
+            for row in unparsed
+            if isinstance(row, dict)
+        ],
     }
 
 
@@ -417,14 +517,22 @@ def _report_text(report: dict[str, object]) -> str:
             conflict=report.get("conflict"),
             space_changed=0 if report.get("space_changed") is None else report.get("space_changed"),
         ),
+        "toc_changed={toc_changed} toc_chapters={toc_chapters} toc_sections={toc_sections} toc_lessons={toc_lessons} toc_unparsed={toc_unparsed}".format(
+            toc_changed=bool(report.get("toc_changed")),
+            toc_chapters=report.get("toc_chapters") or 0,
+            toc_sections=report.get("toc_sections") or 0,
+            toc_lessons=report.get("toc_lessons") or 0,
+            toc_unparsed=len(report.get("toc_unparsed") or []),
+        ),
     ]
     pages = report.get("pages")
     if isinstance(pages, list):
         for page in pages:
             if isinstance(page, dict):
                 lines.append(
-                    "page {pdf_page} {role} {outcome} {reason}".format(
+                    "page {pdf_page} {volume} {role} {outcome} {reason}".format(
                         pdf_page=page.get("pdf_page"),
+                        volume=page.get("volume") or "",
                         role=page.get("role"),
                         outcome=page.get("outcome"),
                         reason=page.get("reason") or "",
@@ -435,7 +543,8 @@ def _report_text(report: dict[str, object]) -> str:
         for row in questions:
             if isinstance(row, dict):
                 lines.append(
-                    "question {original_key} {key} {question_version_id} {outcome} {reason}".format(
+                    "question {original_key} {key} {question_version_id} {outcome} {reason} lesson_order={lesson_order}".format(
+                        lesson_order=row.get("lesson_order"),
                         original_key=row.get("original_key"),
                         key=row.get("key"),
                         question_version_id=row.get("question_version_id"),

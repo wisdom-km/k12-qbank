@@ -95,7 +95,7 @@ def _mount_web(app: FastAPI) -> None:
     def page() -> FileResponse:
         return FileResponse(index)
 
-    for path in ("/", "/login", "/admin", "/account"):
+    for path in ("/", "/login", "/admin", "/account", "/papers/{paper_id}/grade"):
         app.add_api_route(path, page, methods=["GET"], include_in_schema=False)
 
 

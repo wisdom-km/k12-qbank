@@ -63,8 +63,8 @@ job `review-import` 安装核对页 main，用合成页生成这两份草稿再�
 | 管理员后台 | 页面 `/admin`。管理员可建老师和学生、授权和撤销、查看审计与错误，并一次吊销自己的活跃会话。老师打开该页得到 permission_denied |
 | PostgreSQL 已连接 | 仅当 `K12_PG_DSN` 有值时连接并迁移 identity、审计、catalog 与 practice。页字节在 `K12_FILE_DIR`。`K12_ENV` 默认 development；production 缺少连接串或页字节目录时退出。默认进程和单测不连接。CI 的 `postgres` 作业包含 up、down、up，以及 identity、catalog/practice 契约和迁移锁 |
 | 运行模式 | `K12_ENV` 默认 development。production 缺少连接串或 `K12_FILE_DIR` 时退出。development 且连接串为空时用内存 |
-| catalog PG | 设置 `K12_PG_DSN` 时写入 V002 运行表、V004 题目和答案、V005 五张子表、V007 `publication`、V008 `publication_asset`，并应用 V009 的 `publication_one_active`。`figure_geometry` 和 `answer_decision` 仍未建。资产字节上传仍未做 |
-| practice PG | 设置 `K12_PG_DSN` 时写入 papers、paper_pages、attempts、confirmations、files 元数据，以及 V006 的 practice_item。V011 记下出卷时是否印码、印在卷上的学号，以及每题的题干和答案快照。V012 记下每页槽位数和每题的页、槽、跨度。V013 记下版式种类、当时的页眉和二维码参数，以及 `practice_item_box` 里每个答题框的坐标。V014 允许 `files.purpose` 为 `intake`，给 papers 增加可空的 `issued_on`，并建 `intake_page`。V016 给核准和练习项增加可空的公式片段，并给练习项增加可空的 `formula_draw`，不回填旧行。V017 建 `teacher_decision`：每张卷的每道题同时只有一条未作废的老师结论。批改页是 `/papers/{paper_id}/grade`。页字节在 `K12_FILE_DIR`。新的 HTTP 出卷按题型高度排版，公式按排版印出，不印 LaTeX 源码。不支持的命令是 `formula_unsupported`，旧纯文本里的命令是 `formula_unstructured`，比一行宽是 `formula_too_wide`，三者都是 409。已发出的旧卷不重新排版 |
+| catalog PG | 设置 `K12_PG_DSN` 时写入 V002 运行表、V004 题目和答案、V005 五张子表、V007 `publication`、V008 `publication_asset`，并应用 V009 的 `publication_one_active`。V018 建 `book` 与 `book_lesson`，并给 `approvals` 增加可空的 `book_id`、`pdf_page`，不回填旧行。`figure_geometry` 和 `answer_decision` 仍未建。资产字节上传仍未做 |
+| practice PG | 设置 `K12_PG_DSN` 时写入 papers、paper_pages、attempts、confirmations、files 元数据，以及 V006 的 practice_item。V011 记下出卷时是否印码、印在卷上的学号，以及每题的题干和答案快照。V012 记下每页槽位数和每题的页、槽、跨度。V013 记下版式种类、当时的页眉和二维码参数，以及 `practice_item_box` 里每个答题框的坐标。V014 允许 `files.purpose` 为 `intake`，给 papers 增加可空的 `issued_on`，并建 `intake_page`。V016 给核准和练习项增加可空的公式片段，并给练习项增加可空的 `formula_draw`，不回填旧行。V017 建 `teacher_decision`：每张卷的每道题同时只有一条未作废的老师结论。批改页是 `/papers/{paper_id}/grade`。页字节在 `K12_FILE_DIR`。新的 HTTP 出卷按题型高度排版，公式按排版印出，不印 LaTeX 源码。不支持的命令是 `formula_unsupported`，旧纯文本里的命令是 `formula_unstructured`，比一行宽是 `formula_too_wide`，三者都是 409。`\textcircled{1}` 到 `\textcircled{20}` 排成 ① 到 ⑳，缺字形仍是 `not_rendered`。已发出的旧卷不重新排版 |
 | 技术栈 | Python 3.12、FastAPI、React 已锁版本。PostgreSQL 在 `K12_PG_DSN` 有值时连接并迁移 |
 | 题目草稿导入 | 接受 `k12-question-draft` 第 1 版。操作入口是整书导入，见下方「导入一本书」 |
 | 答案草稿导入 | 接受 `k12-answer-draft` 第 1 版。运行中的核准可同时写入 V004 的 `answers` 和 V005 的 `answer_part`、`answer_asset`。`answer_decision` 仍未建。操作入口是整书导入 |
@@ -92,7 +92,7 @@ python -m uvicorn backend.bootstrap.http_app:app --host 127.0.0.1 --port 8765 --
 
 默认访问日志已关闭。带 `request_id` 的结构化日志仍打在标准输出。这个端口和核对页 md-json-review 相同。核对页开着时不要启动本服务。两个进程不要同时听 `127.0.0.1:8765`。
 
-浏览器打开 `http://127.0.0.1:8765/login`。未登录会到登录页。登录后老师在 `/`，管理员在 `/admin`。老师页有「修改我的口令」，打开 `/account`。出卷老师来自会话 cookie。停用、启用和重置口令会吊销尚未过期的会话。过期会话和登录尝试按保留天数清理。学情天数仍不写。引导创建的管理员必须先改掉启动口令，才能调用其他接口。合成账号仍是 `teacher-synth`。development 启动时读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。`K12_ENV=production` 时不加载这份合成夹具，也不创建合成账号。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
+浏览器打开 `http://127.0.0.1:8765/login`。未登录会到登录页。登录后老师在 `/`，管理员在 `/admin`。老师页有「修改我的口令」，打开 `/account`。出卷老师来自会话 cookie。停用、启用和重置口令会吊销尚未过期的会话。过期会话和登录尝试按保留天数清理。学情天数仍不写。引导创建的管理员必须先改掉启动口令，才能调用其他接口。合成账号仍是 `teacher-synth`。development 启动时读取 `docs/fixtures/rational-number-min.json`，并把题目和答案的核准标志改成未核准。不需要另跑装载命令。`K12_ENV=production` 时不加载这份合成夹具，也不创建合成账号。不带合成数据的本机试用库见 [docs/ops/local-trial.md](docs/ops/local-trial.md)。第二名合成学生 `student-synth-2` 只在服务端授权里，不改夹具的六块。
 
 ## 收卷
 
@@ -121,7 +121,7 @@ git diff --check
 
 ## 导入一本书
 
-双击 `scripts/import_book.cmd`。脚本只读目录、登录、调用 `POST /api/admin/catalog/books/{book_id}/import`，并把报告写到书目录的 `_import_reports/`。规则在服务端。步骤、书清单和 conflict 的处理见 [docs/ops/import-book.md](docs/ops/import-book.md)。决定见 [docs/adr/0042-book-import.md](docs/adr/0042-book-import.md)。
+双击 `scripts/import_book.cmd`。脚本只读目录、登录、调用 `POST /api/admin/catalog/books/{book_id}/import`，并把报告写到书目录的 `_import_reports/`。规则在服务端。步骤、书清单和 conflict 的处理见 [docs/ops/import-book.md](docs/ops/import-book.md)。题目册、答案册、目录可以分开放，题目按课时归入老师页。决定见 [docs/adr/0042-book-import.md](docs/adr/0042-book-import.md) 与 [docs/adr/0048-book-volumes-and-lessons.md](docs/adr/0048-book-volumes-and-lessons.md)。
 
 ## 先读
 

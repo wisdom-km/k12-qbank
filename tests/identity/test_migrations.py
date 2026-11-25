@@ -33,6 +33,7 @@ class MigrationFilesTest(unittest.TestCase):
                 "V015",
                 "V016",
                 "V017",
+                "V018",
             ],
         )
         self.assertTrue(found[0].down.is_file())
@@ -266,6 +267,24 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertNotIn("UPDATE ", down17_sql)
         self.assertNotIn("pg_advisory", down17_sql)
         self.assertNotIn("schema_migrations", down17_sql)
+        up18 = found[17].up.read_text(encoding="utf-8")
+        down18 = found[17].down.read_text(encoding="utf-8")
+        up18_sql = "\n".join(sql_statements(up18))
+        down18_sql = "\n".join(sql_statements(down18))
+        self.assertIn("CREATE TABLE book", up18_sql)
+        self.assertIn("CREATE TABLE book_lesson", up18_sql)
+        self.assertIn("ADD COLUMN book_id", up18_sql)
+        self.assertIn("ADD COLUMN pdf_page", up18_sql)
+        self.assertNotIn("UPDATE ", up18_sql)
+        self.assertNotIn("pg_advisory", up18_sql)
+        self.assertNotIn("schema_migrations", up18_sql)
+        self.assertIn("DROP TABLE IF EXISTS book_lesson", down18_sql)
+        self.assertIn("DROP TABLE IF EXISTS book", down18_sql)
+        self.assertIn("DROP COLUMN IF EXISTS book_id", down18_sql)
+        self.assertIn("DROP COLUMN IF EXISTS pdf_page", down18_sql)
+        self.assertNotIn("UPDATE ", down18_sql)
+        self.assertNotIn("pg_advisory", down18_sql)
+        self.assertNotIn("schema_migrations", down18_sql)
         sample = "DO $$\nBEGIN\n    RAISE EXCEPTION 'keep; this';\nEND\n$$;\nSELECT 1;\n"
         parts = sql_statements(sample)
         self.assertEqual(len(parts), 2)

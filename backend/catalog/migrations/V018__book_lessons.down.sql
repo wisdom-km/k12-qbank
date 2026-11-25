@@ -1,0 +1,7 @@
+DROP TABLE IF EXISTS book_lesson;
+
+DROP TABLE IF EXISTS book;
+
+ALTER TABLE approvals DROP COLUMN IF EXISTS pdf_page;
+
+ALTER TABLE approvals DROP COLUMN IF EXISTS book_id;

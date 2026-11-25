@@ -20,7 +20,8 @@ T = TypeVar("T")
 _COLUMNS = """
 question_version_id, answer_version_id, asset_ids, layout_template_id,
 question_approved, answer_approved, retired, subject_id, item_order, stem, answer_text,
-type, structure, option_text, answer_space, stem_parts, option_parts
+type, structure, option_text, answer_space, stem_parts, option_parts,
+book_id, pdf_page
 """
 
 
@@ -96,12 +97,14 @@ def _upsert(conn: Any, snapshot: ApprovalSnapshot) -> None:
         option_text = EXCLUDED.option_text,
         answer_space = EXCLUDED.answer_space,
         stem_parts = EXCLUDED.stem_parts,
-        option_parts = EXCLUDED.option_parts
+        option_parts = EXCLUDED.option_parts,
+        book_id = EXCLUDED.book_id,
+        pdf_page = EXCLUDED.pdf_page
     """
     conn.execute(
         f"""
         INSERT INTO approvals ({_COLUMNS}) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         ON CONFLICT (question_version_id) DO UPDATE SET {assignments}
         """,
@@ -123,7 +126,7 @@ def _insert_new(conn: Any, snapshot: ApprovalSnapshot) -> bool:
     conn.execute(
         f"""
         INSERT INTO approvals ({_COLUMNS}) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         """,
         _params(snapshot),
@@ -201,6 +204,8 @@ def _params(snapshot: ApprovalSnapshot) -> tuple[object, ...]:
         snapshot.answer_space,
         _json_or_null(stem_json(snapshot.stem_parts)),
         _json_or_null(option_json(snapshot.option_parts)),
+        snapshot.book_id,
+        snapshot.pdf_page,
     )
 
 
@@ -223,6 +228,8 @@ def _snapshot(row: tuple[object, ...]) -> ApprovalSnapshot:
         answer_space=None if row[14] is None else str(row[14]),
         stem_parts=stem_from_json(row[15]) if len(row) > 15 else None,
         option_parts=option_from_json(row[16]) if len(row) > 16 else None,
+        book_id=None if len(row) <= 17 or row[17] is None else str(row[17]),
+        pdf_page=None if len(row) <= 18 or row[18] is None else int(row[18]),
     )
 
 

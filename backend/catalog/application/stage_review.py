@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Protocol
 
+from backend.catalog.application.answer_text import answer_plain, plain_parts
 from backend.catalog.domain.answer import AnswerDraft
 from backend.catalog.domain.formula_parts import draft_option_parts, draft_stem_parts
 from backend.catalog.domain.snapshot import ApprovalSnapshot
@@ -37,6 +38,8 @@ def stage_review(
     answers: tuple[AnswerDraft, ...],
     approvals: ReviewWriter,
     subject_id: str,
+    book_id: str = "",
+    pages: dict[str, int] | None = None,
 ) -> StagedReview:
     """Stage one applicable answer per question. Ids come from the draft keys."""
     applicable = {answer.question_key: answer for answer in answers if answer.applicable}
@@ -45,7 +48,8 @@ def stage_review(
     skipped: list[str] = []
     for question in draft.questions:
         answer = applicable.get(question.key)
-        snapshot = None if answer is None else _snapshot(question, answer, subject_id)
+        page = None if pages is None else pages.get(question.key)
+        snapshot = None if answer is None else _snapshot(question, answer, subject_id, book_id, page)
         if snapshot is None:
             skipped.append(question.key)
             continue
@@ -56,7 +60,13 @@ def stage_review(
     return StagedReview(tuple(staged), tuple(kept), tuple(skipped))
 
 
-def _snapshot(question: QuestionDraft, answer: AnswerDraft, subject_id: str) -> ApprovalSnapshot | None:
+def _snapshot(
+    question: QuestionDraft,
+    answer: AnswerDraft,
+    subject_id: str,
+    book_id: str = "",
+    pdf_page: int | None = None,
+) -> ApprovalSnapshot | None:
     question_id = _version_id("qv-", question.key)
     answer_id = _version_id("av-", answer.key)
     if question_id is None or answer_id is None or not subject_id:
@@ -72,7 +82,9 @@ def _snapshot(question: QuestionDraft, answer: AnswerDraft, subject_id: str) -> 
         subject_id=subject_id,
         item_order=(question.number,) if question.number else (),
         stem=_plain(question.stem),
-        answer_text=_plain(answer.content),
+        answer_text=answer_plain(answer),
+        book_id=book_id or None,
+        pdf_page=pdf_page,
         type=question.type,
         structure=question.structure,
         options=tuple(
@@ -91,12 +103,4 @@ def _version_id(prefix: str, key: str) -> str | None:
 
 def _plain(parts: tuple[object, ...]) -> str:
     """Join text and math from either the question or the answer part types."""
-    chunks: list[str] = []
-    for part in parts:
-        value = getattr(part, "value", None)
-        latex = getattr(part, "latex", None)
-        if isinstance(value, str):
-            chunks.append(value)
-        elif isinstance(latex, str):
-            chunks.append(latex)
-    return "".join(chunks)
+    return plain_parts(parts)

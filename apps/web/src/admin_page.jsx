@@ -76,7 +76,7 @@ export function AdminPage() {
         <button type="button" onClick={() => write("/api/admin/teachers/" + form.teacherId + "/password", { secret: form.secret }, { secret: "" })}>
           重置口令
         </button>
-        <People rows={teachers} idKey="user_id" label={(row) => row.username + " · " + row.status} onDisable={(id) => write("/api/admin/teachers/" + id + "/disable", {})} onEnable={(id) => write("/api/admin/teachers/" + id + "/enable", {})} />
+        <People rows={teachers} idKey="user_id" label={(row) => row.username + " · " + row.user_id + " · " + row.status} onDisable={(id) => write("/api/admin/teachers/" + id + "/disable", {})} onEnable={(id) => write("/api/admin/teachers/" + id + "/enable", {})} />
       </section>
       <section>
         <h2>学生</h2>
@@ -87,7 +87,7 @@ export function AdminPage() {
         <button type="button" onClick={() => write("/api/admin/students", { external_id: form.externalId, name: form.name.trim() ? form.name.trim() : null, grade: form.grade, subject_id: form.subjectId }, { externalId: "", name: "", grade: "", subjectId: "" })}>
           创建学生
         </button>
-        <People rows={students} idKey="student_id" label={(row) => (row.external_id || row.student_id) + " · " + row.status} onArchive={(id) => write("/api/admin/students/" + id + "/archive", {})} />
+        <People rows={students} idKey="student_id" label={(row) => (row.external_id || "") + " · " + row.student_id + " · " + row.status} onArchive={(id) => write("/api/admin/students/" + id + "/archive", {})} />
       </section>
       <section>
         <h2>授权</h2>

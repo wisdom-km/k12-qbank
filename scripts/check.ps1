@@ -41,6 +41,11 @@ $RealData = Conf 'REAL_DATA' 'no'; $Public = Conf 'PUBLIC' 'no'
 $RunCmd = Conf 'RUN_CMD' ''; $TestCmd = Conf 'TEST_CMD' ''; $InstallCmd = Conf 'INSTALL_CMD' ''
 $TestKind = Conf 'TEST_KIND' 'docs'; $ServiceCmd = Conf 'SERVICE_CMD' ''; $BusinessTestCmd = Conf 'BUSINESS_TEST_CMD' ''
 $ServiceSmoke = Conf 'SERVICE_SMOKE_CMD' ''; $ServiceSmokeTimeout = Conf 'SERVICE_SMOKE_TIMEOUT' '5'; $ServiceTimeout = Conf 'SERVICE_READY_TIMEOUT' '5'; $ServiceReady = Conf 'SERVICE_READY_TOKEN' 'READY'; $ServiceHealth = Conf 'SERVICE_HEALTH_URL' ''
+$ServicePort = Conf 'SERVICE_PORT' '8765'
+if ($env:K12_CHECK_PORT) { $ServicePort = $env:K12_CHECK_PORT }
+if ($ServiceCmd -match '--port\s+\d+') { $ServiceCmd = $ServiceCmd -replace '--port\s+\d+', "--port $ServicePort" }
+if ($ServiceHealth -match ':\d+') { $ServiceHealth = $ServiceHealth -replace ':\d+', (':' + $ServicePort) }
+$env:K12_PORT = "$ServicePort"
 $script:StartService = $false
 $AppDirs = (Conf 'APP_DIRS' '.') -split '\s+' | Where-Object { $_ }
 $LintCmd = Conf 'LINT_CMD' ''; $LogCheckCmd = Conf 'LOG_CHECK_CMD' ''

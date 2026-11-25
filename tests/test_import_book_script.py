@@ -28,6 +28,7 @@ class ImportBookScriptReadTest(unittest.TestCase):
         pages = body["pages"]
         self.assertEqual([page["pdf_page"] for page in pages], [7, 12, 101])
         self.assertEqual([page["role"] for page in pages], ["questions", "questions", "answers"])
+        self.assertTrue(all("volume" not in page for page in pages))
         self.assertEqual(pages[0]["answers"], [])
         self.assertEqual(pages[1]["answers"], [])
         text = json.dumps(body, ensure_ascii=False)
@@ -40,6 +41,67 @@ class ImportBookScriptReadTest(unittest.TestCase):
         self.assertNotIn("synth-backup", text)
         self.assertNotIn("synth-reviewed", text)
         self.assertNotIn("synth-hidden", text)
+
+    def test_three_directories_keep_each_volume_and_forward_the_catalog(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            questions = root / "Seven_question"
+            answers = root / "Seven_solution"
+            catalog = root / "Seven_catalog"
+            questions.mkdir()
+            answers.mkdir()
+            catalog.mkdir()
+            _dump(questions / "input_1_page_0001.questions.json", {"stem": "synth-q"})
+            _dump(answers / "input_1_page_0001.questions.json", {"stem": "synth-skip-me"})
+            (answers / "input_1_page_0001.page-role.txt").write_text("answers\n", encoding="utf-8")
+            folder = answers / "input_1_page_0001.answers"
+            folder.mkdir()
+            _dump(folder / "a.json", {"text": "synth-a"})
+            backup = answers / "_export_backups"
+            backup.mkdir()
+            _dump(backup / "input_1_page_0001.questions.json", {"stem": "synth-backup"})
+            _dump(answers / "input_1_page_0002.questions.json", {"stem": "synth-unmarked"})
+            (catalog / "input_1_page_0001.md").write_text(
+                "# 目录\n## 一、synth-ch\nsynth-les \u2026 1\n",
+                encoding="utf-8",
+            )
+            (root / "import-book.json").write_text(
+                json.dumps(
+                    {
+                        "book_id": "synth-r4f-vol",
+                        "subject_id": "math",
+                        "question_dir": "Seven_question",
+                        "answer_dir": "Seven_solution",
+                        "toc_dir": "Seven_catalog",
+                        "toc_page_offset": 0,
+                        "pairs": [{"answer_page": 1, "question_page": 1}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            book_id, body = build_request(str(root))
+        self.assertEqual(book_id, "synth-r4f-vol")
+        self.assertEqual(body["toc_page_offset"], 0)
+        self.assertEqual(body["pairing"], [{"answer_page": 1, "question_page": 1}])
+        pages = body["pages"]
+        self.assertEqual(
+            [(page["pdf_page"], page["volume"]) for page in pages],
+            [(1, "questions"), (1, "answers"), (2, "answers")],
+        )
+        unmarked = next(page for page in pages if page["pdf_page"] == 2)
+        self.assertTrue(unmarked["has_question_file"])
+        self.assertIsNone(unmarked["questions"])
+        text = json.dumps(body, ensure_ascii=False)
+        self.assertIn("synth-q", text)
+        self.assertIn("synth-a", text)
+        self.assertIn("synth-ch", text)
+        self.assertNotIn("synth-skip-me", text)
+        self.assertNotIn("synth-backup", text)
+        self.assertNotIn("synth-unmarked", text)
+        with self.assertRaises(ValueError):
+            from scripts.import_book import read_book
+
+            read_book(root, {"question_dir": "C:/synth-abs"})
 
     def test_unknown_manifest_fields_are_forwarded(self) -> None:
         body = build_body(
@@ -161,6 +223,10 @@ def _change(handler: BaseHTTPRequestHandler, payload: dict[str, object]) -> None
         )
         return
     _send(handler, 404, {"code": "not_found"})
+
+
+def _dump(path: Path, payload: dict[str, object]) -> None:
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 class _Handler(BaseHTTPRequestHandler):

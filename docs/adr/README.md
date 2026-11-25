@@ -22,6 +22,8 @@
 
 2026-11-25：0047 已采纳。老师按题采用、改判或手评，写入 `teacher_decision`。AI 建议在采用或改判之前不是结论。0041 只在文末追加修订，不删原文。不改 0014、0045 正文。
 
+2026-11-25：0048 已采纳。题目册、答案册、目录可以分开放。页码按册唯一。目录解析成章、节、课时，题目按页码归课。新导入的答案正文带上小问。0042 与 0046 只在文末追加修订，不删原文。
+
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
 | [0001](0001-long-lived-tier.md) | 按长期项目做 | accepted | 全库 |
@@ -71,3 +73,4 @@
 | [0045](0045-ai-suggestions.md) | AI 识别建议 | accepted | ai |
 | [0046](0046-formula-layout.md) | 卷面公式按排版印出 | accepted | catalog, practice |
 | [0047](0047-teacher-decisions.md) | 老师确认或手评成为正式结论 | accepted | practice |
+| [0048](0048-book-volumes-and-lessons.md) | 题目册、答案册和目录 | accepted | catalog, practice |

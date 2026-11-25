@@ -40,6 +40,7 @@ def open_postgres() -> Loop:
     from backend.ai.adapters.pg_runs import PgRuns
     from backend.practice.adapters.pg_decision import PgDecisions
     from backend.catalog.adapters.pg_answers import PgAnswers
+    from backend.catalog.adapters.pg_books import PgBooks
     from backend.catalog.adapters.pg_publications import PgPublications
     from backend.catalog.adapters.pg_questions import PgQuestions
 
@@ -61,6 +62,7 @@ def open_postgres() -> Loop:
         intake=intake,
         ai_runs=PgRuns(pool),
         decisions=PgDecisions(pool),
+        books=PgBooks(pool),
     )
 
 
