@@ -52,3 +52,11 @@
 每一页带上所在的册：`questions` 或 `answers`。页码只在同一册里要求唯一。`answer_dir` 里的页一律按答案页读 `.answers\`。这一页没有 `.answers\`、却有 `.questions.json` 时，整本拒绝，原因 `answer_page_not_marked`。写了 `answer_dir` 却没有 `pairs` 时，答案页是 `unpaired_answer`，本批不按课时自动配对。
 
 目录由服务端解析成章、节、课时。题目按题目册页码归课。见 ADR 0048。未知字段仍是 `unknown_field`。上文「字段是 `book_id`、`subject_id`、`pairs`」是当时的决定，不删。
+
+## 修订（2026-11-25，R6b）
+
+管理后台 `/admin` 增加整书导入。管理员可以拖入书文件夹，也可以点击选择文件夹。网页按与 `scripts/import_book.py` 相同的办法读三个目录或原来的单目录，调用同一条 `POST /api/admin/catalog/books/{book_id}/import`。
+
+先发 `dry_run: true`。这一次预演的 `reason` 为空、每一页都是 `ok`、并且 `conflict` 为 0 时，才可以确认写入。确认时发同一份请求，`dry_run: false`。换一个文件夹就清掉上次预演。重页、配对、冲突和目录解析仍只在服务端。网页只展示报告：页、题、课时、目录计数、原因、`answer_page_not_marked` 的提示，以及 `request_id`。
+
+请求体上限仍是 1 MB。超过先返回 `payload_too_large`，不进入导入规则。上文这一句不改。审计事件仍是 `import_book`，不新增字段。

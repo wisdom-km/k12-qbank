@@ -60,7 +60,7 @@ The server and the web page adopt Python 3.12, FastAPI, PostgreSQL, and React. S
 | Business code `catalog` / `practice` | On synthetic questions it refuses an unapproved issue, writes a one-page PDF, and confirms one answer by operation key |
 | Teaching service | Local synthetic HTTP now has a session. The default process does not connect. There is no public release. The pages are `/login`, `/`, `/admin`, and `/account` |
 | Login | Page `/login`. A signed-out visit to `/`, `/admin`, or `/account` goes to the login page. The session cookie is `k12_sid`. Writes send `X-K12-CSRF` |
-| Admin | Page `/admin`. An admin creates teachers and students, grants and revokes, and reads audit and errors. A teacher sees permission_denied |
+| Admin | Page `/admin`. An admin creates teachers and students, grants and revokes, and reads audit and errors. The same page can take a book folder, preview the import, then confirm the write. A teacher sees permission_denied |
 | PostgreSQL connected | The process connects and migrates identity, audit, catalog, and practice only when `K12_PG_DSN` is set. Page bytes use `K12_FILE_DIR`. `K12_ENV` defaults to development; production exits when the DSN or the page-byte directory is empty. The default process and the unit tests do not connect. The CI `postgres` job runs migrate up, down, and up, plus the identity and catalog/practice contracts and the migration lock |
 | Run mode | `K12_ENV` defaults to development. production exits when the DSN or `K12_FILE_DIR` is empty. development with an empty DSN stays in memory |
 | Catalog PG | A set `K12_PG_DSN` writes the V002 runtime tables, V004 `questions` and `answers`, the five V005 child tables, V007 `publication`, and V008 `publication_asset`, and applies V009 `publication_one_active`. V018 creates `book` and `book_lesson`, and adds nullable `approvals.book_id` and `pdf_page` without backfill. `figure_geometry` and `answer_decision` are still not built. Asset byte upload is still not done |
@@ -113,7 +113,7 @@ Remote checks are the [Actions job named check](https://github.com/wisdom-km/k12
 
 ## Import a book
 
-Double-click `scripts/import_book.cmd`. The script only reads a directory, signs in, calls `POST /api/admin/catalog/books/{book_id}/import`, and writes a report under the book's `_import_reports/`. The rules stay on the server. Steps, the book manifest, and what to do with a conflict are in [docs/ops/import-book.md](docs/ops/import-book.md). The question booklet, the answer booklet, and the catalog can live in three directories. The decision is [docs/adr/0042-book-import.md](docs/adr/0042-book-import.md) and [docs/adr/0048-book-volumes-and-lessons.md](docs/adr/0048-book-volumes-and-lessons.md).
+Double-click `scripts/import_book.cmd`. The script only reads a directory, signs in, calls `POST /api/admin/catalog/books/{book_id}/import`, and writes a report under the book's `_import_reports/`. An admin can also open `/admin`, drop or choose the book folder, preview, then confirm the write. The rules stay on the server. Steps, the book manifest, and what to do with a conflict are in [docs/ops/import-book.md](docs/ops/import-book.md). The question booklet, the answer booklet, and the catalog can live in three directories. The decision is [docs/adr/0042-book-import.md](docs/adr/0042-book-import.md) and [docs/adr/0048-book-volumes-and-lessons.md](docs/adr/0048-book-volumes-and-lessons.md). This batch does not change the API or add an error code.
 
 ## Read first
 
