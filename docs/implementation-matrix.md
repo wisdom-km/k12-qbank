@@ -50,11 +50,13 @@ M-14：`GET /api/admin/errors` 只读近 24 小时的 ERROR。`K12_ERROR_WEBHOOK
 
 2026-11-25：V019 给 `papers` 增加可空的 `source_paper_id`，无外键、不回填。`POST /api/practice/papers/{paper_id}/follow-up` 按未作废的老师结论再出一份练习。默认 `incorrect`、`partial`、`blank`。不依据未采用的 AI 建议。不改原卷。见 ADR 0049。
 
+2026-11-25：试用部署包。`docker/compose.trial.yml` 把 postgres 与 app 留在容器内网，只由 nginx 暴露 HTTPS。本机自签证书和口令加密只覆盖这一次试用。`#28` 与 `#35` 仍打开。联合备份同时包含数据库转储、`K12_FILE_DIR` 和 SHA-256 清单。恢复拒绝库名 `k12`。见 ADR 0050。不新增迁移，不改接口。
+
 契约测试指：每个端口一套测试，假适配器和真实适配器都跑。草稿形状的 schema 测试算 core 测试，不算这一列。identity 与审计的一次本机走查写在 `docs/evidence/identity-audit-2026-11-18.md`。catalog 与 practice 的一次本机走查写在 `docs/evidence/catalog-practice-pg-2026-11-18.md`。这两页都不是试用，也不是 AC-01。`test_http_loop` 是本机合成 HTTP，不是端到端。
 
 改了某一格，同一个 PR 里改本表，并勾选 PR 模板里的对应项。
 
-当前结论：V004–V019 已在仓库。新导入的题把文字和公式分开存。出卷按公式的真实高度排版，不印 LaTeX 源码。`formula_unsupported`、`formula_unstructured`、`formula_too_wide` 都是 409。`figure_geometry` 与 `answer_decision` 仍未建。issue #66 已于 2026-11-22 由 PR #68 关闭。资产字节上传仍未做。HTTP 出卷可以一次放入多道已核准的题，新卷按题型高度排版。收卷照片已接（V014）。识别建议已接（V015，`ai` 切片）。老师结论已接（V017，`teacher_decision`）。批改页已接。按题裁切仍未做。V018 的 `book` 与 `book_lesson` 已接。新导入写入 `approvals.book_id` 与 `pdf_page`，不回填。老师页按课时选题。见 ADR 0048。管理后台 `/admin` 可以拖入或选择书文件夹，先预演再确认写入，接口和错误码都没有变。识别率对账报表已接，真实样张实测仍未做。V019 的 `papers.source_paper_id` 已接，可空、不回填、无外键。批改确认后可以再出一份练习。见 ADR 0049。
+当前结论：V004–V019 已在仓库。新导入的题把文字和公式分开存。出卷按公式的真实高度排版，不印 LaTeX 源码。`formula_unsupported`、`formula_unstructured`、`formula_too_wide` 都是 409。`figure_geometry` 与 `answer_decision` 仍未建。issue #66 已于 2026-11-22 由 PR #68 关闭。资产字节上传仍未做。HTTP 出卷可以一次放入多道已核准的题，新卷按题型高度排版。收卷照片已接（V014）。识别建议已接（V015，`ai` 切片）。老师结论已接（V017，`teacher_decision`）。批改页已接。按题裁切仍未做。V018 的 `book` 与 `book_lesson` 已接。新导入写入 `approvals.book_id` 与 `pdf_page`，不回填。老师页按课时选题。见 ADR 0048。管理后台 `/admin` 可以拖入或选择书文件夹，先预演再确认写入，接口和错误码都没有变。识别率对账报表已接，真实样张实测仍未做。V019 的 `papers.source_paper_id` 已接，可空、不回填、无外键。批改确认后可以再出一份练习。见 ADR 0049。试用容器、nginx HTTPS 和联合加密备份已接。见 ADR 0050。`#28` 与 `#35` 仍打开。
 
 | 切片 | 端口 | 内存适配器 | 持久适配器 | core 测试 | 契约测试 | 端到端 | 文档 |
 | --- | --- | --- | --- | --- | --- | --- | --- |

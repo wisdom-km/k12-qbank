@@ -30,6 +30,8 @@
 
 2026-11-25：0049 已采纳。批改确认后按未作废的老师结论再出一份练习。默认 `incorrect`、`partial`、`blank`。不依据未采用的 AI 建议。V019 给 `papers` 增加可空的 `source_paper_id`，无外键、不回填。复用现有出卷。不改原卷。不改 0047 正文。
 
+2026-11-25：0050 已采纳。试用容器由 nginx 终止 TLS，应用和 PostgreSQL 只在容器网络里。不改开发用的 `docker/compose.yml`。自签证书和口令加密只覆盖这一次试用。`#28` 与 `#35` 保持打开。联合备份核对清单，并拒绝恢复到库名 `k12`。不改 0009、0020、0040 正文。
+
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
 | [0001](0001-long-lived-tier.md) | 按长期项目做 | accepted | 全库 |
@@ -81,3 +83,4 @@
 | [0047](0047-teacher-decisions.md) | 老师确认或手评成为正式结论 | accepted | practice |
 | [0048](0048-book-volumes-and-lessons.md) | 题目册、答案册和目录 | accepted | catalog, practice |
 | [0049](0049-follow-up-paper.md) | 从已确认批改再出一份练习 | accepted | practice |
+| [0050](0050-trial-docker-and-backup.md) | 单机试用的容器、HTTPS 和联合备份 | accepted | 全库 |
