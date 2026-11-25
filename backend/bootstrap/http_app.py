@@ -30,6 +30,7 @@ from backend.bootstrap.routes_catalog import register_catalog
 from backend.bootstrap.routes_observability import register_observability
 from backend.bootstrap.routes_ai import register_ai
 from backend.bootstrap.routes_intake import register_intake
+from backend.bootstrap.routes_decision import register_decision
 from backend.bootstrap.routes_practice import register_practice
 from backend.bootstrap.routes_session import register_session
 from backend.bootstrap.seed import bootstrap_from_env, load_fixture
@@ -73,6 +74,7 @@ def create_app(
     register_admin(app)
     register_catalog(app)
     register_practice(app)
+    register_decision(app)
     register_intake(app)
     register_ai(app)
     _mount_web(app)

@@ -122,6 +122,11 @@ class PgPractice:
 
         _run(self._pool, work)
 
+    def place_paper(self, paper: Paper) -> None:
+        if not paper.item_order:
+            raise ValueError("incomplete issue")
+        _run(self._pool, lambda conn: _save_paper(conn, paper))
+
     def commit_confirmation(self, record: Confirmation) -> Confirmation | Err:
         try:
             return _run(self._pool, lambda conn: _commit(conn, record))

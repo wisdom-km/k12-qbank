@@ -28,6 +28,7 @@ from backend.kernel.log_event import LogEvent
 from backend.kernel.logger import CompositeLogger, Logger
 from backend.practice.adapters.files import MemoryFiles
 from backend.ai.adapters.memory_runs import MemoryRuns
+from backend.practice.adapters.memory_decision import MemoryDecisions
 from backend.ai.adapters.mock_model import MockModel
 from backend.practice.adapters.memory import MemoryPractice
 from backend.practice.adapters.memory_intake import MemoryIntake
@@ -59,6 +60,7 @@ class Loop:
     intake: object = field(default_factory=MemoryIntake)
     ai_runs: object = field(default_factory=MemoryRuns)
     model: object = field(default_factory=MockModel)
+    decisions: object = field(default_factory=MemoryDecisions)
 
 
 def compose() -> Loop:
@@ -125,6 +127,8 @@ def _loop(**kwargs: object) -> Loop:
     values.update(kwargs)
     if "ai_runs" not in values:
         values["ai_runs"] = MemoryRuns()
+    if "decisions" not in values:
+        values["decisions"] = MemoryDecisions()
     if "model" not in values:
         from backend.bootstrap.ai_wire import build_model
 

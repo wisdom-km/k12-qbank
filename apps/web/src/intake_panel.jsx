@@ -188,7 +188,8 @@ export function IntakePanel({ papers, call, initialShots }) {
               return (
                 <li key={paper.paper_id}>
                   {numberOf(paper)}：已收 {received} / {total} 页
-                  {missing.length ? "，缺第 " + missing.join("、") + " 页" : ""}
+                  {missing.length ? "，缺第 " + missing.join("、") + " 页" : ""}{" "}
+                  <a href={"/papers/" + paper.paper_id + "/grade"}>批改</a>
                 </li>
               );
             })}

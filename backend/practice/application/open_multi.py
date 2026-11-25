@@ -41,12 +41,13 @@ def open_multi_paper(
     request_id: str,
     attempt_text: str,
     publications: Publications,
+    bind_attempt: bool = True,
 ) -> Ok[OpenedPaper] | Err:
     """Copy each approved stem and answer, then draw the packed pages."""
     started = time.perf_counter()
     if len(question_version_ids) < 2:
         return _refuse(logger, request_id, started, "not_multi", "a multi-item paper needs at least two items")
-    if not attempt_text.strip() or not review_version_id.strip():
+    if not review_version_id.strip() or (bind_attempt and not attempt_text.strip()):
         return _refuse(logger, request_id, started, "attempt_missing", "the synthetic attempt text is empty")
     if not auth.allow(teacher_id, student_id, subject_id):
         return _refuse(logger, request_id, started, "unauthorized", "this teacher cannot issue for that student and subject")
@@ -114,25 +115,27 @@ def open_multi_paper(
     if isinstance(composed, Err):
         return _refuse(logger, request_id, started, composed.code, composed.message)
     paper = composed.value
-    attempt_id = "fixture-answer-" + paper.paper_id
-    answer = PendingAnswer(
-        fixture_answer_id=attempt_id,
-        paper_id=paper.paper_id,
-        sub_question_id=paper.item_order[0],
-        review_version_id=paper.review_version_id,
-        student_id=paper.student_id,
-        status="pending",
-        answer_text=attempt_text,
-    )
-    saved = read_store(
-        lambda: store.put_answer(answer),
-        logger,
-        request_id,
-        "practice.bind",
-        started,
-    )
-    if isinstance(saved, Err):
-        return saved
+    attempt_id = ""
+    if bind_attempt:
+        attempt_id = "fixture-answer-" + paper.paper_id
+        answer = PendingAnswer(
+            fixture_answer_id=attempt_id,
+            paper_id=paper.paper_id,
+            sub_question_id=paper.item_order[0],
+            review_version_id=paper.review_version_id,
+            student_id=paper.student_id,
+            status="pending",
+            answer_text=attempt_text,
+        )
+        saved = read_store(
+            lambda: store.put_answer(answer),
+            logger,
+            request_id,
+            "practice.bind",
+            started,
+        )
+        if isinstance(saved, Err):
+            return saved
     emit(
         logger,
         level="INFO",

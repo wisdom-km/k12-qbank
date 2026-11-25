@@ -37,6 +37,7 @@ def open_paper(
     attempt_text: str,
     publications: Publications,
     items: PracticeItems | None = None,
+    bind_attempt: bool = True,
 ) -> Ok[OpenedPaper] | Err:
     prepared = prepare_issue(
         command,
@@ -87,7 +88,7 @@ def open_paper(
         copied = blocked_formula
     if plain_has_command(paper.formula):
         paper = replace(paper, formula="")
-    if not attempt_text.strip():
+    if bind_attempt and not attempt_text.strip():
         return _refuse(
             logger,
             request_id,
@@ -98,24 +99,33 @@ def open_paper(
     blocked = gate_active_publication(publications, paper, logger, request_id)
     if blocked is not None:
         return blocked
-    attempt_id = "fixture-answer-" + paper.paper_id
-    answer = PendingAnswer(
-        fixture_answer_id=attempt_id,
-        paper_id=paper.paper_id,
-        sub_question_id=paper.item_order[0],
-        review_version_id=paper.review_version_id,
-        student_id=paper.student_id,
-        status="pending",
-        answer_text=attempt_text,
-    )
+    attempt_id = "fixture-answer-" + paper.paper_id if bind_attempt else ""
     started = time.perf_counter()
-    saved = read_store(
-        lambda: store.place_issued(paper, answer),
-        logger,
-        request_id,
-        "practice.bind",
-        started,
-    )
+    if bind_attempt:
+        answer = PendingAnswer(
+            fixture_answer_id=attempt_id,
+            paper_id=paper.paper_id,
+            sub_question_id=paper.item_order[0],
+            review_version_id=paper.review_version_id,
+            student_id=paper.student_id,
+            status="pending",
+            answer_text=attempt_text,
+        )
+        saved = read_store(
+            lambda: store.place_issued(paper, answer),
+            logger,
+            request_id,
+            "practice.bind",
+            started,
+        )
+    else:
+        saved = read_store(
+            lambda: store.place_paper(paper),
+            logger,
+            request_id,
+            "practice.issue",
+            started,
+        )
     if isinstance(saved, Err):
         return saved
     if items is not None:
@@ -137,15 +147,16 @@ def open_paper(
         outcome=paper.paper_id,
         started=started,
     )
-    emit(
-        logger,
-        level="INFO",
-        event="adapter_completed",
-        request_id=request_id,
-        module="practice.bind",
-        outcome=attempt_id,
-        started=started,
-    )
+    if bind_attempt:
+        emit(
+            logger,
+            level="INFO",
+            event="adapter_completed",
+            request_id=request_id,
+            module="practice.bind",
+            outcome=attempt_id,
+            started=started,
+        )
     rendered = render_paper(
         paper.paper_id,
         approvals,

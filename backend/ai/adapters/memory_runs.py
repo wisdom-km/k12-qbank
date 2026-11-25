@@ -27,6 +27,11 @@ class MemoryRuns:
         with self._lock:
             return self._rows.get(run_id)
 
+    def for_intake(self, intake_id: str) -> tuple[Run, ...]:
+        with self._lock:
+            rows = [row for row in self._rows.values() if row.intake_id == intake_id]
+        return tuple(rows)
+
     def count_started_on(self, day: str) -> int:
         with self._lock:
             return sum(1 for row in self._rows.values() if row.started_at.startswith(day))

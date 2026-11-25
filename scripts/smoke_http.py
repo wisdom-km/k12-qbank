@@ -71,6 +71,8 @@ def main() -> int:
         return 1
     if _intake(base, str(opened["paper_id"])) != 0:
         return 1
+    if _grade(base) != 0:
+        return 1
     refused_import = _json(
         _open(base + "/api/admin/catalog/books/synth-smoke/import", _smoke_page(True), expect=403)
     )
@@ -144,6 +146,131 @@ def _intake(base: str, paper_id: str) -> int:
         print("SMOKE HTTP FAIL: ai suggestions")
         return 1
     return 0
+
+
+def _grade(base: str) -> int:
+    """Issue three copies, recognize each page, then adopt, revise, and grade one by hand."""
+    opened = _json(
+        _open(
+            base + "/api/practice/papers",
+            {
+                "student_id": "student-synth",
+                "subject_id": "math",
+                "review_version_id": "rev-1",
+                "items": [
+                    {"question_version_id": "q-v1"},
+                    {"question_version_id": "q-v1"},
+                    {"question_version_id": "q-v1"},
+                ],
+            },
+        )
+    )
+    paper_id = str(opened.get("paper_id") or "")
+    if not paper_id:
+        print("SMOKE HTTP FAIL: grade issue")
+        return 1
+    review = _json(_open(base + "/api/practice/papers/" + paper_id + "/review"))
+    items = review.get("items")
+    if not isinstance(items, list) or len(items) != 3:
+        print("SMOKE HTTP FAIL: grade items")
+        return 1
+    pages = sorted({int(item["page_no"]) for item in items if isinstance(item, dict)})
+    for page in pages:
+        uploaded = _json(
+            _put_bytes(
+                base + "/api/practice/papers/" + paper_id + "/pages/" + str(page) + "/intake?located_by=manual",
+                _jpeg(),
+            )
+        )
+        intake_id = uploaded.get("intake_id")
+        if not isinstance(intake_id, str) or not intake_id.startswith("intake-"):
+            print("SMOKE HTTP FAIL: grade intake")
+            return 1
+        if _wait_run(base, intake_id) != 0:
+            return 1
+    review = _json(_open(base + "/api/practice/papers/" + paper_id + "/review"))
+    items = review.get("items")
+    if not isinstance(items, list):
+        print("SMOKE HTTP FAIL: grade review")
+        return 1
+    ready: list[int] = []
+    bare: list[int] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        suggestion = item.get("suggestion")
+        order_no = int(item["order_no"])
+        if isinstance(suggestion, dict) and suggestion.get("verdict") != "unsure" and not item.get("stale"):
+            ready.append(order_no)
+        else:
+            bare.append(order_no)
+    if len(ready) < 2 or len(ready) + len(bare) < 3:
+        print("SMOKE HTTP FAIL: grade coverage")
+        return 1
+    manual_no = bare[0] if bare else ready[2]
+    adopted = _json(_put_json(base + _decision(paper_id, ready[0]), {"action": "adopt"}))
+    if adopted.get("source") != "adopted" or adopted.get("agrees") is not True:
+        print("SMOKE HTTP FAIL: grade adopt")
+        return 1
+    revised = _json(
+        _put_json(base + _decision(paper_id, ready[1]), {"action": "revise", "verdict": "incorrect"})
+    )
+    if revised.get("source") != "revised":
+        print("SMOKE HTTP FAIL: grade revise")
+        return 1
+    manual = _json(_put_json(base + _decision(paper_id, manual_no), {"action": "manual", "verdict": "blank"}))
+    if manual.get("source") != "manual":
+        print("SMOKE HTTP FAIL: grade manual")
+        return 1
+    done = _json(_open(base + "/api/practice/papers/" + paper_id + "/review"))
+    if done.get("done") is not True or int(done.get("confirmed") or 0) != 3:
+        print("SMOKE HTTP FAIL: grade done")
+        return 1
+    return 0
+
+
+def _wait_run(base: str, intake_id: str) -> int:
+    started = _json(_open(base + "/api/practice/intake/" + intake_id + "/ai-runs", {}, 202))
+    run_id = started.get("run_id")
+    if not isinstance(run_id, str) or not run_id.startswith("run-"):
+        print("SMOKE HTTP FAIL: grade ai")
+        return 1
+    deadline = time.time() + 5
+    report: dict[str, object] = {}
+    while time.time() < deadline:
+        report = _json(_open(base + "/api/practice/ai-runs/" + run_id))
+        if report.get("status") in {"succeeded", "failed"}:
+            break
+        time.sleep(0.05)
+    if report.get("status") != "succeeded":
+        print("SMOKE HTTP FAIL: grade ai status " + str(report.get("status")))
+        return 1
+    return 0
+
+
+def _decision(paper_id: str, order_no: int) -> str:
+    return "/api/practice/papers/" + paper_id + "/items/" + str(order_no) + "/decision"
+
+
+def _put_json(url: str, body: dict[str, object], expect: int = 200) -> urllib.response.addinfourl:
+    data = json.dumps(body).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "X-Request-Id": "smoke-http",
+        "X-K12-CSRF": _CSRF["value"],
+    }
+    request = urllib.request.Request(url, data=data, headers=headers, method="PUT")
+    try:
+        response = _OPENER.open(request, timeout=3)
+    except urllib.error.HTTPError as exc:
+        if exc.code != expect:
+            print("SMOKE HTTP FAIL: " + url + " status " + str(exc.code))
+            raise SystemExit(1) from exc
+        return exc
+    if response.status != expect:
+        print("SMOKE HTTP FAIL: " + url + " status " + str(response.status))
+        raise SystemExit(1)
+    return response
 
 
 def _jpeg() -> bytes:

@@ -153,6 +153,40 @@ label {
   margin-top: 0.75rem;
 }
 
+.grade {
+  overflow-x: hidden;
+}
+
+.grade button,
+.grade select,
+.grade input {
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  max-width: 100%;
+}
+
+.grade-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.grade-actions button {
+  flex: 1 1 8rem;
+}
+
+.needs-review {
+  background: #f6e7c1;
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+@media (max-width: 40rem) {
+  .grade-actions {
+    flex-direction: column;
+  }
+}
+
 .intake-file input {
   position: absolute;
   width: 1px;

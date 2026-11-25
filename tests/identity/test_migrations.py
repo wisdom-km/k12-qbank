@@ -32,6 +32,7 @@ class MigrationFilesTest(unittest.TestCase):
                 "V014",
                 "V015",
                 "V016",
+                "V017",
             ],
         )
         self.assertTrue(found[0].down.is_file())
@@ -252,6 +253,19 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertNotIn("UPDATE ", down14_sql)
         self.assertNotIn("pg_advisory", down14_sql)
         self.assertNotIn("schema_migrations", down14_sql)
+        up17 = found[16].up.read_text(encoding="utf-8")
+        down17 = found[16].down.read_text(encoding="utf-8")
+        up17_sql = "\n".join(sql_statements(up17))
+        down17_sql = "\n".join(sql_statements(down17))
+        self.assertIn("CREATE TABLE teacher_decision", up17_sql)
+        self.assertIn("teacher_decision_current", up17_sql)
+        self.assertIn("voided_at IS NULL", up17_sql)
+        self.assertNotIn("UPDATE ", up17_sql)
+        self.assertNotIn("schema_migrations", up17_sql)
+        self.assertIn("DROP TABLE IF EXISTS teacher_decision", down17_sql)
+        self.assertNotIn("UPDATE ", down17_sql)
+        self.assertNotIn("pg_advisory", down17_sql)
+        self.assertNotIn("schema_migrations", down17_sql)
         sample = "DO $$\nBEGIN\n    RAISE EXCEPTION 'keep; this';\nEND\n$$;\nSELECT 1;\n"
         parts = sql_statements(sample)
         self.assertEqual(len(parts), 2)

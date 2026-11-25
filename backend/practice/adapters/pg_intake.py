@@ -31,7 +31,11 @@ class PgIntake:
         )
 
     def currents(self, paper_id: str) -> tuple[IntakePage, ...]:
-        return _run(self._pool, lambda conn: _many(conn, paper_id))
+        return _run(self._pool, lambda conn: _many(conn, paper_id, current_only=True))
+
+    def history(self, paper_id: str) -> tuple[IntakePage, ...]:
+        """Every photo for this paper, including replaced ones."""
+        return _run(self._pool, lambda conn: _many(conn, paper_id, current_only=False))
 
     def file_purpose(self, file_id: str) -> str | None:
         row = _run(
@@ -122,16 +126,19 @@ def _one(conn: Any, where: str, params: tuple[object, ...]) -> IntakePage | None
     return _row(found, "" if checksum is None else str(checksum[0]))
 
 
-def _many(conn: Any, paper_id: str) -> tuple[IntakePage, ...]:
+def _many(conn: Any, paper_id: str, *, current_only: bool) -> tuple[IntakePage, ...]:
+    where = "WHERE intake.paper_id = %s"
+    if current_only:
+        where += " AND intake.superseded_at IS NULL"
     rows = conn.execute(
-        """
+        f"""
         SELECT intake.intake_id, intake.paper_id, intake.page_no, intake.file_id,
                intake.uploaded_by, intake.uploaded_at, intake.located_by, intake.superseded_at,
                files.checksum
         FROM intake_page AS intake
         JOIN files ON files.file_id = intake.file_id
-        WHERE intake.paper_id = %s AND intake.superseded_at IS NULL
-        ORDER BY intake.page_no
+        {where}
+        ORDER BY intake.page_no, intake.uploaded_at, intake.intake_id
         """,
         (paper_id,),
     ).fetchall()
