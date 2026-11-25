@@ -209,7 +209,7 @@ class VolumeCases:
         report = self.call("synth-r4f-parts", [page])
         self.assertEqual(report.staged, 1)  # type: ignore[attr-defined]
         stored = self.approvals.read_snapshot(report.questions[0].question_version_id)  # type: ignore[attr-defined]
-        self.assertEqual(stored.answer_text, "(1) synth-asynth-step；(2) synth-b")
+        self.assertEqual(stored.answer_text, "(1) synth-a synth-step；(2) synth-b")
         again = self.call("synth-r4f-parts", [page])
         self.assertEqual(again.kept, 1)  # type: ignore[attr-defined]
         plain = [_qpage(1, "1:1", "synth-stem", "synth-only")]

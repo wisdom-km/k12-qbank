@@ -15,7 +15,7 @@ class BookTocTest(unittest.TestCase):
         text = "\n".join(
             [
                 "# 目录",
-                "# 课课练",
+                "# synth-book",
                 "",
                 "## 一、synth-ch",
                 "synth-sec",

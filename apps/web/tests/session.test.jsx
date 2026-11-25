@@ -418,4 +418,32 @@ describe("session pages", () => {
     const bad = [...lesson.querySelectorAll("li")].find((item) => item.textContent.includes("q-les-bad"));
     expect(bad.querySelector('input[type="checkbox"]').checked).toBe(false);
   });
+
+  it("hides the loose block when every question is in a lesson", async () => {
+    const row = {
+      question_version_id: "q-placed",
+      subject_id: "math",
+      stem: "synth-stem",
+      answer_text: "2",
+      question_approved: true,
+      answer_approved: true,
+      retired: false,
+      book_id: "synth-r4f",
+      chapter_title: "synth-ch",
+      section_title: "synth-sec",
+      lesson_title: "synth-les",
+      lesson_order: 1,
+      pdf_page: 1,
+    };
+    installFetch((path) => {
+      if (path === "/api/session") return jsonResponse(200, teacher);
+      if (path === "/api/catalog") return jsonResponse(200, { items: [row] });
+      if (path.startsWith("/api/catalog/")) return jsonResponse(200, row);
+      if (path === "/api/practice/papers") return jsonResponse(200, { count: 0, papers: [] });
+      return jsonResponse(404, { code: "not_found", message: "not_found", request_id: "req-test" });
+    });
+    await renderAt("/");
+    await settle(() => document.body.textContent.includes("synth-r4f"));
+    expect(document.body.textContent).not.toContain("未归类");
+  });
 });

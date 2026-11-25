@@ -20,7 +20,7 @@ class AnswerTextTest(unittest.TestCase):
                 ),
             )
         )
-        self.assertEqual(joined, "(2) synth-b；(1) synth-asynth-step")
+        self.assertEqual(joined, "(2) synth-b；(1) synth-a synth-step")
         self.assertEqual(answer_plain(_answer((TextPart("synth-only"),), ())), "synth-only")
         labeled = answer_plain(
             _answer(
@@ -29,6 +29,17 @@ class AnswerTextTest(unittest.TestCase):
             )
         )
         self.assertEqual(labeled, "lead；(1) synth-a")
+        shared = answer_plain(
+            _answer(
+                (),
+                (
+                    AnswerPart("", "step", 1, (TextPart("synth-shared"),)),
+                    AnswerPart("", "step", 2, (TextPart("synth-next"),)),
+                ),
+            )
+        )
+        self.assertEqual(shared, "synth-shared synth-next")
+        self.assertNotIn("()", shared)
 
 
 def _answer(content: tuple[TextPart, ...], parts: tuple[AnswerPart, ...]) -> AnswerDraft:

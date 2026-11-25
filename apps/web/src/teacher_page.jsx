@@ -94,6 +94,7 @@ export function TeacherPage() {
   const waitingReason = paper && paper.status === "待渲染" && (paper.render_code || paper.render_message);
   const blocked = attemptBlock(errorCode);
   const layoutNotice = layoutIssueText(errorCode, error);
+  const grouped = groupCatalog(items);
 
   return (
     <main>
@@ -110,7 +111,7 @@ export function TeacherPage() {
         <h2>核验</h2>
         {items.length > 0 && (
           <div className="catalog-tree">
-            {groupCatalog(items).books.map((book) => (
+            {grouped.books.map((book) => (
               <section key={book.bookId} className="lesson-book">
                 <h3>{book.bookId}</h3>
                 {book.chapters.map((chapter) => (
@@ -142,17 +143,19 @@ export function TeacherPage() {
                 ))}
               </section>
             ))}
-            <LessonBlock
-              title="未归类"
-              count={lessonChoiceIds(groupCatalog(items).loose).length}
-              open={openLessons.has("loose")}
-              onToggle={() => toggleLesson(setOpenLessons, "loose")}
-              onSelect={() => selectLesson(set, chosen, groupCatalog(items).loose)}
-              rows={groupCatalog(items).loose}
-              chosen={chosen}
-              onOpen={(id) => loop.selectQuestion(id)}
-              onToggleRow={(id) => toggleChosen(set, chosen, id)}
-            />
+            {grouped.loose.length > 0 && (
+              <LessonBlock
+                title="未归类"
+                count={lessonChoiceIds(grouped.loose).length}
+                open={openLessons.has("loose")}
+                onToggle={() => toggleLesson(setOpenLessons, "loose")}
+                onSelect={() => selectLesson(set, chosen, grouped.loose)}
+                rows={grouped.loose}
+                chosen={chosen}
+                onOpen={(id) => loop.selectQuestion(id)}
+                onToggleRow={(id) => toggleChosen(set, chosen, id)}
+              />
+            )}
           </div>
         )}
         {item && (

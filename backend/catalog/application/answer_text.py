@@ -32,9 +32,16 @@ def answer_plain(answer: AnswerDraft) -> str:
         groups[part.sub_key].append(part)
     pieces: list[str] = []
     for key in order:
-        body = "".join(plain_parts(part.content) for part in groups[key])
-        label = key if key.startswith("(") and key.endswith(")") else "(" + key + ")"
-        pieces.append((label + " " + body).rstrip())
+        segments = [plain_parts(part.content) for part in groups[key]]
+        body = " ".join(segment for segment in segments if segment)
+        if not body:
+            continue
+        label_key = key.strip()
+        if not label_key:
+            pieces.append(body)
+            continue
+        label = label_key if label_key.startswith("(") and label_key.endswith(")") else "(" + label_key + ")"
+        pieces.append(label + " " + body)
     joined = "；".join(pieces)
     if base:
         return base + "；" + joined
