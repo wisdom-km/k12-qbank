@@ -40,6 +40,9 @@ class PracticeStore(Protocol):
         A failure leaves both absent.
         """
 
+    def place_paper(self, paper: Paper) -> None:
+        """Store one paper without a synthetic pending answer."""
+
     def set_review_version(self, paper_id: str, review_version_id: str) -> None:
         """Replace only the review version. The issued snapshot stays."""
 

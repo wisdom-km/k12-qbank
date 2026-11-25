@@ -128,6 +128,12 @@ class MemoryPractice:
             self._papers[paper.paper_id] = paper
             self._answers[answer.fixture_answer_id] = answer
 
+    def place_paper(self, paper: Paper) -> None:
+        with self._commit_lock:
+            if not paper.item_order:
+                raise ValueError("incomplete issue")
+            self._papers[paper.paper_id] = paper
+
     def commit_confirmation(self, record: Confirmation) -> Confirmation | Err:
         """One lock covers the replay, the answer, the review version, the slot, and the insert."""
         with self._commit_lock:

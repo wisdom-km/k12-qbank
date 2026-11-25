@@ -39,6 +39,13 @@ _STATUS = {
     "formula_unsupported": 409,
     "formula_unstructured": 409,
     "formula_too_wide": 409,
+    "cannot_adopt_unsure": 409,
+    "suggestion_stale": 409,
+    "suggestion_required": 409,
+    "invalid_action": 409,
+    "invalid_verdict": 409,
+    "note_too_long": 409,
+    "confirmations_retired": 410,
 }
 _GENERIC = {"invalid_credentials", "unauthenticated"}
 

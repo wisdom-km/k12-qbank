@@ -131,6 +131,8 @@ describe("intake panel", () => {
     expect(text).toContain("学号 synth-0001");
     expect(text).toContain("缺第 1 页");
     expect(text).not.toContain("student-hidden-r5");
+    const grade = host.querySelector('a[href="/papers/paper-synth-r5/grade"]');
+    expect(grade && grade.textContent).toBe("批改");
   });
 
   it("shows the student number and page when the code matches an issued paper", async () => {

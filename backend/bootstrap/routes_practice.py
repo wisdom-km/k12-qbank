@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
@@ -104,10 +106,11 @@ def _issue(body: IssueBody, request: Request) -> JSONResponse:
             renderer=loop.renderer,
             logger=loop.logger,
             request_id=request.state.request_id,
-            attempt_text=synthetic_attempt_text(),
+            attempt_text=_attempt_text(),
             publications=loop.publications,
             slots_per_page=1,
             layout_kind="flow",
+            bind_attempt=not _production(),
         )
     else:
         question_version_id = versions[0] if versions else body.question_version_id
@@ -131,9 +134,10 @@ def _issue(body: IssueBody, request: Request) -> JSONResponse:
             loop.logger,
             request.state.request_id,
             actor_teacher_id=actor,
-            attempt_text=synthetic_attempt_text(),
+            attempt_text=_attempt_text(),
             publications=loop.publications,
             items=loop.items,
+            bind_attempt=not _production(),
         )
     if isinstance(result, Err):
         return error_response(request.state.request_id, result)
@@ -187,6 +191,15 @@ def _file(file_id: str, request: Request) -> Response:
 
 
 def _confirm(body: ConfirmBody, request: Request) -> JSONResponse:
+    if _production():
+        return JSONResponse(
+            status_code=410,
+            content={
+                "code": "confirmations_retired",
+                "message": "use PUT /api/practice/papers/{paper_id}/items/{order_no}/decision",
+                "request_id": request.state.request_id,
+            },
+        )
     loop = request.app.state.loop
     actor = _actor(request)
     result = confirm_attempt(
@@ -218,6 +231,16 @@ def _confirm(body: ConfirmBody, request: Request) -> JSONResponse:
             "count": count,
         }
     )
+
+
+def _production() -> bool:
+    return os.environ.get("K12_ENV", "").strip() == "production"
+
+
+def _attempt_text() -> str:
+    if _production():
+        return ""
+    return synthetic_attempt_text()
 
 
 def _actor(request: Request) -> str:

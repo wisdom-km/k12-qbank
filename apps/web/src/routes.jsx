@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { bindUnauthenticated, loadSession, notePath } from "./auth.js";
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { bindUnauthenticated, call, loadSession, notePath } from "./auth.js";
 import { AccountPage } from "./account_page.jsx";
 import { AdminPage } from "./admin_page.jsx";
 import { LoginPage } from "./login_page.jsx";
 import { SessionBar } from "./session_bar.jsx";
+import { GradePage } from "./grade_page.jsx";
 import { TeacherPage } from "./teacher_page.jsx";
 
 export function AppRoutes() {
@@ -21,11 +22,17 @@ export function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<Guard><TeacherPage /></Guard>} />
+      <Route path="/papers/:paperId/grade" element={<Guard><GradeRoute /></Guard>} />
       <Route path="/admin" element={<Guard admin><AdminPage /></Guard>} />
       <Route path="/account" element={<Guard><AccountPage /></Guard>} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
+}
+
+function GradeRoute() {
+  const { paperId } = useParams();
+  return <GradePage paperId={paperId} call={call} />;
 }
 
 function Guard({ children, admin = false }) {

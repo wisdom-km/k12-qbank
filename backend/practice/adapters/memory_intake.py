@@ -27,6 +27,12 @@ class MemoryIntake:
             rows = [row for row in self._rows.values() if row.paper_id == paper_id and row.superseded_at is None]
         return tuple(sorted(rows, key=lambda row: row.page_no))
 
+    def history(self, paper_id: str) -> tuple[IntakePage, ...]:
+        """Every photo for this paper, including replaced ones."""
+        with self._lock:
+            rows = [row for row in self._rows.values() if row.paper_id == paper_id]
+        return tuple(sorted(rows, key=lambda row: (row.page_no, row.uploaded_at, row.intake_id)))
+
     def file_purpose(self, file_id: str) -> str | None:
         """Memory has no files table. A page row cannot be rewritten here."""
         return None
