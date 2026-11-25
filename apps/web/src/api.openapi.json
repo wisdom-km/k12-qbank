@@ -1481,6 +1481,60 @@
         }
       }
     },
+    "/api/practice/papers/{paper_id}/follow-up": {
+      "post": {
+        "summary": "Follow Up",
+        "operationId": "follow_up_api_practice_papers__paper_id__follow_up_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/FollowUpBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/practice/papers/{paper_id}/attempt": {
       "get": {
         "summary": "Attempt",
@@ -2494,6 +2548,25 @@
           "action"
         ],
         "title": "DecisionBody"
+      },
+      "FollowUpBody": {
+        "properties": {
+          "order_nos": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Order Nos",
+            "default": []
+          },
+          "review_version_id": {
+            "type": "string",
+            "title": "Review Version Id",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "FollowUpBody"
       },
       "GrantBody": {
         "properties": {
