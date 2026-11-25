@@ -175,6 +175,34 @@ label {
   flex: 1 1 8rem;
 }
 
+.follow-up {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+
+.follow-up ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+}
+
+.follow-up label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  overflow-wrap: anywhere;
+}
+
+.follow-up button,
+.follow-up a {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .needs-review {
   background: #f6e7c1;
   border-radius: 8px;
@@ -184,6 +212,13 @@ label {
 @media (max-width: 40rem) {
   .grade-actions {
     flex-direction: column;
+  }
+
+  .follow-up button,
+  .follow-up a {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .lesson-actions,

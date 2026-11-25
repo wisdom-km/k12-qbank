@@ -638,6 +638,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/practice/papers/{paper_id}/follow-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Follow Up */
+        post: operations["follow_up_api_practice_papers__paper_id__follow_up_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/practice/papers/{paper_id}/attempt": {
         parameters: {
             query?: never;
@@ -1122,6 +1139,19 @@ export interface components {
              * @default
              */
             comment: string;
+        };
+        /** FollowUpBody */
+        FollowUpBody: {
+            /**
+             * Order Nos
+             * @default []
+             */
+            order_nos: number[];
+            /**
+             * Review Version Id
+             * @default
+             */
+            review_version_id: string;
         };
         /** GrantBody */
         GrantBody: {
@@ -2604,6 +2634,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    follow_up_api_practice_papers__paper_id__follow_up_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paper_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["FollowUpBody"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

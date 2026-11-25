@@ -230,6 +230,7 @@ export function TeacherPage() {
               <li key={row.paper_id}>
                 <button type="button" onClick={() => loop.choosePaper(row)}>
                   {row.student_id} · {row.status} · {row.paper_id}
+                  {row.source_paper_id ? " · 再练自 " + row.source_paper_id : ""}
                 </button>
               </li>
             ))}

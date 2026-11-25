@@ -38,6 +38,7 @@ def open_paper(
     publications: Publications,
     items: PracticeItems | None = None,
     bind_attempt: bool = True,
+    source_paper_id: str = "",
 ) -> Ok[OpenedPaper] | Err:
     prepared = prepare_issue(
         command,
@@ -88,6 +89,7 @@ def open_paper(
         copied = blocked_formula
     if plain_has_command(paper.formula):
         paper = replace(paper, formula="")
+    paper = replace(paper, source_paper_id=source_paper_id)
     if bind_attempt and not attempt_text.strip():
         return _refuse(
             logger,

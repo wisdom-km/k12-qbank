@@ -24,7 +24,8 @@ T = TypeVar("T")
 _PAPER = """
 paper_id, teacher_id, student_id, subject_id, question_version_id, answer_version_id,
 asset_ids, layout_template_id, review_version_id, file_id, status, item_order, file_checksum, formula,
-qr_printed, printed_external_id, slots_per_page, layout_kind, layout_params, issued_on
+qr_printed, printed_external_id, slots_per_page, layout_kind, layout_params, issued_on,
+source_paper_id
 """
 _ANSWER = """
 fixture_answer_id, paper_id, sub_question_id, review_version_id, student_id, status, answer_text
@@ -196,7 +197,7 @@ def _save_paper(conn: Any, paper: Paper) -> None:
     conn.execute(
         f"""
         INSERT INTO papers ({_PAPER})
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULLIF(%s, '')::date)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULLIF(%s, '')::date, NULLIF(%s, ''))
         ON CONFLICT (paper_id) DO UPDATE SET
             teacher_id = EXCLUDED.teacher_id,
             student_id = EXCLUDED.student_id,
@@ -215,7 +216,8 @@ def _save_paper(conn: Any, paper: Paper) -> None:
             printed_external_id = EXCLUDED.printed_external_id,
             slots_per_page = EXCLUDED.slots_per_page,
             layout_kind = EXCLUDED.layout_kind,
-            layout_params = EXCLUDED.layout_params
+            layout_params = EXCLUDED.layout_params,
+            source_paper_id = EXCLUDED.source_paper_id
         """,
         _paper_params(paper),
     )
@@ -371,6 +373,7 @@ def _paper_params(paper: Paper) -> tuple[object, ...]:
         paper.layout_kind,
         paper.layout_params or None,
         paper.issued_on,
+        paper.source_paper_id,
     )
 
 
@@ -396,6 +399,7 @@ def _paper_row(row: tuple[object, ...]) -> Paper:
         layout_kind=str(row[17]) if row[17] is not None else "slots",
         layout_params="" if row[18] is None else str(row[18]),
         issued_on="" if row[19] is None else str(row[19]),
+        source_paper_id="" if row[20] is None else str(row[20]),
     )
 
 

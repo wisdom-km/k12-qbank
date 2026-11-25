@@ -31,6 +31,22 @@ const REFUSAL = {
   suggestion_required: "当前没有建议，请手评",
 };
 
+const RETRY = ["incorrect", "partial", "blank"];
+
+const FOLLOW = {
+  no_retry_items: "暂无可再练的已确认错题",
+  decision_required: "有题还没有老师结论，不能再出练习",
+  invalid_order_no: "题号无效",
+  retired: "有题已经停用，不能再出练习",
+  question_retired: "有题已经停用，不能再出练习",
+  formula_unsupported: "有公式暂不支持排版，不能再出练习",
+  formula_unstructured: "有公式还没拆开，不能再出练习",
+  formula_too_wide: "有公式比一行宽，不能再出练习",
+  item_too_long: "有题放不进一页，不能再出练习",
+  permission_denied: "没有权限为这张卷再出练习",
+  not_found: "找不到这张卷",
+};
+
 export function GradePage({ paperId, call }) {
   const [review, setReview] = useState(null);
   const [note, setNote] = useState("");
@@ -38,12 +54,20 @@ export function GradePage({ paperId, call }) {
   const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState({ verdict: "correct", transcript: "", comment: "" });
   const [pageNo, setPageNo] = useState("1");
+  const [picked, setPicked] = useState([]);
+  const [follow, setFollow] = useState(null);
+  const [followCount, setFollowCount] = useState(0);
+  const [followNote, setFollowNote] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let stop = false;
     call("/api/practice/papers/" + paperId + "/review")
       .then((body) => {
-        if (!stop) setReview(body);
+        if (!stop) {
+          setReview(body);
+          setPicked(defaultRetry(body));
+        }
       })
       .catch((reason) => {
         if (!stop) setNote(label(reason));
@@ -55,6 +79,7 @@ export function GradePage({ paperId, call }) {
 
   function refresh(body) {
     setReview(body);
+    setPicked(defaultRetry(body));
     setNote("");
     setEditing(null);
   }
@@ -129,7 +154,51 @@ export function GradePage({ paperId, call }) {
     }
   }
 
+  function toggleRetry(orderNo) {
+    setPicked((current) => {
+      const next = current.includes(orderNo)
+        ? current.filter((value) => value !== orderNo)
+        : current.concat(orderNo);
+      return next.slice().sort((left, right) => left - right);
+    });
+  }
+
+  function followUp() {
+    const orderNos = picked.slice();
+    setBusy(true);
+    setFollowNote("");
+    call("/api/practice/papers/" + paperId + "/follow-up", {
+      method: "POST",
+      body: JSON.stringify({ order_nos: orderNos }),
+    })
+      .then((body) => {
+        setFollow(body);
+        setFollowCount(orderNos.length);
+        setBusy(false);
+      })
+      .catch((reason) => {
+        setFollowNote(followLabel(reason));
+        setBusy(false);
+      });
+  }
+
+  function handFollow() {
+    if (!follow) return;
+    setBusy(true);
+    setFollowNote("");
+    call("/api/practice/papers/" + follow.paper_id + "/handout", { method: "POST", body: "{}" })
+      .then((body) => {
+        setFollow(body);
+        setBusy(false);
+      })
+      .catch((reason) => {
+        setFollowNote(followLabel(reason));
+        setBusy(false);
+      });
+  }
+
   const items = review ? ranked(review.items || []) : [];
+  const confirmed = items.filter((item) => item.decision);
   const mismatch = review ? review.mismatch_pages || [] : [];
 
   return (
@@ -259,6 +328,49 @@ export function GradePage({ paperId, call }) {
           </li>
         ))}
       </ol>
+      {review ? (
+        <section className="follow-up" aria-label="再出一份练习">
+          <h2>再出一份练习</h2>
+          <ul>
+            {confirmed.map((item) => (
+              <li key={item.order_no}>
+                <label>
+                  <input
+                    type="checkbox"
+                    aria-label={"再练题 " + item.order_no}
+                    checked={picked.includes(item.order_no)}
+                    onChange={() => toggleRetry(item.order_no)}
+                  />
+                  题 {item.order_no} {VERDICT[item.decision.verdict] || item.decision.verdict}
+                </label>
+              </li>
+            ))}
+          </ul>
+          {picked.length === 0 ? <p>暂无可再练的已确认错题</p> : null}
+          <button type="button" onClick={followUp} disabled={picked.length === 0 || busy}>
+            再出一份练习
+          </button>
+          {followNote ? <p className="error">{followNote}</p> : null}
+          {follow ? (
+            <div>
+              <p>新卷号 {follow.paper_id}</p>
+              <p>包含 {followCount} 题</p>
+              <p>状态 {follow.status}</p>
+              {follow.file_id ? (
+                <p>
+                  <a href={"/api/practice/files/" + follow.file_id}>打开 PDF</a>
+                </p>
+              ) : null}
+              <button type="button" onClick={handFollow} disabled={busy}>
+                正式发放
+              </button>
+              <p>
+                <Link to="/">返回老师页</Link>
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
     </main>
   );
 }
@@ -285,6 +397,18 @@ function confidentOrders(review) {
       );
     })
     .map((item) => item.order_no);
+}
+
+function defaultRetry(review) {
+  return (review && review.items ? review.items : [])
+    .filter((item) => item.decision && RETRY.includes(item.decision.verdict))
+    .map((item) => item.order_no)
+    .sort((left, right) => left - right);
+}
+
+function followLabel(reason) {
+  const code = reason && reason.code;
+  return FOLLOW[code] || (reason && reason.message) || "再出练习失败";
 }
 
 function decisionUrl(paperId, orderNo) {

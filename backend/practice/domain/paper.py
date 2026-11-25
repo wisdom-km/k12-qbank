@@ -31,6 +31,7 @@ class Paper:
     layout_kind: str = "slots"
     layout_params: str = ""
     issued_on: str = ""
+    source_paper_id: str = ""
 
 
 def freeze_paper(
@@ -52,6 +53,7 @@ def freeze_paper(
     layout_kind: str = "slots",
     layout_params: str = "",
     issued_on: str = "",
+    source_paper_id: str = "",
 ) -> Paper | Err:
     """Copy the version ids and the formula onto the paper. Empty ids are refused."""
     if not question_version_id.strip() or not answer_version_id.strip():
@@ -80,6 +82,7 @@ def freeze_paper(
         layout_kind=layout_kind,
         layout_params=layout_params,
         issued_on=issued_on,
+        source_paper_id=source_paper_id,
     )
 
 

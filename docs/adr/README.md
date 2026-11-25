@@ -28,6 +28,8 @@
 
 2026-11-25：0045 文末追加 R6a 修订。`GET /api/admin/ai/accuracy` 只读对账，按模型筛选，并给出 0.5–0.9 的阈值测算。默认阈值仍是 0.6。不改 0045 上文。真实样张实测仍未做。
 
+2026-11-25：0049 已采纳。批改确认后按未作废的老师结论再出一份练习。默认 `incorrect`、`partial`、`blank`。不依据未采用的 AI 建议。V019 给 `papers` 增加可空的 `source_paper_id`，无外键、不回填。复用现有出卷。不改原卷。不改 0047 正文。
+
 | 编号 | 标题 | 状态 | 切片 |
 | --- | --- | --- | --- |
 | [0001](0001-long-lived-tier.md) | 按长期项目做 | accepted | 全库 |
@@ -78,3 +80,4 @@
 | [0046](0046-formula-layout.md) | 卷面公式按排版印出 | accepted | catalog, practice |
 | [0047](0047-teacher-decisions.md) | 老师确认或手评成为正式结论 | accepted | practice |
 | [0048](0048-book-volumes-and-lessons.md) | 题目册、答案册和目录 | accepted | catalog, practice |
+| [0049](0049-follow-up-paper.md) | 从已确认批改再出一份练习 | accepted | practice |
