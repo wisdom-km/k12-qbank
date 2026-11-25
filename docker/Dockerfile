@@ -6,7 +6,9 @@
 FROM node:22-alpine AS web
 WORKDIR /src/apps/web
 COPY apps/web/package.json apps/web/package-lock.json ./
-RUN npm ci
+# esbuild's postinstall can hit ETXTBSY on Docker Desktop. One retry is enough.
+RUN npm ci --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 \
+    || (sleep 3 && npm ci --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000)
 COPY apps/web/ ./
 RUN npm run build
 
@@ -16,7 +18,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends -o Acquire::Retries=5 \
         ca-certificates \
         curl \
         fonts-noto-cjk \
