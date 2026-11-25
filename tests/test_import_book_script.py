@@ -101,7 +101,7 @@ class ImportBookScriptReadTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             from scripts.import_book import read_book
 
-            read_book(root, {"question_dir": "C:/synth-abs"})
+            read_book(root, {"question_dir": str(Path(root.anchor) / "synth-abs")})
 
     def test_unknown_manifest_fields_are_forwarded(self) -> None:
         body = build_body(
