@@ -220,3 +220,60 @@ label {
 a {
   color: #1f4d3a;
 }
+
+.book-drop {
+  border: 2px dashed #c4b49a;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #faf6ee;
+}
+
+.book-drop.over {
+  border-color: #1f4d3a;
+  background: #e7f0ea;
+}
+
+.book-drop p {
+  margin: 0;
+}
+
+.book-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.book-summary {
+  margin-top: 0.75rem;
+}
+
+.book-status {
+  font-weight: 650;
+}
+
+.hint {
+  color: #8a2b2b;
+  font-weight: 650;
+}
+
+.report-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  margin-top: 0.75rem;
+}
+
+.report-scroll table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+}
+
+.report-scroll th,
+.report-scroll td {
+  border-bottom: 1px solid #e4dccb;
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+  white-space: nowrap;
+}
