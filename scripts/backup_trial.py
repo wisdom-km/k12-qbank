@@ -50,6 +50,26 @@ def _require_phrase(encrypt: bool) -> str:
     return phrase
 
 
+def _compose_argv(program: str, compose_file: str, env_file: str) -> list[str]:
+    command = [program, "compose"]
+    if env_file:
+        command.extend(["--env-file", env_file])
+    command.extend(["-f", compose_file])
+    return command
+
+
+def _reject_env_file(env_file: str, compose_file: str) -> int | None:
+    if not env_file:
+        return None
+    if not compose_file:
+        print("--env-file needs --compose-file", file=sys.stderr)
+        return 2
+    if not Path(env_file).is_file():
+        print("--env-file is missing", file=sys.stderr)
+        return 2
+    return None
+
+
 def _dump_sql(work: Path, args: argparse.Namespace) -> Path:
     dest = work / "db.sql"
     if args.compose_file:
@@ -60,10 +80,7 @@ def _dump_sql(work: Path, args: argparse.Namespace) -> Path:
         program = which("docker")
         completed = run(
             [
-                program,
-                "compose",
-                "-f",
-                args.compose_file,
+                *_compose_argv(program, args.compose_file, args.env_file),
                 "exec",
                 "-T",
                 "postgres",
@@ -128,11 +145,16 @@ def _snapshot(source: Path, dest: Path) -> list[dict[str, object]]:
     return rows
 
 
-def _files_from_compose(compose_file: str, dest: Path) -> None:
+def _files_from_compose(compose_file: str, env_file: str, dest: Path) -> None:
     program = which("docker")
     dest.mkdir(parents=True, exist_ok=True)
     completed = run(
-        [program, "compose", "-f", compose_file, "cp", "app:/data/files/.", str(dest)],
+        [
+            *_compose_argv(program, compose_file, env_file),
+            "cp",
+            "app:/data/files/.",
+            str(dest),
+        ],
         os.environ.copy(),
     )
     if completed.returncode != 0:
@@ -144,13 +166,21 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Back up the trial database and file directory together.")
     parser.add_argument("--out-dir", default="var/backups")
     parser.add_argument("--compose-file", default="")
+    parser.add_argument("--env-file", default="")
     parser.add_argument("--files-from-compose", action="store_true")
     parser.add_argument("--encrypt", dest="encrypt", action="store_true", default=True)
     parser.add_argument("--no-encrypt", dest="encrypt", action="store_false")
     args = parser.parse_args(argv)
+    rejected = _reject_env_file(args.env_file, args.compose_file)
+    if rejected:
+        return rejected
     phrase = _require_phrase(args.encrypt)
     if phrase:
         os.environ["K12_BACKUP_PASSPHRASE"] = phrase
+    raw_dir = os.environ.get("K12_FILE_DIR", "").strip()
+    if not args.files_from_compose and not raw_dir:
+        print("K12_FILE_DIR is required", file=sys.stderr)
+        return 2
     out_dir = Path(args.out_dir)
     with tempfile.TemporaryDirectory(prefix="k12-trial-backup-") as raw:
         work = Path(raw)
@@ -161,10 +191,10 @@ def main(argv: list[str] | None = None) -> int:
             if not args.compose_file:
                 print("--files-from-compose needs --compose-file", file=sys.stderr)
                 return 2
-            _files_from_compose(args.compose_file, files_root)
+            _files_from_compose(args.compose_file, args.env_file, files_root)
             rows = _list_files(files_root)
         else:
-            source = Path(os.environ.get("K12_FILE_DIR", "").strip())
+            source = Path(raw_dir)
             if not source.is_dir():
                 print("K12_FILE_DIR is required", file=sys.stderr)
                 return 2

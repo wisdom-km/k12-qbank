@@ -99,7 +99,7 @@ docker compose --env-file .env.trial -f docker/compose.trial.yml restart nginx
 
 ```text
 $env:K12_BACKUP_PASSPHRASE = "<自己设的一串口令>"
-python scripts/backup_trial.py --compose-file docker/compose.trial.yml --files-from-compose --out-dir var/backups
+python scripts/backup_trial.py --compose-file docker/compose.trial.yml --env-file .env.trial --files-from-compose --out-dir var/backups
 Remove-Item Env:K12_BACKUP_PASSPHRASE
 ```
 
@@ -122,7 +122,7 @@ New-Item -ItemType Directory -Force D:\k12-trial-restore
 $env:K12_FILE_DIR = "D:\k12-trial-restore"
 $env:K12_PG_DATABASE = "k12_trial"
 $env:K12_BACKUP_PASSPHRASE = "<同一串口令>"
-python scripts/restore_trial.py var/backups/<文件名>.tar.gz.enc --compose-file docker/compose.trial.yml --files-to-compose
+python scripts/restore_trial.py var/backups/<文件名>.tar.gz.enc --compose-file docker/compose.trial.yml --env-file .env.trial --files-to-compose
 Remove-Item Env:K12_BACKUP_PASSPHRASE
 ```
 

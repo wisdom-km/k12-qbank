@@ -107,16 +107,41 @@ def _copy_files(bundle: Path, directory: Path, rows: list[dict[str, object]]) ->
         shutil.copyfile(bundle / "files" / relative, dest)
 
 
-def _restore_database(dump: Path, name: str, compose_file: str) -> None:
+def _compose_argv(program: str, compose_file: str, env_file: str) -> list[str]:
+    command = [program, "compose"]
+    if env_file:
+        command.extend(["--env-file", env_file])
+    command.extend(["-f", compose_file])
+    return command
+
+
+def _reject_env_file(env_file: str, compose_file: str) -> int | None:
+    if not env_file:
+        return None
+    if not compose_file:
+        print("--env-file needs --compose-file", file=sys.stderr)
+        return 2
+    if not Path(env_file).is_file():
+        print("--env-file is missing", file=sys.stderr)
+        return 2
+    return None
+
+
+def _unsafe_file_dir(directory: Path) -> bool:
+    resolved = directory.resolve()
+    root = ROOT.resolve()
+    if resolved == root or root.is_relative_to(resolved):
+        return True
+    return (resolved / ".git").exists()
+
+
+def _restore_database(dump: Path, name: str, compose_file: str, env_file: str) -> None:
     sql = dump.read_bytes()
     if compose_file:
         program = which("docker")
         completed = run(
             [
-                program,
-                "compose",
-                "-f",
-                compose_file,
+                *_compose_argv(program, compose_file, env_file),
                 "exec",
                 "-T",
                 "postgres",
@@ -143,10 +168,15 @@ def _restore_database(dump: Path, name: str, compose_file: str) -> None:
         raise RuntimeError("psql_failed")
 
 
-def _push_files(compose_file: str, directory: Path) -> None:
+def _push_files(compose_file: str, env_file: str, directory: Path) -> None:
     program = which("docker")
     completed = run(
-        [program, "compose", "-f", compose_file, "cp", f"{directory}/.", "app:/data/files"],
+        [
+            *_compose_argv(program, compose_file, env_file),
+            "cp",
+            f"{directory}/.",
+            "app:/data/files",
+        ],
         os.environ.copy(),
     )
     if completed.returncode != 0:
@@ -159,8 +189,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--compose-file", default="")
+    parser.add_argument("--env-file", default="")
     parser.add_argument("--files-to-compose", action="store_true")
     args = parser.parse_args(argv)
+    if args.files_to_compose and not args.compose_file:
+        print("--files-to-compose needs --compose-file", file=sys.stderr)
+        return 2
+    rejected = _reject_env_file(args.env_file, args.compose_file)
+    if rejected:
+        return rejected
     archive = Path(args.archive)
     if not archive.is_file():
         print("archive is missing", file=sys.stderr)
@@ -198,9 +235,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.verify_only:
             print(f"VERIFIED files={count} schema_version=1")
             return 0
-        directory = Path(os.environ.get("K12_FILE_DIR", "").strip())
-        if not str(directory):
+        raw_dir = os.environ.get("K12_FILE_DIR", "").strip()
+        if not raw_dir:
             print("K12_FILE_DIR is required", file=sys.stderr)
+            return 2
+        directory = Path(raw_dir)
+        if _unsafe_file_dir(directory):
+            print("RESTORE REFUSED: unsafe file directory", file=sys.stderr)
             return 2
         if _has_files(directory) and not args.overwrite:
             print("RESTORE REFUSED: file directory is not empty", file=sys.stderr)
@@ -210,16 +251,13 @@ def main(argv: list[str] | None = None) -> int:
             return _fail("RESTORE FAIL: file_count")
         try:
             dump_name = safe_relative(str(manifest["database_dump"]))
-            _restore_database(bundle / dump_name, name, args.compose_file)
+            _restore_database(bundle / dump_name, name, args.compose_file, args.env_file)
             directory.mkdir(parents=True, exist_ok=True)
             if args.overwrite:
                 _clear_files(directory)
             _copy_files(bundle, directory, rows)
             if args.files_to_compose:
-                if not args.compose_file:
-                    print("--files-to-compose needs --compose-file", file=sys.stderr)
-                    return 2
-                _push_files(args.compose_file, directory)
+                _push_files(args.compose_file, args.env_file, directory)
         except RuntimeError as exc:
             return _fail(f"RESTORE FAIL: {exc}")
         print(f"RESTORED database={name} files={count}")

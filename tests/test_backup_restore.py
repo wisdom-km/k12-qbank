@@ -260,6 +260,197 @@ class BackupRestoreTest(unittest.TestCase):
         self.assertEqual(kept.returncode, 0, kept.stderr)
         self.assertIn("already exists", kept.stdout)
 
+    def test_backup_refuses_blank_file_dir(self) -> None:
+        for value in (None, "", "   "):
+            env = self._env()
+            if value is None:
+                env.pop("K12_FILE_DIR", None)
+            else:
+                env["K12_FILE_DIR"] = value
+            for child in self.out.iterdir():
+                child.unlink()
+            completed = self._backup("--no-encrypt", env=env)
+            self.assertEqual(completed.returncode, 2, completed.stderr)
+            self.assertIn("K12_FILE_DIR is required", completed.stderr)
+            self.assertEqual(list(self.out.iterdir()), [])
+            self.assertFalse(self.argv_log.exists())
+
+    def test_restore_refuses_blank_file_dir_without_writes(self) -> None:
+        completed = self._backup("--no-encrypt")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        archive = self._one_archive()
+        sentinel = self.target / "keep.txt"
+        sentinel.write_text("keep", encoding="utf-8")
+        for value in ("", "   "):
+            restored = self._run(
+                RESTORE,
+                [str(archive), "--overwrite"],
+                self._env(K12_FILE_DIR=value),
+            )
+            self.assertEqual(restored.returncode, 2, restored.stderr)
+            self.assertIn("K12_FILE_DIR is required", restored.stderr)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep")
+            self.assertFalse((self.target / "synth-dir").exists())
+            self.assertFalse(self.psql_sink.exists())
+
+    def test_restore_refuses_repo_root_and_git_directory(self) -> None:
+        completed = self._backup("--no-encrypt")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        archive = self._one_archive()
+        readme = ROOT / "README.md"
+        before = readme.read_bytes()
+        restored = self._run(
+            RESTORE,
+            [str(archive), "--overwrite"],
+            self._env(K12_FILE_DIR=str(ROOT)),
+        )
+        self.assertEqual(restored.returncode, 2, restored.stderr)
+        self.assertIn("unsafe file directory", restored.stderr)
+        self.assertEqual(readme.read_bytes(), before)
+        self.assertFalse(self.psql_sink.exists())
+        git_dir = self.root / "with-git"
+        git_dir.mkdir()
+        (git_dir / ".git").mkdir()
+        kept = git_dir / "keep.txt"
+        kept.write_text("keep", encoding="utf-8")
+        restored = self._run(
+            RESTORE,
+            [str(archive), "--overwrite"],
+            self._env(K12_FILE_DIR=str(git_dir)),
+        )
+        self.assertEqual(restored.returncode, 2, restored.stderr)
+        self.assertIn("unsafe file directory", restored.stderr)
+        self.assertEqual(kept.read_text(encoding="utf-8"), "keep")
+        self.assertFalse((git_dir / "synth-dir").exists())
+        self.assertFalse(self.psql_sink.exists())
+
+    def test_files_to_compose_is_rejected_before_writes(self) -> None:
+        completed = self._backup("--no-encrypt")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        archive = self._one_archive()
+        sentinel = self.target / "keep.txt"
+        sentinel.write_text("keep", encoding="utf-8")
+        restored = self._run(
+            RESTORE,
+            [str(archive), "--overwrite", "--files-to-compose"],
+            self._env(K12_FILE_DIR=str(self.target)),
+        )
+        self.assertEqual(restored.returncode, 2, restored.stderr)
+        self.assertIn("--files-to-compose needs --compose-file", restored.stderr)
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep")
+        self.assertFalse((self.target / "synth-dir").exists())
+        self.assertFalse(self.psql_sink.exists())
+
+    def _install_docker(self) -> Path:
+        tool = self.bin / "docker_tool.py"
+        tool.write_text(
+            "import os, sys\n"
+            "from pathlib import Path\n"
+            "log = os.environ.get('K12_TEST_DOCKER_ARGV', '')\n"
+            "if log:\n"
+            "    path = Path(log)\n"
+            "    previous = path.read_text(encoding='utf-8') if path.exists() else ''\n"
+            "    path.write_text(previous + '\\n'.join(sys.argv[1:]) + '\\n---\\n', encoding='utf-8')\n"
+            "if 'exec' in sys.argv:\n"
+            "    sys.stdout.buffer.write(b'synth-dump-v1\\n')\n",
+            encoding="utf-8",
+        )
+        _write_cmd(self.bin, "docker", tool)
+        return self.root / "docker-argv.txt"
+
+    def test_compose_commands_include_env_file(self) -> None:
+        log = self._install_docker()
+        env_file = self.root / "synth.env"
+        env_file.write_text("K12_PG_PASSWORD=synth-pg\nK12_CORS_ORIGINS=https://synth.example\n", encoding="utf-8")
+        compose = self.root / "compose.yml"
+        compose.write_text("name: synth\n", encoding="utf-8")
+        env = self._env(K12_PG_DATABASE="k12_trial", K12_TEST_DOCKER_ARGV=str(log))
+        completed = self._run(
+            BACKUP,
+            [
+                "--no-encrypt",
+                "--out-dir",
+                str(self.out),
+                "--compose-file",
+                str(compose),
+                "--env-file",
+                str(env_file),
+                "--files-from-compose",
+            ],
+            env,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        logged = log.read_text(encoding="utf-8")
+        self.assertEqual(logged.count("--env-file"), 2)
+        self.assertEqual(logged.count(str(env_file)), 2)
+        self.assertNotIn("synth-pg", logged)
+        archive = self._one_archive()
+        log.unlink()
+        restored = self._run(
+            RESTORE,
+            [
+                str(archive),
+                "--compose-file",
+                str(compose),
+                "--env-file",
+                str(env_file),
+                "--files-to-compose",
+            ],
+            self._env(
+                K12_PG_DATABASE="k12_trial",
+                K12_FILE_DIR=str(self.target),
+                K12_TEST_DOCKER_ARGV=str(log),
+            ),
+        )
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        logged = log.read_text(encoding="utf-8")
+        self.assertEqual(logged.count("--env-file"), 2)
+        self.assertEqual(logged.count(str(env_file)), 2)
+        self.assertNotIn("synth-pg", logged)
+        self.assertIn("RESTORED database=k12_trial", restored.stdout)
+
+    def test_env_file_is_rejected_before_docker(self) -> None:
+        log = self._install_docker()
+        env = self._env(K12_TEST_DOCKER_ARGV=str(log))
+        missing_pair = self._run(
+            BACKUP,
+            ["--no-encrypt", "--out-dir", str(self.out), "--env-file", str(self.root / "synth.env")],
+            env,
+        )
+        self.assertEqual(missing_pair.returncode, 2, missing_pair.stderr)
+        self.assertIn("--env-file needs --compose-file", missing_pair.stderr)
+        self.assertFalse(log.exists())
+        self.assertEqual(list(self.out.iterdir()), [])
+        compose = self.root / "compose.yml"
+        compose.write_text("name: synth\n", encoding="utf-8")
+        missing_file = self._run(
+            BACKUP,
+            [
+                "--no-encrypt",
+                "--out-dir",
+                str(self.out),
+                "--compose-file",
+                str(compose),
+                "--env-file",
+                str(self.root / "absent.env"),
+            ],
+            env,
+        )
+        self.assertEqual(missing_file.returncode, 2, missing_file.stderr)
+        self.assertIn("--env-file is missing", missing_file.stderr)
+        self.assertFalse(log.exists())
+        archive = self.root / "unused.tar.gz"
+        archive.write_bytes(b"synth")
+        restored = self._run(
+            RESTORE,
+            [str(archive), "--env-file", str(self.root / "synth.env"), "--overwrite"],
+            self._env(K12_FILE_DIR=str(self.target), K12_TEST_DOCKER_ARGV=str(log)),
+        )
+        self.assertEqual(restored.returncode, 2, restored.stderr)
+        self.assertIn("--env-file needs --compose-file", restored.stderr)
+        self.assertFalse(log.exists())
+        self.assertFalse(self.psql_sink.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
