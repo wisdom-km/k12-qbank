@@ -184,7 +184,8 @@ fi
 
 # ---------- M-03 / R-1 secrets: .env hygiene ----------
 if [ "$IN_GIT" = yes ]; then
-  tracked_env=$(git ls-files | grep -E '(^|/)\.env(\.[^/]*)?$' | grep -vE '\.env\.(example|sample|template|dist)$')
+  # A middle name is still a template: .env.trial.example holds placeholders only.
+  tracked_env=$(git ls-files | grep -E '(^|/)\.env(\.[^/]*)?$' | grep -vE '\.env(\.[A-Za-z0-9_-]+)?\.(example|sample|template|dist)$')
   if [ -n "$tracked_env" ]; then
     report M-03 MUST FAIL "R-1: env file tracked: $(echo "$tracked_env" | tr '\n' ' '). Fix: git rm --cached <file>, add to .gitignore, rotate every key in it (see essentials/config-and-secrets.md)."
   elif ! git check-ignore -q --no-index .env; then

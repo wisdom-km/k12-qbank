@@ -147,7 +147,8 @@ else {
 
 # ---------- M-03 / R-1 .env hygiene ----------
 if ($InGit) {
-  $trackedEnv = Invoke-Git ls-files | Where-Object { $_ -match '(^|/)\.env(\.[^/]*)?$' -and $_ -notmatch '\.env\.(example|sample|template|dist)$' }
+  # A middle name is still a template: .env.trial.example holds placeholders only.
+  $trackedEnv = Invoke-Git ls-files | Where-Object { $_ -match '(^|/)\.env(\.[^/]*)?$' -and $_ -notmatch '\.env(\.[A-Za-z0-9_-]+)?\.(example|sample|template|dist)$' }
   Invoke-Git check-ignore -q --no-index .env | Out-Null; $envIgnored = ($LASTEXITCODE -eq 0)
   if ($trackedEnv) { Report 'M-03' 'MUST' 'FAIL' "R-1: env file tracked: $($trackedEnv -join ' '). Fix: git rm --cached <file>, add to .gitignore, rotate every key in it." }
   elseif (-not $envIgnored) { Report 'M-03' 'MUST' 'FAIL' "R-1: .gitignore does not ignore .env. Fix: add a line '.env' to .gitignore." }
