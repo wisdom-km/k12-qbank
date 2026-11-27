@@ -35,6 +35,7 @@ class MigrationFilesTest(unittest.TestCase):
                 "V017",
                 "V018",
                 "V019",
+                "V020",
             ],
         )
         self.assertTrue(found[0].down.is_file())
@@ -311,4 +312,17 @@ class MigrationFilesTest(unittest.TestCase):
         self.assertNotIn("schema_migrations", up)
         self.assertNotIn("pg_advisory", up)
         self.assertIn("DROP COLUMN IF EXISTS source_paper_id", down)
+        self.assertNotIn("schema_migrations", down)
+
+    def test_v020_adds_nullable_archived_at_without_a_lock(self) -> None:
+        found = discover(ROOT)
+        item = next(row for row in found if row.version == "V020")
+        up = "\n".join(sql_statements(item.up.read_text(encoding="utf-8")))
+        down = "\n".join(sql_statements(item.down.read_text(encoding="utf-8")))
+        self.assertIn("ADD COLUMN archived_at timestamptz NULL", up)
+        self.assertNotIn("REFERENCES", up)
+        self.assertNotIn("UPDATE ", up)
+        self.assertNotIn("schema_migrations", up)
+        self.assertNotIn("pg_advisory", up)
+        self.assertIn("DROP COLUMN IF EXISTS archived_at", down)
         self.assertNotIn("schema_migrations", down)

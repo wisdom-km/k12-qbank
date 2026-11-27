@@ -44,6 +44,27 @@ class PgFiles:
         self._write_bytes(file_id, data)
         return digest
 
+    def purpose(self, file_id: str) -> str | None:
+        row = _run(
+            self._pool,
+            lambda conn: conn.execute(
+                "SELECT purpose FROM files WHERE file_id = %s",
+                (file_id,),
+            ).fetchone(),
+        )
+        if row is None:
+            return None
+        return str(row[0])
+
+    def delete_online_bytes(self, file_id: str) -> bool:
+        """Unlink one intake file. The files row stays. A missing file is not an error."""
+        if self.purpose(file_id) != "intake":
+            return False
+        path = self._path(file_id)
+        if path is not None and path.is_file():
+            path.unlink()
+        return True
+
     def read(self, file_id: str) -> bytes | None:
         if _meta(self._pool, file_id) is None:
             return None

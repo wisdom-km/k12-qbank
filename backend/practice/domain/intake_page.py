@@ -16,6 +16,7 @@ class IntakePage:
     uploaded_at: str
     located_by: str
     superseded_at: str | None = None
+    archived_at: str | None = None
 
 
 def paper_page_count(layout_kind: str, slots_per_page: int, page_numbers: tuple[int, ...]) -> int:

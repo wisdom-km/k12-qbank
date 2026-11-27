@@ -12,7 +12,7 @@ def load_context(stores: object, run: Run) -> Context | None:
     items_store = getattr(stores, "items")
     files = getattr(stores, "files")
     page = intake.get(run.intake_id)
-    if page is None:
+    if page is None or page.archived_at:
         return None
     paper = practice.get_paper(page.paper_id)
     if paper is None:

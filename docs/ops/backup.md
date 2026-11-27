@@ -17,3 +17,5 @@ python scripts/drill_backup.py
 操作步骤见 [docs/ops/trial-deploy.md](trial-deploy.md)。备份文件放在本机 `var/backups/`（已被忽略，不进仓库）。
 
 这次口令加密只覆盖机构试用。备份保留多久、密钥由谁管，仍没有定标。`#35` 保持打开。
+
+收卷照片到期后的归档是另一条命令：`scripts/archive_intake.py`。它复用上面的 OpenSSL 口令和 SHA-256 核对，但只打包入选的收卷照片，不转储数据库，也不碰出卷 PDF。核对通过后才删除在线照片字节。`scripts/retention_sweep.py` 仍只清理日志、会话和登录尝试，不删照片。操作步骤见 [trial-deploy.md](trial-deploy.md) 第 9 节。归档文件放在本机 `var/archives/`（已被忽略，不进仓库）。容器里写到 `/data/logs/archives`，因为容器用户不能写 `/app/var`。

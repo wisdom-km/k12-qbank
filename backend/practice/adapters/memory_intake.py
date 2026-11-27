@@ -41,6 +41,29 @@ class MemoryIntake:
         with self._lock:
             return len(self._rows)
 
+    def unarchived(self) -> tuple[IntakePage, ...]:
+        with self._lock:
+            rows = [row for row in self._rows.values() if row.archived_at is None]
+        return tuple(sorted(rows, key=lambda row: (row.paper_id, row.page_no, row.intake_id)))
+
+    def mark_archived(self, intake_ids: tuple[str, ...], archived_at: str) -> None:
+        wanted = set(intake_ids)
+        if not wanted:
+            return
+        with self._lock:
+            for intake_id in wanted:
+                row = self._rows.get(intake_id)
+                if row is not None and row.archived_at is None:
+                    self._rows[intake_id] = replace_row(row, archived_at=archived_at)
+
+    def count_open_file(self, file_id: str) -> int:
+        with self._lock:
+            return sum(
+                1
+                for row in self._rows.values()
+                if row.file_id == file_id and row.archived_at is None
+            )
+
     def place(self, row: IntakePage, *, replace: bool) -> None:
         with self._lock:
             current = self._current(row.paper_id, row.page_no)

@@ -19,7 +19,7 @@
 
 照片一张一张上传。每一行显示结果。
 
-这一页已经收过时，服务端返回 `page_already_received`。页面问「替换吗」。确认后带 `replace=true` 再传。旧记录记下作废时间，旧文件留到 R10 的归档清理，这一批不删除。
+这一页已经收过时，服务端返回 `page_already_received`。页面问「替换吗」。确认后带 `replace=true` 再传。旧记录记下作废时间。旧照片留到下面的到期归档，替换当时不删除。
 
 ## 怎么看缺页
 
@@ -46,4 +46,13 @@ python -m uvicorn backend.bootstrap.http_app:app --host $env:K12_HTTP_HOST --por
 
 ## 保留
 
-收卷照片保留 30 天。到期由 R10 清理。这一批没有实现清理，过期文件不会自己删除。
+收卷照片在下面两种情况满 `K12_INTAKE_RETENTION_DAYS` 天后归档。这个值未设或不是正整数时按 30 天。
+
+- 整张卷的题目都已由老师确认，并且最晚一条未作废结论已满 N 天。
+- 被替换的旧照片，作废时间已满 N 天。
+
+未批完的卷不归档，哪怕照片上传已超过 N 天。出卷 PDF（`files.purpose` 为 `page`）不归档。老师结论、识别建议和出卷记录都不删。
+
+归档命令是 `scripts/archive_intake.py`，不走 `scripts/retention_sweep.py`。先加密打包并核对 SHA-256，通过后才标记 `archived_at` 并删除在线照片字节。没有口令时不写、不删。库名是 `k12` 时拒绝执行。步骤见 [trial-deploy.md](trial-deploy.md) 第 9 节。
+
+已归档的照片再打开，或再点「AI 识别」，返回 410 `intake_archived`。批改页上已经确认的结论和历史建议仍可看。
