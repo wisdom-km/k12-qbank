@@ -25,11 +25,14 @@ from backend.practice.application.render_paper import page_faces
 from backend.practice.domain.flow_layout import (
     FlowQuestion,
     ItemTooLong,
+    _wrap,
     blank_count,
     dump_layout,
     flow_place,
     header_text,
 )
+from backend.practice.domain.page_layout import _wrap as slot_wrap
+from backend.practice.domain.page_layout import item_text_lines as slot_lines
 from backend.practice.domain.item import ItemBox, PracticeItem
 from backend.practice.domain.layout_params import LayoutError, bundled_layout_path, load_layout
 from backend.practice.domain.paper import freeze_paper
@@ -135,6 +138,37 @@ class FlowLayoutTest(unittest.TestCase):
         self.assertEqual(refused.order_no, 1)
         self.assertEqual(refused.question_version_id, "qv-synth-long")
         self.assertNotIsInstance(refused, tuple)
+
+    def test_plain_breaks_keep_the_first_line_narrow_and_drop_controls(self) -> None:
+        self.assertEqual(_wrap("", 30, 80, 10), ("",))
+        self.assertEqual(_wrap("\r\n\n\r", 30, 80, 10), ("",))
+        self.assertEqual(_wrap("ab\r\ncd\ref\tgh", 100, 100, 10), ("ab", "cd", "ef gh"))
+        self.assertEqual(_wrap("ab\ncdefghij", 20, 80, 10), ("ab", "cdefghij"))
+        self.assertEqual(_wrap("\n\ncdefghij", 20, 80, 10), ("cdef", "ghij"))
+        self.assertTrue(all(ord(char) >= 32 for line in _wrap("a\tb\nc", 80, 80, 10) for char in line))
+        params = _params()
+        width = params.page_width - params.margin_left - params.margin_right
+        first = max(params.font_size, width - params.letter_width - 8)
+        step = params.font_size / 2
+        count = int(first // step) + 1
+        self.assertLess(count * step, width)
+        second = "w" * count
+        placed = flow_place((_choice(1, "ab\tcd\n" + second),), params)
+        self.assertNotIsInstance(placed, ItemTooLong)
+        assert not isinstance(placed, ItemTooLong)
+        texts = [line.text for line in placed[0].lines]
+        self.assertEqual(texts[0], "1. ab cd")
+        self.assertEqual(texts[1], second)
+        self.assertEqual(texts[2], "A. 2")
+        self.assertTrue(all(ord(char) >= 32 for line in texts for char in line))
+
+    def test_slot_wrap_splits_breaks_and_drops_controls(self) -> None:
+        self.assertEqual(slot_wrap(""), ("",))
+        self.assertEqual(slot_wrap("\n\r\n"), ("",))
+        self.assertEqual(slot_wrap("a\r\nb\tc"), ("a", "b c"))
+        lines = slot_lines(1, "one\r\ntwo\tend", ("A. 1\nB. 2",))
+        self.assertEqual(lines, ("1. one", "two end", "A. 1", "B. 2"))
+        self.assertTrue(all(ord(char) >= 32 for line in lines for char in line))
 
     def test_header_prints_the_external_id_and_the_page_label(self) -> None:
         text = header_text("synth-0001", 2, 3)
