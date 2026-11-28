@@ -54,11 +54,13 @@ M-14：`GET /api/admin/errors` 只读近 24 小时的 ERROR。`K12_ERROR_WEBHOOK
 
 2026-11-27：V020 给 `intake_page` 增加可空的 `archived_at`，无外键、不回填。全卷确认满 N 天，或被替换满 N 天后，先加密归档并核对 SHA-256，再删除在线照片字节。已归档后读取照片或发起识别返回 410 `intake_archived`。批改页和对账报表仍可读。见 ADR 0041 修订（R10）。
 
+2026-11-28：R11 不新增迁移，不改接口。`scripts/drill_trial_pack.py` 从空库跑通引导改密、三目录导书、出卷、mock 识别、批改、错题再练、加密联合备份、恢复到另一空库，以及到期照片加密归档。证据在 `docs/evidence/trial-pack-drill-2026-11-28.md`。交给机构前的清单和录屏分镜在 `docs/ops/trial-handoff-checklist.md` 与 `docs/ops/trial-recording-script.md`。真实样张实测和操作视频仍由人完成。
+
 契约测试指：每个端口一套测试，假适配器和真实适配器都跑。草稿形状的 schema 测试算 core 测试，不算这一列。identity 与审计的一次本机走查写在 `docs/evidence/identity-audit-2026-11-18.md`。catalog 与 practice 的一次本机走查写在 `docs/evidence/catalog-practice-pg-2026-11-18.md`。这两页都不是试用，也不是 AC-01。`test_http_loop` 是本机合成 HTTP，不是端到端。
 
 改了某一格，同一个 PR 里改本表，并勾选 PR 模板里的对应项。
 
-当前结论：V004–V020 已在仓库。新导入的题把文字和公式分开存。出卷按公式的真实高度排版，不印 LaTeX 源码。`formula_unsupported`、`formula_unstructured`、`formula_too_wide` 都是 409。`figure_geometry` 与 `answer_decision` 仍未建。issue #66 已于 2026-11-22 由 PR #68 关闭。资产字节上传仍未做。HTTP 出卷可以一次放入多道已核准的题，新卷按题型高度排版。收卷照片已接（V014）。识别建议已接（V015，`ai` 切片）。老师结论已接（V017，`teacher_decision`）。批改页已接。按题裁切仍未做。V018 的 `book` 与 `book_lesson` 已接。新导入写入 `approvals.book_id` 与 `pdf_page`，不回填。老师页按课时选题。见 ADR 0048。管理后台 `/admin` 可以拖入或选择书文件夹，先预演再确认写入，接口和错误码都没有变。识别率对账报表已接，真实样张实测仍未做。V019 的 `papers.source_paper_id` 已接，可空、不回填、无外键。批改确认后可以再出一份练习。见 ADR 0049。试用容器、nginx HTTPS 和联合加密备份已接。见 ADR 0050。V020 的 `intake_page.archived_at` 已接，可空、不回填、无外键。全卷确认满 N 天，或被替换满 N 天后，先加密归档并核对 SHA-256，再删除在线照片字节。已归档后读取照片或发起识别返回 410 `intake_archived`。批改页和对账报表仍可读。见 ADR 0041 修订（R10）。`#28` 与 `#35` 仍打开。
+当前结论：V004–V020 已在仓库。新导入的题把文字和公式分开存。出卷按公式的真实高度排版，不印 LaTeX 源码。`formula_unsupported`、`formula_unstructured`、`formula_too_wide` 都是 409。`figure_geometry` 与 `answer_decision` 仍未建。issue #66 已于 2026-11-22 由 PR #68 关闭。资产字节上传仍未做。HTTP 出卷可以一次放入多道已核准的题，新卷按题型高度排版。收卷照片已接（V014）。识别建议已接（V015，`ai` 切片）。老师结论已接（V017，`teacher_decision`）。批改页已接。按题裁切仍未做。V018 的 `book` 与 `book_lesson` 已接。新导入写入 `approvals.book_id` 与 `pdf_page`，不回填。老师页按课时选题。见 ADR 0048。管理后台 `/admin` 可以拖入或选择书文件夹，先预演再确认写入，接口和错误码都没有变。识别率对账报表已接，真实样张实测仍未做。V019 的 `papers.source_paper_id` 已接，可空、不回填、无外键。批改确认后可以再出一份练习。见 ADR 0049。试用容器、nginx HTTPS 和联合加密备份已接。见 ADR 0050。V020 的 `intake_page.archived_at` 已接，可空、不回填、无外键。全卷确认满 N 天，或被替换满 N 天后，先加密归档并核对 SHA-256，再删除在线照片字节。已归档后读取照片或发起识别返回 410 `intake_archived`。批改页和对账报表仍可读。见 ADR 0041 修订（R10）。`scripts/drill_trial_pack.py` 在临时空库上把上述路径连成一次演练，并在恢复后的库上核对加密归档。见 `docs/evidence/trial-pack-drill-2026-11-28.md`。`#28` 与 `#35` 仍打开。
 
 | 切片 | 端口 | 内存适配器 | 持久适配器 | core 测试 | 契约测试 | 端到端 | 文档 |
 | --- | --- | --- | --- | --- | --- | --- | --- |

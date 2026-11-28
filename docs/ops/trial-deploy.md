@@ -202,3 +202,15 @@ Remove-Item Env:K12_BACKUP_PASSPHRASE
 ```
 
 这一步不关闭 `#35`。归档口令由谁保管、包保留多久，仍没有定标。
+
+## 交给机构之前
+
+勾选清单：[trial-handoff-checklist.md](trial-handoff-checklist.md)。操作录屏分镜：[trial-recording-script.md](trial-recording-script.md)。片子由人来录。
+
+空库全链路演练（不写本机库 `k12`）：
+
+```text
+python scripts/drill_trial_pack.py
+```
+
+调用方的 `K12_PG_DSN` 只用来读取连接参数。脚本自己建、自己删 `k12_r11_src` 和 `k12_r11_dst`。一次实测记录在 `docs/evidence/trial-pack-drill-2026-11-28.md`。
