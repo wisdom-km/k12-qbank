@@ -39,6 +39,17 @@ def start_run(
     paper = getattr(stores, "practice").get_paper(page.paper_id)
     if paper is None or not _allows(actor_role, actor_id, paper):
         return _refuse(logger, request_id, started, "permission_denied")
+    if page.archived_at:
+        emit(
+            logger,
+            level="WARN",
+            event="use_case_refused",
+            request_id=request_id,
+            module=_MODULE,
+            outcome="intake_archived",
+            started=started,
+        )
+        return Err("intake_archived", "收卷照片已到期归档")
     limit = _daily_limit()
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     if runs.count_started_on(day) >= limit:

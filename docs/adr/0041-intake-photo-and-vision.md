@@ -76,3 +76,18 @@ DEC-03 原样记录：同意日期 2026.11.01。签署方 番茄教育+校长。
 ## 修订（2026-11-25，R7）
 
 「AI 建议在老师确认前不是结论」的落法见 ADR 0047。老师按题采用、改判或手评，写入 `teacher_decision`。只有采用或改判之后，建议才成为正式结论。手评不引用建议。照片被替换后，旧照片上的建议不能采用。production 下 `POST /api/practice/confirmations` 返回 410。上文第 6 条的按题裁切仍未做。
+
+## 修订（2026-11-27，R10）
+
+上文第 9 条的落法如下。`K12_INTAKE_RETENTION_DAYS` 未设或不是正整数时按 30 天。截止时间是现在减去这 N 天。只处理 `archived_at` 仍为空、并且 `files.purpose` 为 `intake` 的收卷行。下面两条满足任一条即入选：
+
+- 被替换的旧照片：`superseded_at` 已写下，并且早于或等于截止时间。
+- 已批完的现行照片：`superseded_at` 为空；这张卷在 `practice_item` 里至少有一题；未作废的 `teacher_decision` 条数等于题数；最晚一条未作废结论的 `decided_at` 早于或等于截止时间。
+
+未批完的卷，即使照片上传已超过 N 天，也不入选。批完未满 N 天的不入选。`files.purpose` 为 `page` 的出卷 PDF 不入选，字节不删。
+
+正式归档先打包。默认用 `openssl enc -aes-256-cbc -pbkdf2 -salt` 加密，口令只来自 `K12_BACKUP_PASSPHRASE`，不进命令行，也不进日志。加密后立刻解密，按清单核对每个文件的大小和 SHA-256。核对全部通过，才在同一批 `intake_page.archived_at` 写下时间，并删除 `K12_FILE_DIR` 下对应的照片字节。任一步失败则不改这些行，也不删在线字节。`files` 元数据行保留。`papers`、`teacher_decision`、`ai_run`、`ai_suggestion` 不删。
+
+V020 给 `intake_page` 增加可空的 `archived_at`，无外键、不回填。已归档的照片再读，或再对其发起识别，返回 410 `intake_archived`。批改页和识别率对账仍读已保存的老师结论、历史建议和计数。
+
+命令是 `scripts/archive_intake.py`。日志事件 `intake_archived` 只记入选数、归档数、删除文件数和保留天数。

@@ -1,4 +1,8 @@
-"""Delete expired log files, sessions, and login attempts. Reads K12_* from the environment."""
+"""Delete expired log files, sessions, and login attempts. Reads K12_* from the environment.
+
+Intake photos are not deleted here. They need a passphrase and an archive
+directory, so that job is scripts/archive_intake.py.
+"""
 
 from __future__ import annotations
 

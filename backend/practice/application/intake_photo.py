@@ -206,6 +206,8 @@ def read_intake_image(
     paper = practice.get_paper(row.paper_id)  # type: ignore[attr-defined]
     if paper is None or not _allows(actor_role, actor_id, paper):
         return _refuse(logger, request_id, started, "permission_denied", "permission_denied")
+    if row.archived_at:
+        return _refuse(logger, request_id, started, "intake_archived", "收卷照片已到期归档")
     data = files.read(row.file_id)  # type: ignore[attr-defined]
     if data is None:
         return _refuse(logger, request_id, started, "file_missing", "file_missing")

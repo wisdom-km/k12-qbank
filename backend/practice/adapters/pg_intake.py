@@ -53,6 +53,38 @@ class PgIntake:
         row = _run(self._pool, lambda conn: conn.execute("SELECT count(*) FROM intake_page").fetchone())
         return int(row[0]) if row is not None else 0
 
+    def unarchived(self) -> tuple[IntakePage, ...]:
+        return _run(self._pool, lambda conn: _many_where(conn, "WHERE intake.archived_at IS NULL"))
+
+    def mark_archived(self, intake_ids: tuple[str, ...], archived_at: str) -> None:
+        if not intake_ids:
+            return
+
+        def work(conn: Any) -> None:
+            conn.execute(
+                """
+                UPDATE intake_page
+                SET archived_at = %s
+                WHERE intake_id = ANY(%s) AND archived_at IS NULL
+                """,
+                (archived_at, list(intake_ids)),
+            )
+
+        _run(self._pool, work)
+
+    def count_open_file(self, file_id: str) -> int:
+        row = _run(
+            self._pool,
+            lambda conn: conn.execute(
+                """
+                SELECT count(*) FROM intake_page
+                WHERE file_id = %s AND archived_at IS NULL
+                """,
+                (file_id,),
+            ).fetchone(),
+        )
+        return int(row[0]) if row is not None else 0
+
     def place(self, row: IntakePage, *, replace: bool) -> None:
         def work(conn: Any) -> None:
             _insert_file(conn, row)
@@ -114,7 +146,8 @@ def _insert_file(conn: Any, row: IntakePage) -> None:
 def _one(conn: Any, where: str, params: tuple[object, ...]) -> IntakePage | None:
     found = conn.execute(
         f"""
-        SELECT intake_id, paper_id, page_no, file_id, uploaded_by, uploaded_at, located_by, superseded_at
+        SELECT intake_id, paper_id, page_no, file_id, uploaded_by, uploaded_at,
+               located_by, superseded_at, archived_at
         FROM intake_page
         {where}
         """,
@@ -130,19 +163,23 @@ def _many(conn: Any, paper_id: str, *, current_only: bool) -> tuple[IntakePage, 
     where = "WHERE intake.paper_id = %s"
     if current_only:
         where += " AND intake.superseded_at IS NULL"
+    return _many_where(conn, where, (paper_id,))
+
+
+def _many_where(conn: Any, where: str, params: tuple[object, ...] = ()) -> tuple[IntakePage, ...]:
     rows = conn.execute(
         f"""
         SELECT intake.intake_id, intake.paper_id, intake.page_no, intake.file_id,
                intake.uploaded_by, intake.uploaded_at, intake.located_by, intake.superseded_at,
-               files.checksum
+               intake.archived_at, files.checksum
         FROM intake_page AS intake
         JOIN files ON files.file_id = intake.file_id
         {where}
         ORDER BY intake.page_no, intake.uploaded_at, intake.intake_id
         """,
-        (paper_id,),
+        params,
     ).fetchall()
-    return tuple(_row(row[:8], str(row[8])) for row in rows)
+    return tuple(_row(row[:9], str(row[9])) for row in rows)
 
 
 def _row(row: tuple[object, ...], checksum: str) -> IntakePage:
@@ -156,6 +193,7 @@ def _row(row: tuple[object, ...], checksum: str) -> IntakePage:
         uploaded_at=_stamp(row[5]),
         located_by=str(row[6]),
         superseded_at=None if row[7] is None else _stamp(row[7]),
+        archived_at=None if row[8] is None else _stamp(row[8]),
     )
 
 

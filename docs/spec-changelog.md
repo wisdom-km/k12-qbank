@@ -66,5 +66,6 @@
 | 2026-11-25 | 新增 `POST /api/practice/papers/{paper_id}/follow-up`。可选 `order_nos`、`review_version_id`。省略题号时只再出当前结论为 `incorrect`、`partial`、`blank` 的题。新错误码：`invalid_order_no` 409、`decision_required` 409、`no_retry_items` 409。原卷不存在是 `not_found` 404。不是出卷老师或授权已撤销是 `permission_denied` 403。停用仍是 `retired` 409。V019 给 `papers` 增加可空 `source_paper_id`，无外键、不回填。见 ADR 0049。 | 用户要求批改确认后给该学生再出一份巩固练习。不依据未采用的 AI 建议。不改原卷、快照、照片、建议和老师结论。不按知识点推荐新题。 |
 
 | 2026-11-25 | 试用部署包：`docker/Dockerfile`、`docker/compose.trial.yml`、`docker/nginx.conf`、`.env.trial.example`、`scripts/make_trial_cert.py`、`scripts/backup_trial.py`、`scripts/restore_trial.py`。没有新的 HTTP 路由，没有新的错误码，没有新迁移。见 ADR 0050。 | 用户要求单机试用可以容器化，并用 HTTPS 和联合加密备份迁到云主机之前先跑起来。`#28` 与 `#35` 仍打开。 |
+| 2026-11-27 | 读取已归档收卷照片 `GET /api/practice/intake/{intake_id}/image`，以及对其发起 `POST /api/practice/intake/{intake_id}/ai-runs`，返回 `intake_archived` 410。批改页和 `GET /api/admin/ai/accuracy` 没有新错误码。V020 给 `intake_page` 增加可空的 `archived_at`，无外键、不回填。见 ADR 0041 修订（R10）。 | 用户要求满 N 天先加密归档并核对 SHA-256，再删除在线照片字节。不删出卷 PDF，不删老师结论、识别建议和出卷记录。 |
 
 DEC-03 已有同意记录。DEC-01、02、04、05、06 仍待机构确认。

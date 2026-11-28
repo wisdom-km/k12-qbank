@@ -155,3 +155,50 @@ docker compose --env-file .env.trial -f docker/compose.trial.yml down
 ```
 
 不要加 `-v`。加了 `-v` 会删掉上面三份卷。
+
+## 9. 收卷照片到期归档（R10）
+
+全卷题目都已确认，并且最晚一条未作废结论已满 N 天，现行收卷照片才入选。被替换的旧照片在作废时间满 N 天后入选。N 来自 `K12_INTAKE_RETENTION_DAYS`，未设或不是正整数时是 30。未批完的卷不入选。出卷 PDF 不入选。老师结论、识别建议和出卷记录都不删。
+
+命令是 `scripts/archive_intake.py`。它不由 `scripts/retention_sweep.py` 调用，因为需要口令和归档目录。没有口令时退出码 2，不写归档，不删照片。库名是 `k12` 时同样拒绝。先加密，再解密核对每个文件的 SHA-256。核对通过才标记 `intake_page.archived_at` 并删除在线照片字节。核对失败则不改库、不删字节。
+
+已归档的照片再读，或再发起识别，返回 410 `intake_archived`。批改页和识别率对账仍可读。
+
+本机先看数量，不写文件。连接串不要指向库名 `k12`。`K12_FILE_DIR` 必须是已有的照片目录，不能是仓库根目录。
+
+```text
+$env:K12_PG_DSN = "postgresql://k12:<口令>@127.0.0.1:5432/k12_trial"
+$env:K12_FILE_DIR = "D:\k12-trial-files"
+$env:K12_INTAKE_RETENTION_DAYS = "30"
+python scripts/archive_intake.py --dry-run
+```
+
+正式归档。口令只放在这个窗口里，不写进 `.env.trial`，也不要贴到聊天里。成功时打印 `ARCHIVE PASS`。没有入选时也打印 `ARCHIVE PASS eligible=0 archived=0`，并且不生成空包。
+
+```text
+$env:K12_BACKUP_PASSPHRASE = "<自己设的一串口令>"
+python scripts/archive_intake.py --out-dir var/archives
+Remove-Item Env:K12_BACKUP_PASSPHRASE
+```
+
+事后只核对那一个包：
+
+```text
+$env:K12_BACKUP_PASSPHRASE = "<同一串口令>"
+python scripts/archive_intake.py --verify-archive var/archives/<文件名>.tar.gz.enc
+Remove-Item Env:K12_BACKUP_PASSPHRASE
+```
+
+成功时打印 `ARCHIVE VERIFIED`。口令错或校验失败时不改库、不删照片。
+
+试用容器里，照片目录已经是 `/data/files`，数据库名是 `k12_trial`。容器用户不能写 `/app/var/archives`，所以输出改到日志卷 `/data/logs/archives`。先在窗口里设口令，再传进容器。`-e K12_BACKUP_PASSPHRASE` 只转发这个变量，不会把它写进编排文件。
+
+```text
+$env:K12_BACKUP_PASSPHRASE = "<自己设的一串口令>"
+docker compose --env-file .env.trial -f docker/compose.trial.yml exec -T -e K12_BACKUP_PASSPHRASE app python scripts/archive_intake.py --dry-run
+docker compose --env-file .env.trial -f docker/compose.trial.yml exec -T -e K12_BACKUP_PASSPHRASE app python scripts/archive_intake.py --out-dir /data/logs/archives
+docker compose --env-file .env.trial -f docker/compose.trial.yml exec -T -e K12_BACKUP_PASSPHRASE app python scripts/archive_intake.py --verify-archive /data/logs/archives/<文件名>.tar.gz.enc
+Remove-Item Env:K12_BACKUP_PASSPHRASE
+```
+
+这一步不关闭 `#35`。归档口令由谁保管、包保留多久，仍没有定标。

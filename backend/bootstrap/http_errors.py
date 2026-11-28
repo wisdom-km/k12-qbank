@@ -46,6 +46,7 @@ _STATUS = {
     "invalid_verdict": 409,
     "note_too_long": 409,
     "confirmations_retired": 410,
+    "intake_archived": 410,
 }
 _GENERIC = {"invalid_credentials", "unauthenticated"}
 
