@@ -238,13 +238,18 @@ def split_draw(
     return tuple(runs), tuple(rules)
 
 
+def _plain(text: str) -> str:
+    """Turn CR and CRLF into LF, and a tab into one space, before wrapping."""
+    return text.replace("\r\n", "\n").replace("\r", "\n").replace("\t", " ")
+
+
 def _pieces(prefix: str, parts: tuple[tuple[str, str], ...]) -> tuple[object, ...]:
-    pieces: list[object] = [("t", char) for char in prefix]
+    pieces: list[object] = [("t", char) for char in _plain(prefix)]
     for kind, value in parts:
         if kind == "math":
             pieces.append(("m", value))
         else:
-            pieces.extend(("t", char) for char in value)
+            pieces.extend(("t", char) for char in _plain(value))
     return tuple(pieces)
 
 
@@ -273,6 +278,13 @@ def _wrap_pieces(
     for kind, value in pieces:
         if kind == "t":
             char = str(value)
+            if char == "\n":
+                # A repeated break adds no blank row. Later rows use the full width.
+                if glyphs or rules:
+                    flush()
+                else:
+                    limit = width
+                continue
             advance = size if ord(char) > 0x2E80 else size / 2
             if glyphs and used + advance > limit:
                 flush()
@@ -322,7 +334,7 @@ class _Cur:
         self.i = 0
 
     def _skip(self) -> None:
-        while self.i < len(self.text) and self.text[self.i] == " ":
+        while self.i < len(self.text) and self.text[self.i] in " \t\r\n":
             self.i += 1
 
     def peek(self) -> str:

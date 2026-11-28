@@ -436,22 +436,27 @@ def _content(params: LayoutParams) -> _Area:
 
 
 def _wrap(text: str, first_width: float, width: float, font_size: float) -> tuple[str, ...]:
-    if text == "":
+    cleaned = text.replace("\r\n", "\n").replace("\r", "\n").replace("\t", " ")
+    if cleaned.strip("\n") == "":
         return ("",)
     lines: list[str] = []
-    current: list[str] = []
-    used = 0.0
     limit = first_width
-    for char in text:
-        char_width = font_size if ord(char) > 0x2E80 else font_size / 2
-        if current and used + char_width > limit:
+    for paragraph in cleaned.split("\n"):
+        if paragraph == "":
+            continue
+        current: list[str] = []
+        used = 0.0
+        for char in paragraph:
+            char_width = font_size if ord(char) > 0x2E80 else font_size / 2
+            if current and used + char_width > limit:
+                lines.append("".join(current))
+                current = [char]
+                used = char_width
+                limit = width
+            else:
+                current.append(char)
+                used += char_width
+        if current:
             lines.append("".join(current))
-            current = [char]
-            used = char_width
             limit = width
-        else:
-            current.append(char)
-            used += char_width
-    if current:
-        lines.append("".join(current))
     return tuple(lines) or ("",)

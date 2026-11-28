@@ -211,20 +211,24 @@ def _formula_lines(item: PracticeItem, first_width: float, width: float) -> tupl
 
 
 def _wrap(text: str) -> tuple[str, ...]:
-    if text == "":
+    cleaned = text.replace("\r\n", "\n").replace("\r", "\n").replace("\t", " ")
+    if cleaned.strip("\n") == "":
         return ("",)
     lines: list[str] = []
-    current: list[str] = []
-    used = 0
-    for char in text:
-        width = 12 if ord(char) > 0x2E80 else 6
-        if current and used + width > TEXT_WIDTH:
+    for paragraph in cleaned.split("\n"):
+        if paragraph == "":
+            continue
+        current: list[str] = []
+        used = 0
+        for char in paragraph:
+            width = 12 if ord(char) > 0x2E80 else 6
+            if current and used + width > TEXT_WIDTH:
+                lines.append("".join(current))
+                current = [char]
+                used = width
+            else:
+                current.append(char)
+                used += width
+        if current:
             lines.append("".join(current))
-            current = [char]
-            used = width
-        else:
-            current.append(char)
-            used += width
-    if current:
-        lines.append("".join(current))
     return tuple(lines) or ("",)

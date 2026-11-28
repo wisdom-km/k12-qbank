@@ -11,11 +11,12 @@ from backend.catalog.application.publish_version import revise_text
 from backend.catalog.domain.snapshot import ApprovalSnapshot
 from backend.kernel.log_event import LogEvent
 from backend.kernel.result import Err, Ok
+from backend.practice.adapters.pdf_font import load_system_face
 from backend.practice.adapters.pdf_page import StdPdf
 from backend.practice.application.compose_multi import compose_multi_item_paper
 from backend.practice.application.issue_flow import place_flow
 from backend.practice.application.render_paper import page_faces
-from backend.practice.domain.flow_layout import FlowQuestion, FormulaStop, ItemTooLong, flow_place
+from backend.practice.domain.flow_layout import FlowQuestion, FormulaStop, ItemTooLong, dump_layout, flow_place
 from backend.practice.domain.formula import (
     FormulaFault,
     layout_math,
@@ -24,7 +25,7 @@ from backend.practice.domain.formula import (
     plain_has_command,
     unsupported_commands,
 )
-from backend.practice.domain.item import PracticeItem
+from backend.practice.domain.item import ItemBox, PracticeItem
 from backend.practice.domain.layout_params import load_layout
 from backend.practice.domain.page_face import PaperPage
 from backend.practice.domain.page_layout import pack_items
@@ -315,6 +316,155 @@ class FormulaLayoutTest(unittest.TestCase):
         self.assertIn("(2)", text)
         self.assertIn(" l S", text)
 
+    def test_breaks_and_tabs_split_rows_and_leave_no_control_glyph(self) -> None:
+        parts = (("text", "line-a\nline-b\r\nline-c\rline-d\tline-e"),)
+        rows = layout_question("", parts, (), size=10, first_width=400, width=400)
+        self.assertEqual(_row_text(rows), ["line-a", "line-b", "line-c", "line-d line-e"])
+        _assert_no_controls(self, rows)
+
+    def test_repeated_breaks_add_no_blank_row_and_the_next_row_uses_the_full_width(self) -> None:
+        leading = layout_question("", (("text", "\n\nab\n\n"),), (), size=10, first_width=15, width=80)
+        self.assertEqual(_row_text(leading), ["ab"])
+        _assert_no_controls(self, leading)
+        wrapped = layout_question("", (("text", "ab\ncdefghij"),), (), size=10, first_width=15, width=80)
+        self.assertEqual(_row_text(wrapped), ["ab", "cdefghij"])
+        _assert_no_controls(self, wrapped)
+        opened = layout_question("", (("text", "\ncdefghij"),), (), size=10, first_width=15, width=80)
+        self.assertEqual(_row_text(opened), ["cdefghij"])
+
+    def test_breaks_inside_a_formula_are_skipped_and_draw_no_control_glyph(self) -> None:
+        plain = layout_math(r"\frac{1}{2}+\frac{1}{3}", _SIZE)
+        broken = layout_math("\\frac{1}{2}\n+\t\\frac{1}{3}", _SIZE)
+        windows = layout_math("\\frac{1}{2}\r\n+\t\\frac{1}{3}", _SIZE)
+        self.assertEqual(broken, plain)
+        self.assertEqual(windows, plain)
+        self.assertTrue(all(ord(char) >= 32 for glyph in broken.glyphs for char in glyph.text))
+
+    def test_a_multiline_stem_renders_a_pdf(self) -> None:
+        params = load_layout()
+        parts = (
+            ("text", "synth-a\r\nsynth-b\tmore"),
+            ("math", r"\frac{1}{2}"),
+            ("text", "\nend"),
+        )
+        question = FlowQuestion(
+            1,
+            "qv-synth-ml",
+            "synth-a\r\nsynth-b\tmore",
+            (),
+            "medium",
+            1,
+            stem_parts=parts,
+            option_parts=(),
+        )
+        placed = flow_place((question,), params)
+        self.assertNotIsInstance(placed, ItemTooLong)
+        self.assertNotIsInstance(placed, FormulaStop)
+        assert not isinstance(placed, ItemTooLong)
+        assert not isinstance(placed, FormulaStop)
+        drawn = placed[0]
+        assert drawn.draw is not None
+        self.assertTrue(all(ord(char) >= 32 for op in drawn.draw if op[0] == "g" for char in str(op[1])))
+        frozen = freeze_paper(
+            paper_id="paper-synth-ml",
+            teacher_id="teacher-synth",
+            student_id="student-synth",
+            subject_id="math",
+            question_version_id="qv-synth-ml",
+            answer_version_id="av-synth-ml",
+            asset_ids=(),
+            layout_template_id="",
+            review_version_id="rev-synth",
+            item_order=("sq-1",),
+            slots_per_page=1,
+            layout_kind="flow",
+            layout_params=dump_layout(params),
+            printed_external_id="synth-0001",
+        )
+        assert not isinstance(frozen, Err)
+        item = PracticeItem(
+            paper_id=frozen.paper_id,
+            order_no=1,
+            question_version_id="qv-synth-ml",
+            answer_version_id="av-synth-ml",
+            stem_text="synth-a synth-b more",
+            answer_text="synth-hidden",
+            page_no=drawn.page_no,
+            placed_lines=(),
+            boxes=tuple(
+                ItemBox(box.box_no, box.page_no, box.x, box.y, box.w, box.h, box.kind) for box in drawn.boxes
+            ),
+            stem_parts=parts,
+            option_parts=(),
+            formula_draw=drawn.draw,
+        )
+        faces = page_faces(frozen, (item,))
+        pdf = StdPdf().render_document(faces)
+        if isinstance(pdf, Err) and pdf.code == "pdf_font_missing":
+            latin = replace(
+                faces[0],
+                flow_lines=tuple(row for row in faces[0].flow_lines if not _row_needs_face(row)),
+            )
+            pdf = StdPdf().render_document((latin,))
+        self.assertIsInstance(pdf, bytes)
+        assert isinstance(pdf, bytes)
+        self.assertTrue(pdf.startswith(b"%PDF-"))
+        self.assertNotIsInstance(pdf, Err)
+
+    def test_a_chinese_multiline_stem_renders_when_a_face_is_installed(self) -> None:
+        if load_system_face() is None:
+            self.skipTest("no CJK face is installed")
+        params = load_layout()
+        parts = (("text", "synth\n\u7532\tb"), ("math", r"\frac{1}{2}"))
+        question = FlowQuestion(
+            1,
+            "qv-synth-cjk",
+            "synth",
+            (),
+            "medium",
+            1,
+            stem_parts=parts,
+            option_parts=(),
+        )
+        placed = flow_place((question,), params)
+        self.assertNotIsInstance(placed, FormulaStop)
+        assert not isinstance(placed, ItemTooLong)
+        assert not isinstance(placed, FormulaStop)
+        drawn = placed[0]
+        assert drawn.draw is not None
+        frozen = freeze_paper(
+            paper_id="paper-synth-cjk",
+            teacher_id="teacher-synth",
+            student_id="student-synth",
+            subject_id="math",
+            question_version_id="qv-synth-cjk",
+            answer_version_id="av-synth-cjk",
+            asset_ids=(),
+            layout_template_id="",
+            review_version_id="rev-synth",
+            item_order=("sq-1",),
+            slots_per_page=1,
+            layout_kind="flow",
+            layout_params=dump_layout(params),
+            printed_external_id="synth-0001",
+        )
+        assert not isinstance(frozen, Err)
+        item = PracticeItem(
+            paper_id=frozen.paper_id,
+            order_no=1,
+            question_version_id="qv-synth-cjk",
+            answer_version_id="av-synth-cjk",
+            stem_text="synth",
+            page_no=drawn.page_no,
+            formula_draw=drawn.draw,
+            stem_parts=parts,
+            option_parts=(),
+        )
+        pdf = StdPdf().render_document(page_faces(frozen, (item,)))
+        self.assertIsInstance(pdf, bytes)
+        assert isinstance(pdf, bytes)
+        self.assertTrue(pdf.startswith(b"%PDF-"))
+
     def test_revise_clears_parts_and_an_unchanged_stem_keeps_them(self) -> None:
         approvals = MemoryApprovals()
         current = _snapshot("qv-synth-rev", r"\frac{1}{2}", (("math", r"\frac{1}{2}"),), ())
@@ -333,6 +483,23 @@ class FormulaLayoutTest(unittest.TestCase):
 
 def _bars(rules: tuple[object, ...]) -> list[object]:
     return [rule for rule in rules if rule.y1 == rule.y2]  # type: ignore[attr-defined]
+
+
+def _row_text(rows: tuple[object, ...] | list[object]) -> list[str]:
+    return ["".join(glyph.text for glyph in row.glyphs) for row in rows]  # type: ignore[attr-defined]
+
+
+def _assert_no_controls(case: unittest.TestCase, rows: tuple[object, ...] | list[object]) -> None:
+    for row in rows:
+        for glyph in row.glyphs:  # type: ignore[attr-defined]
+            case.assertTrue(glyph.text)
+            case.assertTrue(all(ord(char) >= 32 for char in glyph.text))
+
+
+def _row_needs_face(row: tuple[object, ...]) -> bool:
+    if len(row) > 4 and row[4] == "cjk":
+        return True
+    return any("\u4e00" <= char <= "\u9fff" for char in str(row[0]))
 
 
 def _glyph(box: object, text: str) -> object:
